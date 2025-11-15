@@ -1,0 +1,76 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Markdown from '../components/Markdown.astro';
+import { cacheHeaders, randomInt } from '../utils';
+import PDFViewer from '../components/PDFViewer.tsx';
+
+export const prerender = false;
+
+const tags = ['/revalidation', 'cats-related', 'all-pets-related'];
+const headers = cacheHeaders(365, tags);
+
+Object.entries(headers).map(([k, v]) => {
+    Astro.response.headers.set(k, v);
+});
+
+const explainer = `
+This is a server-rendered page, last created at \`${new Date().toUTCString()}\` with a few extra response headers:
+
+~~~js
+${JSON.stringify(headers, null, 2)}
+~~~
+
+Meaning: **for browsers,** this is a non-cacheable page. At the **CDN level,** it *is* cacheable for up to a year (and Netlify also automatically busts the cache on new deployments, by default).
+
+But there's something more: the \`Cache-Tag\` header, in tandem with the [purge API](https://docs.netlify.com/platform/caching/#on-demand-invalidation), allows a developer to invalidate at will any
+pieces of content (pages, JSON responses, or whatnot) based on the tags associated with them. Tags are completely up to you to decide on, and allow for very powerful patterns.
+
+In real-world applications, you may want to use [stale-while-revalidate](https://docs.netlify.com/platform/caching/#stale-while-revalidate-directive) as well, so that end-users don't experience 
+a performance hit as pages are being rebuilt.
+
+Use the button below to invlidate a random tag out of this page's tags, then refresh the page.
+`;
+
+const exampleTag = tags[randomInt(0, tags.length - 1)];
+---
+
+<Layout title="Revalidation">
+   <h1 class="mb-10">Move The Line</h1>
+ 
+ 
+   <p>
+    <a href="/MTL-concert-truskell-2025-06-06.pdf" 
+    target="_blank">MTL-concert-truskell-2025-06-06.pdf</a>
+    </p>
+
+
+<!-- <iframe 
+  src="/MTL-concert-truskell-2025-06-06.pdf" 
+  width="100%" 
+  height="100%"
+  title="truskell-2025-06-06" 
+/> -->
+
+  <!-- <PDFViewer client:load url="/MTL-concert-truskell-2025-06-06.pdf" /> -->
+
+<script src="https://unpkg.com/@strudel/embed@latest"></script>
+<strudel-repl>
+  <!--
+$: note("<[c2 c3]*4 [bb1 bb2]*4 [f2 f3]*4 [eb2 eb3]*4>")
+.sound("gm_synth_bass_1").lpf(800)
+
+$: n(`<
+[~ 0] 2 [0 2] [~ 2]
+[~ 0] 1 [0 1] [~ 1]
+[~ 0] 3 [0 3] [~ 3]
+[~ 0] 2 [0 2] [~ 2]
+>*4`).scale("C4:minor")
+.sound("gm_synth_strings_1")
+
+$: sound("bd*4, [~ <sd cp>]*2, [~ hh]*4")
+.bank("RolandTR909")
+-->
+</strudel-repl>
+
+
+</Layout>
