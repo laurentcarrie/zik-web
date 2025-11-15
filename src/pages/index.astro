@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets';
+
 import { styled } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
@@ -7,20 +9,22 @@ import Grid from '@mui/material/Grid';
 import Layout from '../layouts/Layout.astro';
 import Markdown from '../components/Markdown.astro';
 
+const ImageMyGuitar = '/images/myguitar.jpg';
+const ImageMoveTheLine = '/images/Move-the-line-affiche.jpg';
+const ImageSunnyBd = '/images/sunny-bd.jpg';
+    
 const explainer = `
-blah blah blah
 `;
 
-
 const Item = styled(Paper)(({ theme }) => ({
-  backgroundColor: '#fff',
-  ...theme.typography.body2,
-  padding: theme.spacing(1),
-  textAlign: 'center',
-  color: (theme.vars ?? theme).palette.text.secondary,
-  ...theme.applyStyles('dark', {
-    backgroundColor: '#1A2027',
-  }),
+    backgroundColor: '#fff',
+    ...theme.typography.body2,
+    padding: theme.spacing(1),
+    textAlign: 'center',
+    color: (theme.vars ?? theme).palette.text.secondary,
+    ...theme.applyStyles('dark', {
+        backgroundColor: '#1A2027'
+    })
 }));
 ---
 
@@ -31,23 +35,42 @@ const Item = styled(Paper)(({ theme }) => ({
         <a href="https://docs.netlify.com/frameworks/astro/" class="btn btn-lg sm:min-w-64">Read the Docs</a>
     </p> -->
 
-
     <Grid container spacing={2}>
-  <Grid size={4}>
-        <p>
-        <a href="https://docs.netlify.com/frameworks/astro/" class="btn btn-lg sm:min-w-64">Read the Docs</a>
-    </p>
-  </Grid>
-  <Grid size={4}>
-        <p>
-        <a href="/move-the-line" class="btn btn-lg sm:min-w-64">Read the Docs</a>
-    </p>
-  </Grid>
-  <Grid size={4}>
-        <p>
-        <a href="https://docs.netlify.com/frameworks/astro/" class="btn btn-lg sm:min-w-64">Read the Docs</a>
-    </p>
-  </Grid>
-
-</Grid>
+        <Grid size={4}>
+            <p>
+                <a href="https://docs.netlify.com/frameworks/astro/" class="btn btn-lg sm:min-w-64">Read the Docs</a>
+            </p>
+        </Grid>
+        <Grid size={4}>
+            <center>
+                <figure>
+                    <!-- <Image src={ImageMoveTheLine} alt="Move The Line" class="border-2 border-white rounded-lg" /> -->
+                    <Image src={ImageMoveTheLine} alt="Move The Line" class="border-red rounded-lg" height="300" width="300" />
+                    <caption>Move The Line</caption>
+                </figure>
+                <ul>
+                    <li><a href="/move-the-line/songbook" class="btn btn-lg sm:min-w-64">MTL song book</a></li>
+                    <li><a href="/move-the-line/strudel" class="btn btn-lg sm:min-w-64">strudel</a></li>
+                </ul>
+            </center>
+        </Grid>      
+         <Grid size={4}>
+            <center>
+                <figure>
+                    <!-- <Image src={ImageMoveTheLine} alt="Move The Line" class="border-2 border-white rounded-lg" /> -->
+                    <Image src={ImageSunnyBd} alt="Sunny Bd" class="border-red rounded-lg" height="300" width="300"/>
+                    <caption>Sunny Bd</caption>
+                </figure>
+                <ul>
+                    <li><a href="/sunny-bd/songbook" class="btn btn-lg sm:min-w-64">Sunny Bd song book</a></li>
+                    <li><a href="/sunny-bd/strudel" class="btn btn-lg sm:min-w-64">strudel</a></li>
+                </ul>
+            </center>
+        </Grid>
+        <Grid size={4}>
+            <p>
+                <a href="https://docs.netlify.com/frameworks/astro/" class="btn btn-lg sm:min-w-64">Read the Docs</a>
+            </p>
+        </Grid>
+    </Grid>
 </Layout>

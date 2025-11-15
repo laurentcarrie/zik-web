@@ -1,8 +1,6 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Markdown from '../components/Markdown.astro';
-import { cacheHeaders, randomInt } from '../utils';
-import PDFViewer from '../components/PDFViewer.tsx';
+import Layout from '../../layouts/Layout.astro';
+import { cacheHeaders, randomInt } from '../../utils';
 
 export const prerender = false;
 
@@ -52,25 +50,6 @@ const exampleTag = tags[randomInt(0, tags.length - 1)];
 /> -->
 
   <!-- <PDFViewer client:load url="/MTL-concert-truskell-2025-06-06.pdf" /> -->
-
-<script src="https://unpkg.com/@strudel/embed@latest"></script>
-<strudel-repl>
-  <!--
-$: note("<[c2 c3]*4 [bb1 bb2]*4 [f2 f3]*4 [eb2 eb3]*4>")
-.sound("gm_synth_bass_1").lpf(800)
-
-$: n(`<
-[~ 0] 2 [0 2] [~ 2]
-[~ 0] 1 [0 1] [~ 1]
-[~ 0] 3 [0 3] [~ 3]
-[~ 0] 2 [0 2] [~ 2]
->*4`).scale("C4:minor")
-.sound("gm_synth_strings_1")
-
-$: sound("bd*4, [~ <sd cp>]*2, [~ hh]*4")
-.bank("RolandTR909")
--->
-</strudel-repl>
 
 
 </Layout>
