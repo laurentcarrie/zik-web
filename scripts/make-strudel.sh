@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-set -x
+#set -x
 
 here=$(dirname $(realpath $0))
 root=$(dirname $here)

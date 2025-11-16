@@ -1,39 +1,42 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
+
+
 ---
 
-<Layout title="Strudel bbbrunes">
-    <h1 class="mb-10">strudel bbbrunes</h1>
-
-    <script>
-        class Strudel extends HTMLElement {
-            constructor() {
-                super();
-            }
-            connectedCallback() {
-                setTimeout(() => {
-                    const code = this.getAttribute('code') || (this.innerHTML + '').replace('<!--', '').replace('-->', '').trim();
-                    const iframe = document.createElement('iframe');
-                    const src = `https://strudel.cc/#${encodeURIComponent(btoa(code))}`;
-                    // const src = `http://localhost:3000/#${encodeURIComponent(btoa(code))}`;
-                    iframe.setAttribute('src', src);
-                    iframe.setAttribute('width', '100%');
-                    iframe.setAttribute('height', '600');
-                    this.appendChild(iframe);
-                });
-            }
-        }
-        customElements.define('strudel-repl', Strudel);
-    </script>
-    <!-- <script src="https://unpkg.com/@strudel/embed@latest"></script> -->
-    <h3>après avoir modifié le code, taper Ctrl-Enter pour valider</h3>
-    <strudel-repl>
-        <!--
+<Layout title="bbbrunes">
+   <h1 class="mb-10">bbbrunes </h1>
+ 
+ 
+<script>
+  class Strudel extends HTMLElement {
+  constructor() {
+    super();
+  }
+  connectedCallback() {
+    setTimeout(() => {
+      const code = this.getAttribute('code') || (this.innerHTML + '').replace('<!--', '').replace('-->', '').trim();
+      const iframe = document.createElement('iframe');
+      const src = `https://strudel.cc/#${encodeURIComponent(btoa(code))}`;
+      // const src = `http://localhost:3000/#${encodeURIComponent(btoa(code))}`;
+      iframe.setAttribute('src', src);
+      iframe.setAttribute('width', '100%');
+      iframe.setAttribute('height', '600');
+      this.appendChild(iframe);
+    });
+  }
+}
+customElements.define('strudel-repl', Strudel);
+</script>
+<!-- <script src="https://unpkg.com/@strudel/embed@latest"></script> -->
+ <h3>après avoir modifié le code, taper Ctrl-Enter pour valider</h3>
+<strudel-repl>
+  <!--
 
 await initHydra()
 
 // visuel graphique
-osc(10, 0.9, 300).color(0.9, 0.7, 0.8).diff(osc(45, 0.3, 100).color(0.9, 0.9, 0.9).rotate(0.18).pixelate(12).kaleid()).scrollX(10).colorama().luma().repeatX(4).repeatY(4).modulate(osc(1, -0.9, 300)).scale(2).out()
+// osc(10, 0.9, 300).color(0.9, 0.7, 0.8).diff(osc(45, 0.3, 100).color(0.9, 0.9, 0.9).rotate(0.18).pixelate(12).kaleid()).scrollX(10).colorama().luma().repeatX(4).repeatY(4).modulate(osc(1, -0.9, 300)).scale(2).out()
 
 // tempo
 setcpm(120/4)
@@ -44,6 +47,7 @@ d2 - d2 - - - - -
 d2 - d2 - - - - - 
 b1 - b1 - - - - - 
 b1 - b1 - - - - - 
+
 `
 
 const row_13 = `
@@ -57,17 +61,34 @@ g1 - g1 - - - - -
 a1 - a1 - - - - - 
 d2 - - - - - - - 
 - - - - - - - - 
- 
+` 
+
+const row_21 = `
+g1 - g1 - a1 - a1 - 
+d2 - d2 - d2 - d2 - 
+g1 - g1 - a1 - a1 - 
+b1 - b1 - b1 - b1 - 
 `
+
+const row_25 = `
+a1 - a1 - a1 - a1 - 
+a1 - a1 - a1 - a1 - 
+g1 - g1 - g1 - g1 - 
+g1 - g1 - g1 - g1 - 
+`
+
+
 
 
 
 
 const intro=row_1
 const couplet1=cat(row_1,row_1,row_13,row_17)
+const refrain1=cat(row_21,row_25)
+const chanson=cat(intro,couplet1,refrain1)
 
 const basse = new stack(
-note(couplet1.slow(4))
+note(chanson.slow(64))
 )
   .sound("gm_synth_bass_1")
   .gain(2)
@@ -76,10 +97,11 @@ note(couplet1.slow(4))
 
 $: basse
 
-// batterie
-$: sound("bd*4, [~ <sd cp>]*2, [~ hh]*4")
-.bank("RolandTR909").color("blue")
+drums: sound("bd - sd - bd - sd -").bank(
+'Linn9000'
+)
+-->
+</strudel-repl>
 
-        -->
-    </strudel-repl>
+
 </Layout>
