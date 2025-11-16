@@ -30,9 +30,15 @@ Use the button below to invlidate a random tag out of this page's tags, then ref
 `;
 
 const exampleTag = tags[randomInt(0, tags.length - 1)];
+
+
+import { neon } from '@netlify/neon';
+const sql = neon(); // automatically uses env NETLIFY_DATABASE_URL
+const [post] = await sql  `SELECT x,y FROM xxx ;` 
+
 ---
 
-<Layout title="Revalidation">
+<Layout title="Move The Line">
     <h1 class="mb-10">Move The Line</h1>
 
     <ul>
@@ -51,6 +57,9 @@ const exampleTag = tags[randomInt(0, tags.length - 1)];
             </p>
         </li>
     </ul>
+
+<h1> post : {post.x} </h1>
+
 
     <!-- <iframe 
   src="/MTL-concert-truskell-2025-06-06.pdf" 

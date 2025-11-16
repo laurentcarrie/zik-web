@@ -1,0 +1,57 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+
+
+---
+
+<Layout title="Strudel demo">
+   <h1 class="mb-10">strudel demo </h1>
+ 
+ 
+<script>
+  class Strudel extends HTMLElement {
+  constructor() {
+    super();
+  }
+  connectedCallback() {
+    setTimeout(() => {
+      const code = this.getAttribute('code') || (this.innerHTML + '').replace('<!--', '').replace('-->', '').trim();
+      const iframe = document.createElement('iframe');
+      const src = `https://strudel.cc/#${encodeURIComponent(btoa(code))}`;
+      // const src = `http://localhost:3000/#${encodeURIComponent(btoa(code))}`;
+      iframe.setAttribute('src', src);
+      iframe.setAttribute('width', '100%');
+      iframe.setAttribute('height', '600');
+      this.appendChild(iframe);
+    });
+  }
+}
+customElements.define('strudel-repl', Strudel);
+</script>
+<!-- <script src="https://unpkg.com/@strudel/embed@latest"></script> -->
+ <h3>après avoir modifié le code, taper Ctrl-Enter pour valider</h3>
+<strudel-repl>
+  <!--
+// ligne de basse
+$: note("<[c2 c3]*4 [bb1 bb2]*4 [f2 f3]*4 [eb2 eb3]*4>")
+  .sound("gm_synth_bass_1")
+  // .lpf(800)
+  .color("#ffaa88")
+  ._punchcard()
+// melodie
+$: n(`<
+[~ 0] 2 [0 2] [~ 2]
+[~ 0] 1 [0 1] [~ 1]
+[~ 0] 3 [0 3] [~ 3]
+[~ 0] 2 [0 2] [~ 2]
+>*4`).scale("C4:minor")
+.sound("gm_synth_strings_1").color("blue")._punchcard()
+
+// batterie
+$: sound("bd*4, [~ <sd cp>]*2, [~ hh]*4")
+.bank("RolandTR909").color("blue")
+-->
+</strudel-repl>
+
+
+</Layout>
