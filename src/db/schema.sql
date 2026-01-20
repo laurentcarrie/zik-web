@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS songs (
     title VARCHAR(255) NOT NULL,
     artist VARCHAR(255),
     tempo INTEGER,
-    duration_seconds INTEGER
+    duration_seconds INTEGER,
+    song_yml TEXT
 );
 
 -- Concerts/Events table

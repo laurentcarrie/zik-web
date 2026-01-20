@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ url }) => {
 export const POST: APIRoute = async ({ request }) => {
     try {
         const body = await request.json();
-        const { band_slug, title, artist, tempo, duration_seconds } = body;
+        const { band_slug, title, artist, tempo, duration_seconds, song_yml } = body;
 
         if (!band_slug || !title) {
             return new Response(JSON.stringify({
@@ -70,8 +70,8 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         const [song] = await sql`
-            INSERT INTO songs (band_id, title, artist, tempo, duration_seconds)
-            VALUES (${band.id}, ${title}, ${artist || null}, ${tempo || null}, ${duration_seconds || null})
+            INSERT INTO songs (band_id, title, artist, tempo, duration_seconds, song_yml)
+            VALUES (${band.id}, ${title}, ${artist || null}, ${tempo || null}, ${duration_seconds || null}, ${song_yml || null})
             RETURNING *
         `;
 

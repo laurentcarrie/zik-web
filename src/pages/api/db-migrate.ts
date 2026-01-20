@@ -8,9 +8,9 @@ export const GET: APIRoute = async () => {
     const results: string[] = [];
 
     try {
-        // Remove key column from songs table
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS key`;
-        results.push('✓ Dropped key column');
+        // Add song_yml column to songs table
+        await sql`ALTER TABLE songs ADD COLUMN IF NOT EXISTS song_yml TEXT`;
+        results.push('✓ Added song_yml column');
 
         return new Response(JSON.stringify({
             success: true,

@@ -21,6 +21,7 @@ export interface Song {
     artist: string | null;
     tempo: number | null;
     duration_seconds: number | null;
+    song_yml: string | null;
 }
 
 export interface Concert {
