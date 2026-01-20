@@ -1,7 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { sql } from '../../db';
-import { highlighterPromise } from '../../utils/highlighter';
 
 export const prerender = false;
 
@@ -17,15 +16,6 @@ const [song] = await sql`
 if (!song) {
     return Astro.redirect('/');
 }
-
-let highlightedYml = '';
-if (song.song_yml) {
-    const highlighter = await highlighterPromise;
-    highlightedYml = highlighter.codeToHtml(song.song_yml, {
-        lang: 'yaml',
-        theme: 'min-dark'
-    });
-}
 ---
 
 <Layout title={song.title}>
@@ -40,86 +30,65 @@ if (song.song_yml) {
 
     <div class="mb-4 flex gap-2">
         <button
-            id="editBtn"
-            class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-        >
-            Modifier
-        </button>
-        <button
             id="saveBtn"
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 hidden"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             disabled
         >
             Enregistrer
         </button>
-        <button
-            id="cancelBtn"
-            class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 hidden"
-        >
-            Annuler
-        </button>
         <span id="status" class="ml-4 text-gray-600 self-center"></span>
     </div>
 
-    <!-- View mode with syntax highlighting -->
-    <div id="viewMode" class="rounded overflow-x-auto text-sm" set:html={highlightedYml} />
-
-    <!-- Edit mode with textarea -->
-    <textarea
-        id="yamlEditor"
-        class="w-full h-[600px] font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded border-0 focus:ring-2 focus:ring-blue-500 hidden"
-        spellcheck="false"
-    >{song.song_yml || ''}</textarea>
+    <div id="editor" class="rounded overflow-hidden"></div>
+    <textarea id="yamlContent" class="hidden">{song.song_yml || ''}</textarea>
 </Layout>
 
-<script define:vars={{ songId: song.id }}>
-    const editor = document.getElementById('yamlEditor');
-    const viewMode = document.getElementById('viewMode');
-    const editBtn = document.getElementById('editBtn');
-    const saveBtn = document.getElementById('saveBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const status = document.getElementById('status');
+<script>
+    import { EditorView, basicSetup } from 'codemirror';
+    import { EditorState } from '@codemirror/state';
+    import { yaml } from '@codemirror/lang-yaml';
+    import { oneDark } from '@codemirror/theme-one-dark';
 
-    let originalContent = editor.value;
-    let isEditing = false;
+    const container = document.getElementById('editor');
+    const yamlContent = document.getElementById('yamlContent') as HTMLTextAreaElement;
+    const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+    const status = document.getElementById('status') as HTMLSpanElement;
+    const songId = parseInt(window.location.pathname.split('/').pop() || '0');
 
-    function enterEditMode() {
-        isEditing = true;
-        viewMode.classList.add('hidden');
-        editor.classList.remove('hidden');
-        editBtn.classList.add('hidden');
-        saveBtn.classList.remove('hidden');
-        cancelBtn.classList.remove('hidden');
-        editor.focus();
-    }
+    const originalContent = yamlContent.value;
+    let currentContent = originalContent;
 
-    function exitEditMode() {
-        isEditing = false;
-        viewMode.classList.remove('hidden');
-        editor.classList.add('hidden');
-        editBtn.classList.remove('hidden');
-        saveBtn.classList.add('hidden');
-        cancelBtn.classList.add('hidden');
-        saveBtn.disabled = true;
-        status.textContent = '';
-    }
-
-    editBtn.addEventListener('click', enterEditMode);
-
-    cancelBtn.addEventListener('click', () => {
-        editor.value = originalContent;
-        exitEditMode();
+    const updateListener = EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+            currentContent = update.state.doc.toString();
+            const hasChanges = currentContent !== originalContent;
+            saveBtn.disabled = !hasChanges;
+            if (hasChanges) {
+                status.textContent = 'Modifications non enregistrées';
+                status.className = 'ml-4 text-orange-600 self-center';
+            } else {
+                status.textContent = '';
+            }
+        }
     });
 
-    editor.addEventListener('input', () => {
-        const hasChanges = editor.value !== originalContent;
-        saveBtn.disabled = !hasChanges;
-        if (hasChanges) {
-            status.textContent = 'Modifications non enregistrées';
-            status.className = 'ml-4 text-orange-600 self-center';
-        } else {
-            status.textContent = '';
-        }
+    const state = EditorState.create({
+        doc: yamlContent.value,
+        extensions: [
+            basicSetup,
+            yaml(),
+            oneDark,
+            updateListener,
+            EditorView.theme({
+                '&': { height: '600px' },
+                '.cm-scroller': { overflow: 'auto' }
+            })
+        ]
+    });
+
+    const view = new EditorView({
+        state,
+        parent: container!
     });
 
     saveBtn.addEventListener('click', async () => {
@@ -133,24 +102,22 @@ if (song.song_yml) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: songId,
-                    song_yml: editor.value
+                    song_yml: currentContent
                 })
             });
 
             const result = await response.json();
 
             if (result.success) {
-                originalContent = editor.value;
                 status.textContent = 'Enregistré ✓';
                 status.className = 'ml-4 text-green-600 self-center';
-                // Reload page to update syntax highlighting
                 setTimeout(() => {
-                    window.location.reload();
-                }, 500);
+                    status.textContent = '';
+                }, 2000);
             } else {
                 throw new Error(result.error);
             }
-        } catch (error) {
+        } catch (error: any) {
             status.textContent = 'Erreur: ' + error.message;
             status.className = 'ml-4 text-red-600 self-center';
             saveBtn.disabled = false;
