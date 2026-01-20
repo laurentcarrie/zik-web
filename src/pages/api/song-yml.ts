@@ -46,7 +46,7 @@ export const GET: APIRoute = async ({ url }) => {
 
         return new Response(songs[0].song_yml || '', {
             status: 200,
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            headers: { 'Content-Type': 'text/yaml; charset=utf-8' }
         });
 
     } catch (error) {
