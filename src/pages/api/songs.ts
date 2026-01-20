@@ -90,6 +90,48 @@ export const POST: APIRoute = async ({ request }) => {
     }
 };
 
+// PUT /api/songs - Update a song
+export const PUT: APIRoute = async ({ request }) => {
+    try {
+        const body = await request.json();
+        const { id, title, artist, tempo, duration_seconds, song_yml } = body;
+
+        if (!id) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'id is required'
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const [song] = await sql`
+            UPDATE songs
+            SET title = COALESCE(${title}, title),
+                artist = COALESCE(${artist}, artist),
+                tempo = COALESCE(${tempo}, tempo),
+                duration_seconds = COALESCE(${duration_seconds}, duration_seconds),
+                song_yml = COALESCE(${song_yml}, song_yml)
+            WHERE id = ${id}
+            RETURNING *
+        `;
+
+        return new Response(JSON.stringify({ success: true, song }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+};
+
 // DELETE /api/songs?id=123 - Delete a song
 export const DELETE: APIRoute = async ({ url }) => {
     const id = url.searchParams.get('id');
