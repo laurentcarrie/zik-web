@@ -8,10 +8,10 @@ export const GET: APIRoute = async ({ url }) => {
     const title = url.searchParams.get('title');
     const author = url.searchParams.get('author');
 
-    if (!title) {
+    if (!title || !author) {
         return new Response(JSON.stringify({
             success: false,
-            error: 'title parameter is required'
+            error: 'title and author parameters are required'
         }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' }
@@ -19,20 +19,11 @@ export const GET: APIRoute = async ({ url }) => {
     }
 
     try {
-        let songs;
-        if (author) {
-            songs = await sql`
-                SELECT song_yml FROM songs
-                WHERE title = ${title} AND artist = ${author}
-                LIMIT 1
-            `;
-        } else {
-            songs = await sql`
-                SELECT song_yml FROM songs
-                WHERE title = ${title}
-                LIMIT 1
-            `;
-        }
+        const songs = await sql`
+            SELECT song_yml FROM songs
+            WHERE title = ${title} AND artist = ${author}
+            LIMIT 1
+        `;
 
         if (songs.length === 0) {
             return new Response(JSON.stringify({
