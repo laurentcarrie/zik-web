@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { sql } from '../../db';
+import { highlighterPromise } from '../../utils/highlighter';
 
 export const prerender = false;
 
@@ -16,6 +17,15 @@ const [song] = await sql`
 if (!song) {
     return Astro.redirect('/');
 }
+
+let highlightedYml = '';
+if (song.song_yml) {
+    const highlighter = await highlighterPromise;
+    highlightedYml = highlighter.codeToHtml(song.song_yml, {
+        lang: 'yaml',
+        theme: 'min-dark'
+    });
+}
 ---
 
 <Layout title={song.title}>
@@ -28,37 +38,85 @@ if (!song) {
     <h1 class="text-2xl font-bold mb-2">{song.title}</h1>
     <p class="text-gray-600 mb-4">{song.artist} • {song.tempo} bpm</p>
 
-    <div class="mb-4">
+    <div class="mb-4 flex gap-2">
+        <button
+            id="editBtn"
+            class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+        >
+            Modifier
+        </button>
         <button
             id="saveBtn"
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 hidden"
             disabled
         >
             Enregistrer
         </button>
-        <span id="status" class="ml-4 text-gray-600"></span>
+        <button
+            id="cancelBtn"
+            class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 hidden"
+        >
+            Annuler
+        </button>
+        <span id="status" class="ml-4 text-gray-600 self-center"></span>
     </div>
 
+    <!-- View mode with syntax highlighting -->
+    <div id="viewMode" class="rounded overflow-x-auto text-sm" set:html={highlightedYml} />
+
+    <!-- Edit mode with textarea -->
     <textarea
         id="yamlEditor"
-        class="w-full h-[600px] font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded border-0 focus:ring-2 focus:ring-blue-500"
+        class="w-full h-[600px] font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded border-0 focus:ring-2 focus:ring-blue-500 hidden"
         spellcheck="false"
     >{song.song_yml || ''}</textarea>
 </Layout>
 
 <script define:vars={{ songId: song.id }}>
     const editor = document.getElementById('yamlEditor');
+    const viewMode = document.getElementById('viewMode');
+    const editBtn = document.getElementById('editBtn');
     const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
     const status = document.getElementById('status');
 
     let originalContent = editor.value;
+    let isEditing = false;
+
+    function enterEditMode() {
+        isEditing = true;
+        viewMode.classList.add('hidden');
+        editor.classList.remove('hidden');
+        editBtn.classList.add('hidden');
+        saveBtn.classList.remove('hidden');
+        cancelBtn.classList.remove('hidden');
+        editor.focus();
+    }
+
+    function exitEditMode() {
+        isEditing = false;
+        viewMode.classList.remove('hidden');
+        editor.classList.add('hidden');
+        editBtn.classList.remove('hidden');
+        saveBtn.classList.add('hidden');
+        cancelBtn.classList.add('hidden');
+        saveBtn.disabled = true;
+        status.textContent = '';
+    }
+
+    editBtn.addEventListener('click', enterEditMode);
+
+    cancelBtn.addEventListener('click', () => {
+        editor.value = originalContent;
+        exitEditMode();
+    });
 
     editor.addEventListener('input', () => {
         const hasChanges = editor.value !== originalContent;
         saveBtn.disabled = !hasChanges;
         if (hasChanges) {
             status.textContent = 'Modifications non enregistrées';
-            status.className = 'ml-4 text-orange-600';
+            status.className = 'ml-4 text-orange-600 self-center';
         } else {
             status.textContent = '';
         }
@@ -67,7 +125,7 @@ if (!song) {
     saveBtn.addEventListener('click', async () => {
         saveBtn.disabled = true;
         status.textContent = 'Enregistrement...';
-        status.className = 'ml-4 text-gray-600';
+        status.className = 'ml-4 text-gray-600 self-center';
 
         try {
             const response = await fetch('/api/songs', {
@@ -84,16 +142,17 @@ if (!song) {
             if (result.success) {
                 originalContent = editor.value;
                 status.textContent = 'Enregistré ✓';
-                status.className = 'ml-4 text-green-600';
+                status.className = 'ml-4 text-green-600 self-center';
+                // Reload page to update syntax highlighting
                 setTimeout(() => {
-                    status.textContent = '';
-                }, 2000);
+                    window.location.reload();
+                }, 500);
             } else {
                 throw new Error(result.error);
             }
         } catch (error) {
             status.textContent = 'Erreur: ' + error.message;
-            status.className = 'ml-4 text-red-600';
+            status.className = 'ml-4 text-red-600 self-center';
             saveBtn.disabled = false;
         }
     });
