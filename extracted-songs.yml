@@ -1,0 +1,149 @@
+songs:
+  - title: Black Velvet
+    author: Alannah Myles
+    tempo: 91
+    source: /Users/laurent/work/legendary-memory/data/songs/alannah_myles/black_velvet/song.yml
+  - title: you know I'm no good
+    author: Amy Winehouse
+    tempo: 103
+    source: /Users/laurent/work/legendary-memory/data/songs/amy_winehouse/you_know_i_m_no_good/song.yml
+  - title: Eteins La Lumière
+    author: Axel Bauer
+    tempo: 146
+    source: /Users/laurent/work/legendary-memory/data/songs/axel_bauer/eteins_la_lumiere/song.yml
+  - title: La Nuit Je Mens
+    author: Bashung
+    tempo: 147
+    source: /Users/laurent/work/legendary-memory/data/songs/bashung/la_nuit_je_mens/song.yml
+  - title: Coups Et Blessures
+    author: BB Brunes
+    tempo: 120
+    source: /Users/laurent/work/legendary-memory/data/songs/bb_brunes/coups_et_blessures/song.yml
+  - title: Lonely Boy
+    author: Black Keys
+    tempo: 86
+    source: /Users/laurent/work/legendary-memory/data/songs/black_keys/lonely_boy/song.yml
+  - title: Modern Love
+    author: David Bowie
+    tempo: 91
+    source: /Users/laurent/work/legendary-memory/data/songs/bowie/modern_love/song.yml
+  - title: Quand T'Es Dans Le Désert
+    author: Capdevielle
+    tempo: 155
+    source: /Users/laurent/work/legendary-memory/data/songs/capdevielle/quand_t_es_dans_le_desert/song.yml
+  - title: Bohemian Like You
+    author: Dandy Warhols
+    tempo: 132
+    source: /Users/laurent/work/legendary-memory/data/songs/dandy_warhols/bohemian_like_you/song.yml
+  - title: Enjoy The Silence
+    author: Depeche Mode
+    tempo: 113
+    source: /Users/laurent/work/legendary-memory/data/songs/depeche_mode/enjoy_the_silence/song.yml
+  - title: Song For Jedi
+    author: Dionysos
+    tempo: 116
+    source: /Users/laurent/work/legendary-memory/data/songs/dionysos/song_for_jedi/song.yml
+  - title: Je N'Veux Pas Rester Sage
+    author: Dolly
+    tempo: 98
+    source: /Users/laurent/work/legendary-memory/data/songs/dolly/je_n_veux_pas_rester_sage/song.yml
+  - title: American Boy
+    author: Estelle / K. West / Cocoon
+    tempo: 118
+    source: /Users/laurent/work/legendary-memory/data/songs/estelle/american_boy/song.yml
+  - title: Sweet Dreams (Are Made of This)
+    author: Eurythmics
+    tempo: 80
+    source: /Users/laurent/work/legendary-memory/data/songs/eurythmics/sweet_dreams/song.yml
+  - title: Un Monde Nouveau
+    author: Feu Chatterton
+    tempo: 107
+    source: /Users/laurent/work/legendary-memory/data/songs/feu_chatterton/un_monde_nouveau/song.yml
+  - title: La Sentinelle
+    author: Luke
+    tempo: 94
+    source: /Users/laurent/work/legendary-memory/data/songs/luke/la_sentinelle/song.yml
+  - title: Ca me vexe
+    author: Mademoiselle K
+    tempo: 140
+    source: /Users/laurent/work/legendary-memory/data/songs/mademoiselle_k/ca_me_vexe/song.yml
+  - title: Misery
+    author: Maroon 5
+    tempo: 103
+    source: /Users/laurent/work/legendary-memory/data/songs/maroon5/misery/song.yml
+  - title: This Love
+    author: Maroon 5
+    tempo: 95
+    source: /Users/laurent/work/legendary-memory/data/songs/maroon5/this_love/song.yml
+  - title: Au Conditionnel
+    author: Matmatah
+    tempo: 94
+    source: /Users/laurent/work/legendary-memory/data/songs/matmatah/au_conditionnel/song.yml
+  - title: Can't Take My Eyes Off You
+    author: Muse
+    tempo: 127
+    source: /Users/laurent/work/legendary-memory/data/songs/muse/can_t_take_my_eyes_off_you/song.yml
+  - title: Torn
+    author: Natalie Imbroglia
+    tempo: 96
+    source: /Users/laurent/work/legendary-memory/data/songs/natalie_imbroglia/torn/song.yml
+  - title: Marlène
+    author: Noir Désir
+    tempo: 134
+    source: /Users/laurent/work/legendary-memory/data/songs/noir_desir/marlene/song.yml
+  - title: Rock 'N Roll Star
+    author: Oasis
+    tempo: 140
+    source: /Users/laurent/work/legendary-memory/data/songs/oasis/rock_n_roll_star/song.yml
+  - title: Because The Night
+    author: Patty Smith
+    tempo: 96
+    source: /Users/laurent/work/legendary-memory/data/songs/patty_smith/because_the_night/song.yml
+  - title: Gouge Away
+    author: Pixies
+    tempo: 126
+    source: /Users/laurent/work/legendary-memory/data/songs/pixies/gouge_away/song.yml
+  - title: Every Breath You Take
+    author: Police
+    tempo: 117
+    source: /Users/laurent/work/legendary-memory/data/songs/police/every_breath_you_take/song.yml
+  - title: Brass In Pocket
+    author: Pretenders
+    tempo: 107
+    source: /Users/laurent/work/legendary-memory/data/songs/pretenders/brass_in_pocket/song.yml
+  - title: Karma Police
+    author: Radiohead
+    tempo: 113
+    source: /Users/laurent/work/legendary-memory/data/songs/radiohead/karma_police/song.yml
+  - title: In The Shadows
+    author: The Rasmus
+    tempo: 106
+    source: /Users/laurent/work/legendary-memory/data/songs/rasmus/in_the_shadows/song.yml
+  - title: Can't Stop
+    author: Red Hot Chili Peppers
+    tempo: 91
+    source: /Users/laurent/work/legendary-memory/data/songs/red_hot_chili_peppers/can_t_stop/song.yml
+  - title: Dani California
+    author: Red Hot Chili Peppers
+    tempo: 96
+    source: /Users/laurent/work/legendary-memory/data/songs/red_hot_chili_peppers/dani_california/song.yml
+  - title: Under The Bridge
+    author: Red Hot Chili Peppers
+    tempo: 84
+    source: /Users/laurent/work/legendary-memory/data/songs/red_hot_chili_peppers/under_the_bridge/song.yml
+  - title: Kid Charlemagne
+    author: Steely Dan
+    tempo: 97
+    source: /Users/laurent/work/legendary-memory/data/songs/steely_dan/kid_charlemagne/song.yml
+  - title: Au Coeur De La Nuit
+    author: Telephone
+    tempo: 164
+    source: /Users/laurent/work/legendary-memory/data/songs/telephone/au_coeur_de_la_nuit/song.yml
+  - title: The End Has No End
+    author: The Strokes
+    tempo: 80
+    source: /Users/laurent/work/legendary-memory/data/songs/the_strokes/the_end_has_no_end/song.yml
+  - title: Song For Someone
+    author: U2
+    tempo: 105
+    source: /Users/laurent/work/legendary-memory/data/songs/u2/song_for_someone/song.yml
