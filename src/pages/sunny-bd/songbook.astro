@@ -49,8 +49,8 @@ const concerts = band ? await getConcertsByBand(band.id) : [];
                 </thead>
                 <tbody>
                     {songs.map((song) => (
-                        <tr class="border-b hover:bg-black hover:text-white cursor-pointer">
-                            <td class="p-2">{song.title}</td>
+                        <tr class="border-b hover:bg-black hover:text-white cursor-pointer" onclick={`window.location='/song/${song.id}'`}>
+                            <td class="p-2"><a href={`/song/${song.id}`} class="hover:underline">{song.title}</a></td>
                             <td class="p-2">{song.artist || '-'}</td>
                             <td class="p-2">{song.tempo ? `${song.tempo} bpm` : '-'}</td>
                         </tr>
