@@ -22,12 +22,6 @@ export interface Song {
     key: string | null;
     tempo: number | null;
     duration_seconds: number | null;
-    lyrics: string | null;
-    chords: string | null;
-    notes: string | null;
-    strudel_pattern: string | null;
-    created_at: Date;
-    updated_at: Date;
 }
 
 export interface Concert {

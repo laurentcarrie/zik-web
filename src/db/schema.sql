@@ -19,13 +19,7 @@ CREATE TABLE IF NOT EXISTS songs (
     artist VARCHAR(255),
     key VARCHAR(10),
     tempo INTEGER,
-    duration_seconds INTEGER,
-    lyrics TEXT,
-    chords TEXT,
-    notes TEXT,
-    strudel_pattern TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    duration_seconds INTEGER
 );
 
 -- Concerts/Events table
