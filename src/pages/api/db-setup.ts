@@ -3,7 +3,8 @@ import { neon } from '@netlify/neon';
 
 export const prerender = false;
 
-export const POST: APIRoute = async () => {
+// Support both GET and POST for easier setup
+const setupDatabase = async () => {
     const sql = neon();
     const results: string[] = [];
 
@@ -109,3 +110,6 @@ export const POST: APIRoute = async () => {
         });
     }
 };
+
+export const GET: APIRoute = setupDatabase;
+export const POST: APIRoute = setupDatabase;
