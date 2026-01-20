@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS songs (
     band_id INTEGER REFERENCES bands(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     artist VARCHAR(255),
-    key VARCHAR(10),
     tempo INTEGER,
     duration_seconds INTEGER
 );

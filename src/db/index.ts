@@ -19,7 +19,6 @@ export interface Song {
     band_id: number;
     title: string;
     artist: string | null;
-    key: string | null;
     tempo: number | null;
     duration_seconds: number | null;
 }

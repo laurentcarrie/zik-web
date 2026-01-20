@@ -8,24 +8,9 @@ export const GET: APIRoute = async () => {
     const results: string[] = [];
 
     try {
-        // Remove columns from songs table
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS lyrics`;
-        results.push('✓ Dropped lyrics column');
-
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS chords`;
-        results.push('✓ Dropped chords column');
-
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS notes`;
-        results.push('✓ Dropped notes column');
-
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS strudel_pattern`;
-        results.push('✓ Dropped strudel_pattern column');
-
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS created_at`;
-        results.push('✓ Dropped created_at column');
-
-        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS updated_at`;
-        results.push('✓ Dropped updated_at column');
+        // Remove key column from songs table
+        await sql`ALTER TABLE songs DROP COLUMN IF EXISTS key`;
+        results.push('✓ Dropped key column');
 
         return new Response(JSON.stringify({
             success: true,
