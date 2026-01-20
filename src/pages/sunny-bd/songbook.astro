@@ -44,7 +44,6 @@ const concerts = band ? await getConcertsByBand(band.id) : [];
                     <tr class="border-b">
                         <th class="text-left p-2">Titre</th>
                         <th class="text-left p-2">Artiste</th>
-                        <th class="text-left p-2">Tonalité</th>
                         <th class="text-left p-2">Tempo</th>
                     </tr>
                 </thead>
@@ -53,7 +52,6 @@ const concerts = band ? await getConcertsByBand(band.id) : [];
                         <tr class="border-b hover:bg-gray-50">
                             <td class="p-2">{song.title}</td>
                             <td class="p-2">{song.artist || '-'}</td>
-                            <td class="p-2">{song.key || '-'}</td>
                             <td class="p-2">{song.tempo ? `${song.tempo} bpm` : '-'}</td>
                         </tr>
                     ))}
