@@ -1,72 +1,70 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { cacheHeaders, randomInt } from '../../utils';
+import { sql, getBandBySlug, getSongsByBand, getConcertsByBand } from '../../db';
 
 export const prerender = false;
 
-const tags = ['/revalidation', 'cats-related', 'all-pets-related'];
-const headers = cacheHeaders(365, tags);
-
-Object.entries(headers).map(([k, v]) => {
-    Astro.response.headers.set(k, v);
-});
-
-const explainer = `
-This is a server-rendered page, last created at \`${new Date().toUTCString()}\` with a few extra response headers:
-
-~~~js
-${JSON.stringify(headers, null, 2)}
-~~~
-
-Meaning: **for browsers,** this is a non-cacheable page. At the **CDN level,** it *is* cacheable for up to a year (and Netlify also automatically busts the cache on new deployments, by default).
-
-But there's something more: the \`Cache-Tag\` header, in tandem with the [purge API](https://docs.netlify.com/platform/caching/#on-demand-invalidation), allows a developer to invalidate at will any
-pieces of content (pages, JSON responses, or whatnot) based on the tags associated with them. Tags are completely up to you to decide on, and allow for very powerful patterns.
-
-In real-world applications, you may want to use [stale-while-revalidate](https://docs.netlify.com/platform/caching/#stale-while-revalidate-directive) as well, so that end-users don't experience 
-a performance hit as pages are being rebuilt.
-
-Use the button below to invlidate a random tag out of this page's tags, then refresh the page.
-`;
-
-const exampleTag = tags[randomInt(0, tags.length - 1)];
-
-
-import { neon } from '@netlify/neon';
-const sql = neon(); // automatically uses env NETLIFY_DATABASE_URL
-const [post] = await sql  `SELECT x,y FROM xxx ;` 
-
+// Fetch band data
+const band = await getBandBySlug('move-the-line');
+const songs = band ? await getSongsByBand(band.id) : [];
+const concerts = band ? await getConcertsByBand(band.id) : [];
 ---
 
 <Layout title="Move The Line">
     <h1 class="mb-10">Move The Line</h1>
 
-    <ul>
-        <li>
-            <p>
-                concert de juin 2025 au Truskell :
-                <a href="/MTL-concert-truskell-2025-06-06.pdf" target="_blank">MTL-concert-truskell-2025-06-06.pdf</a>
-            </p>
-        </li>
-        <li>
-            <p>
-                concert de juin 2025 au Truskell :
-                <a href="https://drive.google.com/file/d/1PADl4EZbMSFIy4F3VDe2M4PAC5FMTG_l/view?usp=drivesdk" target="_blank"
-                    >MTL-concert-truskell-2025-06-06.pdf</a
-                >
-            </p>
-        </li>
-    </ul>
+    <section class="mb-10">
+        <h2 class="text-xl font-bold mb-4">Concerts</h2>
+        <ul class="list-disc pl-6">
+            <li>
+                <p>
+                    concert de juin 2025 au Truskell :
+                    <a href="/MTL-concert-truskell-2025-06-06.pdf" target="_blank" class="text-blue-600 hover:underline">
+                        MTL-concert-truskell-2025-06-06.pdf
+                    </a>
+                </p>
+            </li>
+            {concerts.map((concert) => (
+                <li>
+                    <p>
+                        {concert.name} {concert.venue && `@ ${concert.venue}`}
+                        {concert.date && ` - ${new Date(concert.date).toLocaleDateString('fr-FR')}`}
+                        {concert.pdf_url && (
+                            <a href={concert.pdf_url} target="_blank" class="text-blue-600 hover:underline ml-2">
+                                (PDF)
+                            </a>
+                        )}
+                    </p>
+                </li>
+            ))}
+        </ul>
+    </section>
 
-<h1> post : {post.x} </h1>
-
-
-    <!-- <iframe 
-  src="/MTL-concert-truskell-2025-06-06.pdf" 
-  width="100%" 
-  height="100%"
-  title="truskell-2025-06-06" 
-/> -->
-
-    <!-- <PDFViewer client:load url="/MTL-concert-truskell-2025-06-06.pdf" /> -->
+    <section class="mb-10">
+        <h2 class="text-xl font-bold mb-4">Répertoire ({songs.length} chansons)</h2>
+        {songs.length > 0 ? (
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="border-b">
+                        <th class="text-left p-2">Titre</th>
+                        <th class="text-left p-2">Artiste</th>
+                        <th class="text-left p-2">Tonalité</th>
+                        <th class="text-left p-2">Tempo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {songs.map((song) => (
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-2">{song.title}</td>
+                            <td class="p-2">{song.artist || '-'}</td>
+                            <td class="p-2">{song.key || '-'}</td>
+                            <td class="p-2">{song.tempo ? `${song.tempo} bpm` : '-'}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        ) : (
+            <p class="text-gray-500 italic">Aucune chanson dans le répertoire pour le moment.</p>
+        )}
+    </section>
 </Layout>
