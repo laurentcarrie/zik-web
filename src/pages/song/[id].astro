@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { sql } from '../../db';
+import { highlighterPromise } from '../../utils/highlighter';
 
 export const prerender = false;
 
@@ -16,6 +17,15 @@ const [song] = await sql`
 if (!song) {
     return Astro.redirect('/');
 }
+
+let highlightedYml = '';
+if (song.song_yml) {
+    const highlighter = await highlighterPromise;
+    highlightedYml = highlighter.codeToHtml(song.song_yml, {
+        lang: 'yaml',
+        theme: 'github-light'
+    });
+}
 ---
 
 <Layout title={song.title}>
@@ -29,7 +39,7 @@ if (!song) {
     <p class="text-gray-600 mb-6">{song.artist} • {song.tempo} bpm</p>
 
     {song.song_yml ? (
-        <pre class="bg-gray-100 p-4 rounded overflow-x-auto text-sm"><code>{song.song_yml}</code></pre>
+        <div class="rounded overflow-x-auto text-sm" set:html={highlightedYml} />
     ) : (
         <p class="text-gray-500 italic">Aucun contenu YAML disponible.</p>
     )}
