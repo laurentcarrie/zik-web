@@ -1606,19 +1606,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust-hello"
-version = "0.1.0"
-dependencies = [
- "aws-config",
- "aws-sdk-s3",
- "axum",
- "serde",
- "serde_yaml",
- "tokio",
- "tower-http",
-]
-
-[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2589,6 +2576,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "zik-web"
+version = "0.2.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-s3",
+ "axum",
+ "serde",
+ "serde_yaml",
+ "tokio",
+ "tower-http",
 ]
 
 [[package]]

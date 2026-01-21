@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - 'rust-hello/**'
+      - 'zik-web/**'
 
 env:
   AWS_REGION: eu-west-3
-  ECR_REPOSITORY: rust-hello
-  APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:eu-west-3:579871531410:service/rust-hello/0c812e7565ef46efba838e3289c5fae9
+  ECR_REPOSITORY: zik-web
+  APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:eu-west-3:579871531410:service/zik-web/14f877f52f8c498fb93d108049fbc622
 
 jobs:
   deploy:
@@ -32,7 +32,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push image to Amazon ECR
-        working-directory: rust-hello
+        working-directory: zik-web
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
