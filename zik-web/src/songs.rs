@@ -1,9 +1,13 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use tokio::fs;
 
 pub const BUCKET: &str = "laurent-zik";
 const SONGS_PREFIX: &str = "songs/";
+const FONT_S3_KEY: &str = "static/skriva-3.woff";
+const FONT_LOCAL_PATH: &str = "static/skriva-3.woff";
 
 #[derive(Deserialize)]
 struct SongInfo {
@@ -88,5 +92,27 @@ pub async fn write_all_songs_to_s3(client: &Client) -> Result<(), Box<dyn std::e
         .send()
         .await?;
 
+    Ok(())
+}
+
+pub async fn download_font_from_s3(client: &Client) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let local_path = Path::new(FONT_LOCAL_PATH);
+
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = local_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    let resp = client
+        .get_object()
+        .bucket(BUCKET)
+        .key(FONT_S3_KEY)
+        .send()
+        .await?;
+
+    let bytes = resp.body.collect().await?.into_bytes();
+    fs::write(local_path, bytes).await?;
+
+    println!("Downloaded {} from S3", FONT_LOCAL_PATH);
     Ok(())
 }

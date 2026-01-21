@@ -6,7 +6,7 @@ use aws_sdk_s3::Client;
 use aws_config::Region;
 use serde::Deserialize;
 
-use songs::{get_all_songs, write_all_songs_to_s3};
+use songs::{get_all_songs, write_all_songs_to_s3, download_font_from_s3};
 
 #[derive(Clone)]
 struct AppState {
@@ -20,6 +20,12 @@ async fn main() {
         .load()
         .await;
     let s3_client = Client::new(&config);
+
+    // Download font from S3 to static directory
+    if let Err(e) = download_font_from_s3(&s3_client).await {
+        eprintln!("Warning: Failed to download font from S3: {}", e);
+    }
+
     let state = AppState { s3_client };
 
     let app = Router::new()
