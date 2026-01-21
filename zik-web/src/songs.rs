@@ -24,9 +24,10 @@ struct SongYml {
 pub struct SongEntry {
     pub title: String,
     pub author: String,
+    pub key: String,
 }
 
-pub async fn get_all_songs(client: &Client) -> Result<Vec<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn get_all_songs(client: &Client) -> Result<Vec<(String, String, String)>, Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .get_object()
         .bucket(BUCKET)
@@ -37,7 +38,7 @@ pub async fn get_all_songs(client: &Client) -> Result<Vec<(String, String)>, Box
     let bytes = resp.body.collect().await?.into_bytes();
     let songs: Vec<SongEntry> = serde_yaml::from_slice(&bytes)?;
 
-    Ok(songs.into_iter().map(|s| (s.title, s.author)).collect())
+    Ok(songs.into_iter().map(|s| (s.title, s.author, s.key)).collect())
 }
 
 pub async fn write_all_songs_to_s3(client: &Client) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -66,6 +67,7 @@ pub async fn write_all_songs_to_s3(client: &Client) -> Result<(), Box<dyn std::e
                                 songs.push(SongEntry {
                                     title: song_yml.info.title,
                                     author: song_yml.info.author,
+                                    key: key.to_string(),
                                 });
                             }
                         }
@@ -114,5 +116,79 @@ pub async fn download_font_from_s3(client: &Client) -> Result<(), Box<dyn std::e
     fs::write(local_path, bytes).await?;
 
     println!("Downloaded {} from S3", FONT_LOCAL_PATH);
+    Ok(())
+}
+
+pub async fn get_song_yml(client: &Client, key: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let resp = client
+        .get_object()
+        .bucket(BUCKET)
+        .key(key)
+        .send()
+        .await?;
+
+    let bytes = resp.body.collect().await?.into_bytes();
+    Ok(String::from_utf8(bytes.to_vec())?)
+}
+
+pub async fn save_song_yml(client: &Client, key: &str, content: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    client
+        .put_object()
+        .bucket(BUCKET)
+        .key(key)
+        .body(ByteStream::from(content.as_bytes().to_vec()))
+        .content_type("text/yaml")
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+fn normalize_for_pdf_key(s: &str) -> String {
+    s.to_lowercase()
+        .replace(' ', "_")
+        .replace('\'', "_")
+        .replace('\u{2019}', "_")
+}
+
+pub async fn get_song_pdf(client: &Client, author: &str, title: &str) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    let normalized_author = normalize_for_pdf_key(author);
+    let normalized_title = normalize_for_pdf_key(title);
+    let key = format!("pdf/{}--@--{}.pdf", normalized_author, normalized_title);
+    let resp = client
+        .get_object()
+        .bucket(BUCKET)
+        .key(&key)
+        .send()
+        .await?;
+
+    let bytes = resp.body.collect().await?.into_bytes();
+    Ok(bytes.to_vec())
+}
+
+pub async fn get_lyrics(client: &Client, author: &str, title: &str, section_id: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let key = format!("songs/{}/{}/lyrics/{}.tex", author, title, section_id);
+    let resp = client
+        .get_object()
+        .bucket(BUCKET)
+        .key(&key)
+        .send()
+        .await?;
+
+    let bytes = resp.body.collect().await?.into_bytes();
+    Ok(String::from_utf8(bytes.to_vec())?)
+}
+
+pub async fn save_lyrics(client: &Client, author: &str, title: &str, section_id: &str, content: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let key = format!("songs/{}/{}/lyrics/{}.tex", author, title, section_id);
+    client
+        .put_object()
+        .bucket(BUCKET)
+        .key(&key)
+        .body(ByteStream::from(content.as_bytes().to_vec()))
+        .content_type("text/plain")
+        .send()
+        .await?;
+
     Ok(())
 }
