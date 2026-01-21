@@ -1,0 +1,61 @@
+name: Deploy to AWS App Runner
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust-hello/**'
+
+env:
+  AWS_REGION: eu-west-3
+  ECR_REPOSITORY: rust-hello
+  APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:eu-west-3:579871531410:service/rust-hello/0c812e7565ef46efba838e3289c5fae9
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        working-directory: rust-hello
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy to App Runner
+        run: |
+          aws apprunner start-deployment --service-arn $APP_RUNNER_SERVICE_ARN
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for App Runner deployment..."
+          for i in {1..30}; do
+            STATUS=$(aws apprunner describe-service --service-arn $APP_RUNNER_SERVICE_ARN --query 'Service.Status' --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "Deployment successful!"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Deployment timed out"
+          exit 1
