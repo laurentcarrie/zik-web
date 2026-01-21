@@ -77,6 +77,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/grilles", get(grilles))
+        .route("/version", get(version))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state);
 
@@ -151,6 +152,10 @@ async fn index(State(_state): State<AppState>) -> Html<&'static str> {
 </body>
 </html>
 "#)
+}
+
+async fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 #[derive(Deserialize)]
