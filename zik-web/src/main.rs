@@ -1,68 +1,16 @@
+mod songs;
+
 use axum::{extract::{Query, State}, response::Html, routing::get, Router};
 use tower_http::services::ServeDir;
 use aws_sdk_s3::Client;
 use aws_config::Region;
 use serde::Deserialize;
 
+use songs::{get_all_songs, write_all_songs_to_s3};
+
 #[derive(Clone)]
 struct AppState {
     s3_client: Client,
-}
-
-const BUCKET: &str = "laurent-zik";
-const SONGS_PREFIX: &str = "songs/";
-
-#[derive(Deserialize)]
-struct SongInfo {
-    title: String,
-    author: String,
-}
-
-#[derive(Deserialize)]
-struct SongYml {
-    info: SongInfo,
-}
-
-async fn get_all_songs(client: &Client) -> Result<Vec<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
-    let mut songs = Vec::new();
-    let mut continuation_token: Option<String> = None;
-
-    loop {
-        let mut request = client
-            .list_objects_v2()
-            .bucket(BUCKET)
-            .prefix(SONGS_PREFIX);
-
-        if let Some(token) = continuation_token {
-            request = request.continuation_token(token);
-        }
-
-        let response = request.send().await?;
-
-        for object in response.contents() {
-            if let Some(key) = object.key() {
-                if key.ends_with("/song.yml") {
-                    match client.get_object().bucket(BUCKET).key(key).send().await {
-                        Ok(resp) => {
-                            let bytes = resp.body.collect().await?.into_bytes();
-                            if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
-                                songs.push((song_yml.info.title, song_yml.info.author));
-                            }
-                        }
-                        Err(_) => continue,
-                    }
-                }
-            }
-        }
-
-        if response.is_truncated() == Some(true) {
-            continuation_token = response.next_continuation_token().map(|s| s.to_string());
-        } else {
-            break;
-        }
-    }
-
-    Ok(songs)
 }
 
 #[tokio::main]
@@ -78,6 +26,7 @@ async fn main() {
         .route("/", get(index))
         .route("/grilles", get(grilles))
         .route("/version", get(version))
+        .route("/update", get(update))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state);
 
@@ -158,6 +107,13 @@ async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+async fn update(State(state): State<AppState>) -> String {
+    match write_all_songs_to_s3(&state.s3_client).await {
+        Ok(_) => "Updated".to_string(),
+        Err(e) => format!("Error: {:?}", e),
+    }
+}
+
 #[derive(Deserialize)]
 struct GrillesQuery {
     #[serde(default)]
@@ -194,6 +150,12 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
     <link rel="manifest" href="/static/site.webmanifest">
     <style>
+        @font-face {{
+            font-family: 'Fontskrivan';
+            src: url('/static/skriva-3.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }}
         * {{
             margin: 0;
             padding: 0;
@@ -239,11 +201,14 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
             border-bottom: none;
         }}
         .title {{
-            font-weight: 600;
-            color: #333;
+            font-family: 'Fontskrivan', cursive;
+            font-weight: 900;
+            font-size: 1.2em;
+            color: #2563eb;
+            -webkit-text-stroke: 0.5px #2563eb;
         }}
         .author {{
-            color: #666;
+            color: #ea580c;
         }}
         .count {{
             color: #999;
@@ -271,6 +236,23 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
             background: #667eea;
             color: white;
         }}
+        .search-box {{
+            margin-bottom: 1rem;
+        }}
+        .search-box input {{
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }}
+        .search-box input:focus {{
+            outline: none;
+            border-color: #667eea;
+        }}
+        .hidden {{
+            display: none;
+        }}
     </style>
 </head>
 <body>
@@ -278,14 +260,47 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
         <a href="/" class="back-link">← Back</a>
         <h1>Grilles</h1>
         <div class="sort-buttons">
-            <a href="/grilles?sort=title" class="sort-btn {}">Sort by Title</a>
-            <a href="/grilles?sort=author" class="sort-btn {}">Sort by Author</a>
+            <a href="/grilles?sort=title" class="sort-btn {}" data-sort="title">Sort by Title</a>
+            <a href="/grilles?sort=author" class="sort-btn {}" data-sort="author">Sort by Author</a>
         </div>
-        <p class="count">{} songs</p>
-        <ul>
+        <div class="search-box">
+            <input type="text" id="search" placeholder="Search..." autocomplete="off">
+        </div>
+        <p class="count"><span id="visible-count">{}</span> songs</p>
+        <ul id="song-list">
             {}
         </ul>
     </div>
+    <script>
+        const searchInput = document.getElementById('search');
+        const songList = document.getElementById('song-list');
+        const visibleCount = document.getElementById('visible-count');
+        const songs = songList.querySelectorAll('li');
+
+        function fuzzyMatch(text, query) {{
+            let ti = 0;
+            for (let qi = 0; qi < query.length; qi++) {{
+                const char = query[qi];
+                while (ti < text.length && text[ti] !== char) ti++;
+                if (ti >= text.length) return false;
+                ti++;
+            }}
+            return true;
+        }}
+
+        searchInput.addEventListener('input', function() {{
+            const query = this.value.toLowerCase();
+            let count = 0;
+            songs.forEach(song => {{
+                const title = song.querySelector('.title').textContent.toLowerCase();
+                const author = song.querySelector('.author').textContent.toLowerCase();
+                const match = fuzzyMatch(title + ' ' + author, query);
+                song.classList.toggle('hidden', !match);
+                if (match) count++;
+            }});
+            visibleCount.textContent = count;
+        }});
+    </script>
 </body>
 </html>
 "#,
@@ -304,33 +319,4 @@ fn html_escape(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use aws_config::Region;
-
-    #[tokio::test]
-    async fn test_get_all_songs() {
-        let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-            .region(Region::new("eu-west-3"))
-            .load()
-            .await;
-        let client = Client::new(&config);
-
-        let songs = get_all_songs(&client).await.expect("Failed to get songs");
-
-        // Check we got some songs
-        assert!(!songs.is_empty(), "Should have at least one song");
-
-        // Check that Black Velvet by Alannah Myles is in the list
-        let has_black_velvet = songs.iter().any(|(title, author)| {
-            title == "Black Velvet" && author == "Alannah Myles"
-        });
-        assert!(has_black_velvet, "Should contain Black Velvet by Alannah Myles");
-
-        // Print all songs for debugging
-        println!("Found {} songs:", songs.len());
-        for (title, author) in &songs {
-            println!("  - {} by {}", title, author);
-        }
-    }
-}
+mod tests;
