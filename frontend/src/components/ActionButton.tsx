@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 interface ActionButtonProps {
   href: string
-  variant: 'pdf' | 'deezer' | 'deezer-app'
+  variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app'
   target?: '_blank' | '_self'
   children: ReactNode
 }
@@ -11,6 +11,8 @@ const variantStyles = {
   pdf: 'bg-[#dc2626] hover:bg-red-700',
   deezer: 'bg-[#a238ff] hover:bg-purple-700',
   'deezer-app': 'bg-[#ff6b35] hover:bg-orange-600',
+  spotify: 'bg-[#1DB954] hover:bg-green-600',
+  'spotify-app': 'bg-[#191414] hover:bg-gray-800',
 }
 
 export default function ActionButton({ href, variant, target, children }: ActionButtonProps) {

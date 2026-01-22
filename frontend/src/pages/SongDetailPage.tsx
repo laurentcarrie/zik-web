@@ -1,10 +1,46 @@
+import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSong } from '../api/songs'
 import ActionButton from '../components/ActionButton'
 
+interface ServiceSettings {
+  deezerWeb: boolean
+  deezerApp: boolean
+  spotifyWeb: boolean
+  spotifyApp: boolean
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
+  return match ? decodeURIComponent(match[2]) : null
+}
+
+function getSettings(): ServiceSettings {
+  const saved = getCookie('serviceSettings')
+  return saved ? JSON.parse(saved) : {
+    deezerWeb: true,
+    deezerApp: true,
+    spotifyWeb: false,
+    spotifyApp: false,
+  }
+}
+
+function makeSpotifyUrl(title: string, author: string): string {
+  return `https://open.spotify.com/search/${encodeURIComponent(`${title} ${author}`)}`
+}
+
+function makeSpotifyAppUrl(title: string, author: string): string {
+  return `spotify:search:${encodeURIComponent(`${title} ${author}`)}`
+}
+
 export default function SongDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const [settings, setSettings] = useState<ServiceSettings>(getSettings)
+
+  useEffect(() => {
+    setSettings(getSettings())
+  }, [])
 
   const { data: song, isLoading, error } = useQuery({
     queryKey: ['song', id],
@@ -55,7 +91,7 @@ export default function SongDetailPage() {
           {song.author}
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <ActionButton
             href={song.pdf_url}
             variant="pdf"
@@ -63,19 +99,44 @@ export default function SongDetailPage() {
           >
             PDF
           </ActionButton>
-          <ActionButton
-            href={song.deezer_url}
-            variant="deezer"
-            target="_blank"
-          >
-            Deezer (Web)
-          </ActionButton>
-          <ActionButton
-            href={song.deezer_app_url}
-            variant="deezer-app"
-          >
-            Deezer (App)
-          </ActionButton>
+
+          {settings.deezerWeb && (
+            <ActionButton
+              href={song.deezer_url}
+              variant="deezer"
+              target="_blank"
+            >
+              Deezer (Web)
+            </ActionButton>
+          )}
+
+          {settings.deezerApp && (
+            <ActionButton
+              href={song.deezer_app_url}
+              variant="deezer-app"
+            >
+              Deezer (App)
+            </ActionButton>
+          )}
+
+          {settings.spotifyWeb && (
+            <ActionButton
+              href={makeSpotifyUrl(song.title, song.author)}
+              variant="spotify"
+              target="_blank"
+            >
+              Spotify (Web)
+            </ActionButton>
+          )}
+
+          {settings.spotifyApp && (
+            <ActionButton
+              href={makeSpotifyAppUrl(song.title, song.author)}
+              variant="spotify-app"
+            >
+              Spotify (App)
+            </ActionButton>
+          )}
         </div>
       </div>
     </div>
