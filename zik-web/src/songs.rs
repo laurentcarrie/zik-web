@@ -3,6 +3,7 @@ use aws_sdk_s3::primitives::ByteStream;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::fs;
+use uuid::Uuid;
 
 pub const BUCKET: &str = "laurent-zik";
 const SONGS_PREFIX: &str = "songs/";
@@ -22,6 +23,7 @@ struct SongYml {
 
 #[derive(Serialize, Deserialize)]
 pub struct SongEntry {
+    pub id: String,
     pub title: String,
     pub author: String,
     pub key: String,
@@ -30,7 +32,7 @@ pub struct SongEntry {
 
 pub async fn get_all_songs(
     client: &Client,
-) -> Result<Vec<(String, String, String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<(String, String, String, String, String)>, Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .get_object()
         .bucket(BUCKET)
@@ -43,7 +45,7 @@ pub async fn get_all_songs(
 
     Ok(songs
         .into_iter()
-        .map(|s| (s.title, s.author, s.key, s.deezer_url))
+        .map(|s| (s.id, s.title, s.author, s.key, s.deezer_url))
         .collect())
 }
 
@@ -70,6 +72,7 @@ pub async fn write_all_songs_to_s3(
                             let bytes = resp.body.collect().await?.into_bytes();
                             if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
                                 songs.push(SongEntry {
+                                    id: Uuid::new_v4().to_string(),
                                     title: song_yml.info.title.clone(),
                                     author: song_yml.info.author.clone(),
                                     key: key.to_string(),

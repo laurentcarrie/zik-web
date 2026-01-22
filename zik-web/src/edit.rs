@@ -35,7 +35,7 @@ pub async fn edit_list(
     }
 
     let mut song_list = String::new();
-    for (title, author, key, _deezer_url) in &songs {
+    for (_id, title, author, key, _deezer_url) in &songs {
         let edit_url = format!("/edit-yml?key={}", urlencoding::encode(key));
         if sort_by == "author" {
             song_list.push_str(&format!(
