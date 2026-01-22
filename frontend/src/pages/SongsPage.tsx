@@ -56,9 +56,12 @@ export default function SongsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-red-600">Failed to load songs</p>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl max-w-lg">
+          <h2 className="text-red-600 text-xl font-bold mb-2">Failed to load songs</h2>
+          <p className="text-gray-600 text-sm break-words">
+            {error instanceof Error ? error.message : 'Unknown error'}
+          </p>
         </div>
       </div>
     )
