@@ -14,7 +14,7 @@ use axum::{
 use serde::Deserialize;
 use tower_http::services::ServeDir;
 
-use songs::{download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, save_lyrics};
+use songs::{download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, save_lyrics};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -222,6 +222,12 @@ async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> H
         .btn-deezer:hover {{
             background: #8a1fe0;
         }}
+        .btn-deezer-app {{
+            background: #ff6b35;
+        }}
+        .btn-deezer-app:hover {{
+            background: #e55a2b;
+        }}
     </style>
 </head>
 <body>
@@ -231,7 +237,8 @@ async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> H
         <p class="author">{}</p>
         <div class="button-row">
             <a href="/pdf?title={}&author={}" class="btn btn-pdf" target="_blank">PDF</a>
-            <a href="{}" class="btn btn-deezer" target="_blank">Deezer</a>
+            <a href="{}" class="btn btn-deezer" target="_blank">Deezer (Web)</a>
+            <a href="{}" class="btn btn-deezer-app">Deezer (App)</a>
         </div>
     </div>
 </body>
@@ -241,7 +248,8 @@ async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> H
             html_escape(author),
             urlencoding::encode(title),
             urlencoding::encode(author),
-            deezer_url
+            deezer_url,
+            make_deezer_app_url(title, author)
         )),
         None => Html("<h1>Song not found</h1>".to_string()),
     }

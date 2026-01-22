@@ -164,6 +164,13 @@ pub fn make_deezer_url(title: &str, author: &str) -> String {
     )
 }
 
+pub fn make_deezer_app_url(title: &str, author: &str) -> String {
+    format!(
+        "deezer://www.deezer.com/search/{}",
+        urlencoding::encode(&format!("{title} {author}"))
+    )
+}
+
 fn normalize_for_pdf_key(s: &str) -> String {
     s.to_lowercase().replace([' ', '\'', '\u{2019}'], "_")
 }
