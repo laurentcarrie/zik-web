@@ -19,25 +19,25 @@ export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
         className="block no-underline hover:opacity-80 transition-opacity"
       >
         {sortBy === 'author' ? (
-          <>
-            <span className="font-[Fontskrivan] font-black text-lg text-[#ea580c]">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-1 sm:gap-0">
+            <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#ea580c] break-words">
               {song.author}
             </span>
-            <span className="text-gray-400 text-sm mx-2">performs</span>
-            <span className="font-[Fontskrivan] font-black text-lg text-[#2563eb]">
+            <span className="text-gray-400 text-sm sm:mx-2 hidden sm:inline">performs</span>
+            <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#2563eb] break-words">
               {song.title}
             </span>
-          </>
+          </div>
         ) : (
-          <>
-            <span className="font-[Fontskrivan] font-black text-lg text-[#2563eb]">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-1 sm:gap-0">
+            <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#2563eb] break-words">
               {song.title}
             </span>
-            <span className="text-gray-400 text-sm mx-2">by</span>
-            <span className="font-[Fontskrivan] font-black text-lg text-[#ea580c]">
+            <span className="text-gray-400 text-sm sm:mx-2 hidden sm:inline">by</span>
+            <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#ea580c] break-words">
               {song.author}
             </span>
-          </>
+          </div>
         )}
       </Link>
     </li>

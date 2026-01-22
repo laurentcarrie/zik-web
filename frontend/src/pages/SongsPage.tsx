@@ -70,26 +70,26 @@ export default function SongsPage() {
 
         <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Songs</h1>
 
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           <button
             onClick={() => setSortBy('title')}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
               sortBy === 'title'
                 ? 'bg-[#667eea] text-white'
                 : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
             }`}
           >
-            Sort by Title
+            By Title
           </button>
           <button
             onClick={() => setSortBy('author')}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
               sortBy === 'author'
                 ? 'bg-[#667eea] text-white'
                 : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
             }`}
           >
-            Sort by Author
+            By Author
           </button>
         </div>
 

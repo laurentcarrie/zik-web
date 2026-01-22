@@ -161,17 +161,13 @@ pub async fn save_song_yml(
 }
 
 pub fn make_deezer_url(title: &str, author: &str) -> String {
-    format!(
-        "https://www.deezer.com/search/{}/track",
-        urlencoding::encode(&format!("{title} {author}"))
-    )
+    let query = urlencoding::encode(&format!("{title} {author}"));
+    format!("https://www.deezer.com/search?q={query}")
 }
 
 pub fn make_deezer_app_url(title: &str, author: &str) -> String {
-    format!(
-        "deezer://www.deezer.com/search/{}/track",
-        urlencoding::encode(&format!("{title} {author}"))
-    )
+    let query = urlencoding::encode(&format!("{title} {author}"));
+    format!("deezer://www.deezer.com/search?q={query}")
 }
 
 fn normalize_for_pdf_key(s: &str) -> String {
