@@ -38,7 +38,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/grilles", get(grilles))
+        .route("/songs", get(songs))
         .route("/edit", get(edit::edit_list))
         .route("/version", get(version))
         .route("/update", get(update::update))
@@ -70,6 +70,10 @@ async fn index(State(_state): State<AppState>) -> Html<&'static str> {
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
     <link rel="manifest" href="/static/site.webmanifest">
     <style>
+        @font-face {
+            font-family: 'Fontskrivan';
+            src: url('/static/skriva-3.woff') format('woff');
+        }
         * {
             margin: 0;
             padding: 0;
@@ -96,12 +100,14 @@ async fn index(State(_state): State<AppState>) -> Html<&'static str> {
         }
         nav a {
             display: block;
-            padding: 1rem 2rem;
+            padding: 1.5rem 3rem;
             background: rgba(0, 0, 0, 0.5);
             color: white;
             text-decoration: none;
             border-radius: 10px;
-            font-size: 1.1rem;
+            font-family: 'Fontskrivan', cursive;
+            font-size: 2.5rem;
+            font-weight: 900;
             transition: all 0.3s ease;
             backdrop-filter: blur(5px);
         }
@@ -114,10 +120,7 @@ async fn index(State(_state): State<AppState>) -> Html<&'static str> {
 <body>
     <div class="container">
         <nav>
-            <a href="/grilles">Grilles</a>
-            <a href="/paroles">Paroles</a>
-            <a href="/deezer">Deezer</a>
-            <a href="/edit">Edit</a>
+            <a href="/songs">Songs</a>
         </nav>
     </div>
 </body>
@@ -134,7 +137,7 @@ async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> H
     let songs = get_all_songs(&state.s3_client).await.unwrap_or_default();
 
     match songs.get(id) {
-        Some((title, author, key, _deezer_url)) => Html(format!(
+        Some((title, author, _key, deezer_url)) => Html(format!(
             r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -213,16 +216,22 @@ async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> H
         .btn-pdf:hover {{
             background: #b91c1c;
         }}
+        .btn-deezer {{
+            background: #a238ff;
+        }}
+        .btn-deezer:hover {{
+            background: #8a1fe0;
+        }}
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="/grilles" class="back-link">← Back to Grilles</a>
+        <a href="/songs" class="back-link">← Back to Songs</a>
         <h1>{}</h1>
         <p class="author">{}</p>
         <div class="button-row">
-            <a href="/edit-yml?key={}" class="btn btn-edit">Edit YML</a>
-            <a href="/pdf?title={}&author={}" class="btn btn-pdf" target="_blank">View PDF</a>
+            <a href="/pdf?title={}&author={}" class="btn btn-pdf" target="_blank">PDF</a>
+            <a href="{}" class="btn btn-deezer" target="_blank">Deezer</a>
         </div>
     </div>
 </body>
@@ -230,9 +239,9 @@ async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> H
             html_escape(title),
             html_escape(title),
             html_escape(author),
-            urlencoding::encode(key),
             urlencoding::encode(title),
-            urlencoding::encode(author)
+            urlencoding::encode(author),
+            deezer_url
         )),
         None => Html("<h1>Song not found</h1>".to_string()),
     }
@@ -428,12 +437,12 @@ async fn save_lyrics_handler(
 }
 
 #[derive(Deserialize)]
-struct GrillesQuery {
+struct SongsQuery {
     #[serde(default)]
     sort: Option<String>,
 }
 
-async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery>) -> Html<String> {
+async fn songs(State(state): State<AppState>, Query(query): Query<SongsQuery>) -> Html<String> {
     let mut songs = get_all_songs(&state.s3_client).await.unwrap_or_default();
 
     let sort_by = query.sort.as_deref().unwrap_or("title");
@@ -451,27 +460,21 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
     }
 
     let mut song_list = String::new();
-    for (title, author, _key, deezer_url) in &songs {
-        let pdf_url = format!(
-            "/pdf?title={}&author={}",
-            urlencoding::encode(title),
-            urlencoding::encode(author)
-        );
+    for (idx, (title, author, _key, _deezer_url)) in songs.iter().enumerate() {
+        let song_url = format!("/song/{idx}");
         if sort_by == "author" {
             song_list.push_str(&format!(
-                r#"<li><span class="song-info"><span class="author">{}</span> <span class="connector">performs</span> <span class="title">{}</span></span><div class="btn-group"><a href="{}" class="pdf-btn" target="_blank">PDF</a><a href="{}" class="deezer-btn" target="_blank">Deezer</a></div></li>"#,
+                r#"<li><a href="{}" class="song-link"><span class="author">{}</span> <span class="connector">performs</span> <span class="title">{}</span></a></li>"#,
+                song_url,
                 html_escape(author),
-                html_escape(title),
-                pdf_url,
-                deezer_url
+                html_escape(title)
             ));
         } else {
             song_list.push_str(&format!(
-                r#"<li><span class="song-info"><span class="title">{}</span> <span class="connector">by</span> <span class="author">{}</span></span><div class="btn-group"><a href="{}" class="pdf-btn" target="_blank">PDF</a><a href="{}" class="deezer-btn" target="_blank">Deezer</a></div></li>"#,
+                r#"<li><a href="{}" class="song-link"><span class="title">{}</span> <span class="connector">by</span> <span class="author">{}</span></a></li>"#,
+                song_url,
                 html_escape(title),
-                html_escape(author),
-                pdf_url,
-                deezer_url
+                html_escape(author)
             ));
         }
     }
@@ -483,7 +486,7 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grilles - M T L</title>
+    <title>Songs - M T L</title>
     <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
@@ -535,10 +538,6 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
         li {{
             padding: 0.75rem;
             border-bottom: 1px solid #eee;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
         }}
         li:nth-child(odd) {{
             background: lightpink;
@@ -549,35 +548,12 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
         li:last-child {{
             border-bottom: none;
         }}
-        .song-info {{
-            flex: 1;
-        }}
-        .btn-group {{
-            display: flex;
-            gap: 0.3rem;
-            flex-shrink: 0;
-        }}
-        .pdf-btn {{
-            padding: 0.3rem 0.6rem;
-            background: #dc2626;
-            color: white;
+        .song-link {{
             text-decoration: none;
-            border-radius: 4px;
-            font-size: 0.75rem;
+            display: block;
         }}
-        .pdf-btn:hover {{
-            background: #b91c1c;
-        }}
-        .deezer-btn {{
-            padding: 0.3rem 0.6rem;
-            background: #a238ff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            font-size: 0.75rem;
-        }}
-        .deezer-btn:hover {{
-            background: #8a1fe0;
+        .song-link:hover {{
+            opacity: 0.8;
         }}
         .title {{
             font-family: 'Fontskrivan', cursive;
@@ -645,10 +621,10 @@ async fn grilles(State(state): State<AppState>, Query(query): Query<GrillesQuery
 <body>
     <div class="container">
         <a href="/" class="back-link">← Back</a>
-        <h1>Grilles</h1>
+        <h1>Songs</h1>
         <div class="sort-buttons">
-            <a href="/grilles?sort=title" class="sort-btn {}" data-sort="title">Sort by Title</a>
-            <a href="/grilles?sort=author" class="sort-btn {}" data-sort="author">Sort by Author</a>
+            <a href="/songs?sort=title" class="sort-btn {}" data-sort="title">Sort by Title</a>
+            <a href="/songs?sort=author" class="sort-btn {}" data-sort="author">Sort by Author</a>
         </div>
         <div class="search-box">
             <input type="text" id="search" placeholder="Search..." autocomplete="off">
