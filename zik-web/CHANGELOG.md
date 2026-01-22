@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] - 2026-01-22
+
+### Added
+- Version number displayed in Settings page (fetched from /version endpoint)
+- /version endpoint proxied in vite config for development
+
+### Changed
+- Songs page now mobile-friendly: title/author stack vertically on small screens
+- Deezer search URLs use query parameter format (?q=)
+- Spotify search URLs use path format with proper encoding
+- Improved version text readability on mobile
+
 ## [0.7.0] - 2026-01-22
 
 ### Added
