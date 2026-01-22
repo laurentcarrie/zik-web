@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.6.0] - 2026-01-22
+
+### Added
+- React + Tailwind CSS frontend in `frontend/` directory
+- JSON API endpoints: `/api/songs`, `/api/song/:id`, `/api/pdf/:id`
+- CORS support for development
+- Multi-stage `Dockerfile.production` for optimized builds
+- Mobile-first responsive design with touch-friendly buttons
+
+### Changed
+- Frontend migrated from server-rendered HTML to React SPA
+- Deezer URLs now generated dynamically with `/track` suffix
+- PDF endpoint uses song ID instead of title/author parameters
+- Legacy HTML routes moved to `/legacy/*` prefix
+- Deploy workflow updated to build from repo root
+
+## [0.5.0] - 2026-01-22
+
+### Added
+- UUID field in SongEntry for stable song URLs
+- Two Deezer buttons: "Deezer (Web)" for browsers, "Deezer (App)" for Android app
+
+### Changed
+- Song URLs now use UUID instead of array index (`/song/:uuid`)
+- Deezer URL format uses path-based `/search/{query}` for web compatibility
+
 ## [0.4.0] - 2026-01-22
 
 ### Changed

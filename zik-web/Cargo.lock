@@ -2581,14 +2581,16 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",
  "axum",
  "serde",
+ "serde_json",
  "serde_yaml",
  "tokio",
+ "tower",
  "tower-http",
  "urlencoding",
  "uuid",
