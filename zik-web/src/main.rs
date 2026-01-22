@@ -5,16 +5,17 @@ mod update;
 use aws_config::Region;
 use aws_sdk_s3::Client;
 use axum::{
-    Form, Router,
+    Form, Json, Router,
     extract::{Path, Query, State},
-    http::{StatusCode, header},
+    http::{StatusCode, header, Method},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
 };
-use serde::Deserialize;
-use tower_http::services::ServeDir;
+use serde::{Deserialize, Serialize};
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 
-use songs::{download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, save_lyrics};
+use songs::{display_song, download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, make_deezer_url, save_lyrics};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -36,24 +37,155 @@ async fn main() {
 
     let state = AppState { s3_client };
 
-    let app = Router::new()
-        .route("/", get(index))
-        .route("/songs", get(songs))
+    // CORS layer for development
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers(Any);
+
+    // API routes
+    let api_routes = Router::new()
+        .route("/songs", get(api_songs))
+        .route("/song/:id", get(api_song))
+        .route("/pdf/:id", get(api_pdf))
+        .with_state(state.clone());
+
+    // Legacy HTML routes (can be removed after full migration)
+    let legacy_routes = Router::new()
+        .route("/legacy", get(index))
+        .route("/legacy/songs", get(songs))
         .route("/edit", get(edit::edit_list))
         .route("/version", get(version))
         .route("/update", get(update::update))
-        .route("/song/:id", get(display_song))
+        // .route("/legacy/song/:id", get(display_song_handler))
         .route("/edit-yml", get(edit::edit_yml))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
         .route("/edit-lyrics", get(edit_lyrics))
         .route("/save-lyrics", post(save_lyrics_handler))
-        .nest_service("/static", ServeDir::new("static"))
         .with_state(state);
+
+    // SPA fallback - serve index.html for all non-API, non-static routes
+    let spa_service = ServeDir::new("dist")
+        .not_found_service(ServeFile::new("dist/index.html"));
+
+    let app = Router::new()
+        .nest("/api", api_routes)
+        .merge(legacy_routes)
+        .nest_service("/static", ServeDir::new("static"))
+        .fallback_service(spa_service)
+        .layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     println!("Server running at http://0.0.0.0:8080");
     axum::serve(listener, app).await.unwrap();
+}
+
+// API response types
+#[derive(Serialize)]
+struct ApiSong {
+    id: String,
+    title: String,
+    author: String,
+    deezer_url: String,
+    deezer_app_url: String,
+}
+
+#[derive(Serialize)]
+struct ApiSongDetail {
+    id: String,
+    title: String,
+    author: String,
+    deezer_url: String,
+    deezer_app_url: String,
+    pdf_url: String,
+}
+
+async fn api_songs(State(state): State<AppState>) -> Result<Json<Vec<ApiSong>>, StatusCode> {
+    let songs = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let api_songs: Vec<ApiSong> = songs
+        .into_iter()
+        .map(|(id, title, author, _key, _deezer_url)| {
+            let deezer_url = make_deezer_url(&title, &author);
+            let deezer_app_url = make_deezer_app_url(&title, &author);
+            ApiSong {
+                id,
+                title,
+                author,
+                deezer_url,
+                deezer_app_url,
+            }
+        })
+        .collect();
+
+    Ok(Json(api_songs))
+}
+
+async fn api_song(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiSongDetail>, StatusCode> {
+    let songs = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let song = songs
+        .into_iter()
+        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let (id, title, author, _key, _deezer_url) = song;
+    let deezer_url = make_deezer_url(&title, &author);
+    let deezer_app_url = make_deezer_app_url(&title, &author);
+    let pdf_url = format!("/api/pdf/{}", id);
+
+    Ok(Json(ApiSongDetail {
+        id,
+        title,
+        author,
+        deezer_url,
+        deezer_app_url,
+        pdf_url,
+    }))
+}
+
+async fn api_pdf(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    let songs = match get_all_songs(&state.s3_client).await {
+        Ok(s) => s,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response(),
+    };
+
+    let song = match songs.into_iter().find(|(song_id, _, _, _, _)| song_id == &id) {
+        Some(s) => s,
+        None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
+    };
+
+    let (_id, title, author, _key, _deezer_url) = song;
+
+    match get_song_pdf(&state.s3_client, &author, &title).await {
+        Ok(pdf_bytes) => {
+            let filename = format!("{} - {}.pdf", author, title);
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "application/pdf"),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        &format!("inline; filename=\"{filename}\""),
+                    ),
+                ],
+                pdf_bytes,
+            )
+                .into_response()
+        }
+        Err(e) => (StatusCode::NOT_FOUND, format!("PDF not found: {e}")).into_response(),
+    }
 }
 
 async fn index(State(_state): State<AppState>) -> Html<&'static str> {
@@ -133,126 +265,8 @@ async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-async fn display_song(State(state): State<AppState>, Path(id): Path<String>) -> Html<String> {
-    let songs = get_all_songs(&state.s3_client).await.unwrap_or_default();
-
-    match songs.iter().find(|(song_id, _, _, _, _)| song_id == &id) {
-        Some((_, title, author, _key, deezer_url)) => Html(format!(
-            r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{} - M T L</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-    <style>
-        @font-face {{
-            font-family: 'Fontskrivan';
-            src: url('/static/skriva-3.woff') format('woff');
-        }}
-        body {{
-            min-height: 100vh;
-            background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
-            background-size: contain;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 2rem;
-        }}
-        .container {{
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-        }}
-        .back-link {{
-            display: inline-block;
-            margin-bottom: 1rem;
-            color: #667eea;
-            text-decoration: none;
-        }}
-        .back-link:hover {{
-            text-decoration: underline;
-        }}
-        h1 {{
-            font-family: 'Fontskrivan', cursive;
-            font-weight: 900;
-            font-size: 2em;
-            color: #2563eb;
-            -webkit-text-stroke: 0.5px #2563eb;
-            margin-bottom: 0.5rem;
-        }}
-        .author {{
-            font-family: 'Fontskrivan', cursive;
-            font-weight: 900;
-            font-size: 1.5em;
-            color: #ea580c;
-            -webkit-text-stroke: 0.5px #ea580c;
-        }}
-        .button-row {{
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
-        }}
-        .btn {{
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 1rem;
-        }}
-        .btn-edit {{
-            background: #667eea;
-        }}
-        .btn-edit:hover {{
-            background: #5a67d8;
-        }}
-        .btn-pdf {{
-            background: #dc2626;
-        }}
-        .btn-pdf:hover {{
-            background: #b91c1c;
-        }}
-        .btn-deezer {{
-            background: #a238ff;
-        }}
-        .btn-deezer:hover {{
-            background: #8a1fe0;
-        }}
-        .btn-deezer-app {{
-            background: #ff6b35;
-        }}
-        .btn-deezer-app:hover {{
-            background: #e55a2b;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <a href="/songs" class="back-link">← Back to Songs</a>
-        <h1>{}</h1>
-        <p class="author">{}</p>
-        <div class="button-row">
-            <a href="/pdf?title={}&author={}" class="btn btn-pdf" target="_blank">PDF</a>
-            <a href="{}" class="btn btn-deezer" target="_blank">Deezer (Web)</a>
-            <a href="{}" class="btn btn-deezer-app">Deezer (App)</a>
-        </div>
-    </div>
-</body>
-</html>"#,
-            html_escape(title),
-            html_escape(title),
-            html_escape(author),
-            urlencoding::encode(title),
-            urlencoding::encode(author),
-            deezer_url,
-            make_deezer_app_url(title, author)
-        )),
-        None => Html("<h1>Song not found</h1>".to_string()),
-    }
+async fn display_song_handler(State(state): State<AppState>, Path(id): Path<String>) -> Html<String> {
+    display_song(&state.s3_client, &id).await
 }
 
 #[derive(Deserialize)]
