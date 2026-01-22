@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSong } from '../api/songs'
-import ActionButton from '../components/ActionButton'
+import ActionButton, { DeezerIcon, SpotifyIcon } from '../components/ActionButton'
 
 interface ServiceSettings {
   deezerWeb: boolean
@@ -106,7 +106,7 @@ export default function SongDetailPage() {
               variant="deezer"
               target="_blank"
             >
-              Deezer (Web)
+              <DeezerIcon className="w-5 h-5" /> Web
             </ActionButton>
           )}
 
@@ -115,7 +115,7 @@ export default function SongDetailPage() {
               href={song.deezer_app_url}
               variant="deezer-app"
             >
-              Deezer (App)
+              <DeezerIcon className="w-5 h-5" /> App
             </ActionButton>
           )}
 
@@ -125,7 +125,7 @@ export default function SongDetailPage() {
               variant="spotify"
               target="_blank"
             >
-              Spotify (Web)
+              <SpotifyIcon className="w-5 h-5" /> Web
             </ActionButton>
           )}
 
@@ -134,7 +134,7 @@ export default function SongDetailPage() {
               href={makeSpotifyAppUrl(song.title, song.author)}
               variant="spotify-app"
             >
-              Spotify (App)
+              <SpotifyIcon className="w-5 h-5" /> App
             </ActionButton>
           )}
 
