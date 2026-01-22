@@ -56,8 +56,8 @@ export default function ActionButton({ href, variant, target, children }: Action
       href={href}
       target={target}
       rel={target === '_blank' ? 'noopener noreferrer' : undefined}
-      className={`inline-flex items-center gap-2 px-6 py-3 text-white no-underline rounded-lg text-base font-medium
-                  min-h-[44px] min-w-[44px] justify-center
+      className={`inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
+                  h-[44px] w-24 justify-center
                   transition-colors active:scale-95
                   ${variantStyles[variant]}`}
     >
