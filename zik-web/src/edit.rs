@@ -388,7 +388,7 @@ pub async fn edit_yml(
 </head>
 <body>
     <div class="container">
-        <a href="javascript:history.back()" class="back-link">← Back</a>
+        <a href="javascript:void(0)" onclick="history.back()" class="back-link">← Back</a>
         <h1>Edit YML</h1>
         <p class="key-info">{}</p>
         <form method="post" action="/save-yml" id="yml-form">
