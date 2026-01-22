@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSong } from '../api/songs'
-import ActionButton, { PdfIcon, DeezerIcon, SpotifyIcon } from '../components/ActionButton'
+import ActionButton, { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon } from '../components/ActionButton'
 
 interface ServiceSettings {
   deezerWeb: boolean
@@ -142,7 +142,7 @@ export default function SongDetailPage() {
             href={`/edit-yml?key=${encodeURIComponent(song.key)}`}
             variant="edit"
           >
-            Edit
+            <EditIcon className="w-5 h-5" /> Edit
           </ActionButton>
         </div>
       </div>
