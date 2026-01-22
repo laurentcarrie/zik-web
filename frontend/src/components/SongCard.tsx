@@ -11,7 +11,7 @@ export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
   return (
     <li
       className={`p-3 border-b border-gray-200 last:border-b-0 ${
-        isOdd ? 'bg-pink-100' : 'bg-purple-100'
+        isOdd ? 'bg-green-100' : 'bg-purple-100'
       }`}
     >
       <Link
