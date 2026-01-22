@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0] - 2026-01-22
+
+### Changed
+- Renamed "grilles" to "songs" throughout (endpoint, function, page title)
+- Main menu simplified to single "Songs" link with Fontskrivan font styling
+- Songs list now links to /song/:id detail page instead of inline buttons
+- Song detail page shows PDF and Deezer buttons (removed Edit YML button)
+- Deezer URL format changed from `/search/{query}` to `/search?q={query}` for Android compatibility
+
+### Removed
+- Paroles, Deezer, and Edit links from main menu
+
 ## [0.3.0] - 2026-01-22
 
 ### Added
