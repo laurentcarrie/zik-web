@@ -96,6 +96,7 @@ struct ApiSongDetail {
     deezer_url: String,
     deezer_app_url: String,
     pdf_url: String,
+    key: String,
 }
 
 async fn api_songs(State(state): State<AppState>) -> Result<Json<Vec<ApiSong>>, StatusCode> {
@@ -134,7 +135,7 @@ async fn api_song(
         .find(|(song_id, _, _, _, _)| song_id == &id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let (id, title, author, _key, _deezer_url) = song;
+    let (id, title, author, key, _deezer_url) = song;
     let deezer_url = make_deezer_url(&title, &author);
     let deezer_app_url = make_deezer_app_url(&title, &author);
     let pdf_url = format!("/api/pdf/{id}");
@@ -146,6 +147,7 @@ async fn api_song(
         deezer_url,
         deezer_app_url,
         pdf_url,
+        key,
     }))
 }
 

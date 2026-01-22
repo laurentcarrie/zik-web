@@ -137,6 +137,13 @@ export default function SongDetailPage() {
               Spotify (App)
             </ActionButton>
           )}
+
+          <ActionButton
+            href={`/edit-yml?key=${encodeURIComponent(song.key)}`}
+            variant="edit"
+          >
+            Edit
+          </ActionButton>
         </div>
       </div>
     </div>
