@@ -8,4 +8,5 @@ export interface Song {
 
 export interface SongDetail extends Song {
   pdf_url: string
+  key: string
 }

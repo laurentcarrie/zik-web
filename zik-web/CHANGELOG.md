@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0] - 2026-01-22
+
+### Added
+- Settings page with music service preferences (Deezer/Spotify Web/App)
+- Settings stored in cookies for persistence
+- Edit button on song detail page linking to edit-yml
+- Icon buttons: PDF, Deezer, Spotify, and Edit with SVG icons
+- Home page icon navigation (scroll icon for Songs, gear for Settings)
+
+### Changed
+- Sort buttons now show inactive state as faint but visible
+- Odd rows in songs list now use light green background
+- All action buttons are uniform size
+- Removed unused legacy HTML handlers (cleanup)
+
 ## [0.6.0] - 2026-01-22
 
 ### Added

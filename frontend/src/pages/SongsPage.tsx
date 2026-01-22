@@ -63,7 +63,7 @@ export default function SongsPage() {
       <div className="max-w-3xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <Link
           to="/"
-          className="inline-block mb-4 text-[--color-link] no-underline hover:underline"
+          className="inline-block mb-4 text-[#667eea] no-underline hover:underline"
         >
           &larr; Back
         </Link>
@@ -75,8 +75,8 @@ export default function SongsPage() {
             onClick={() => setSortBy('title')}
             className={`px-4 py-2 rounded-lg text-sm transition-colors ${
               sortBy === 'title'
-                ? 'bg-[--color-link] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-[#667eea] text-white'
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
             }`}
           >
             Sort by Title
@@ -85,8 +85,8 @@ export default function SongsPage() {
             onClick={() => setSortBy('author')}
             className={`px-4 py-2 rounded-lg text-sm transition-colors ${
               sortBy === 'author'
-                ? 'bg-[--color-link] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-[#667eea] text-white'
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
             }`}
           >
             Sort by Author

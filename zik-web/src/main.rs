@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
-use songs::{display_song, download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, make_deezer_url, save_lyrics};
+use songs::{download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, make_deezer_url, save_lyrics};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -52,12 +52,9 @@ async fn main() {
 
     // Legacy HTML routes (can be removed after full migration)
     let legacy_routes = Router::new()
-        .route("/legacy", get(index))
-        .route("/legacy/songs", get(songs))
         .route("/edit", get(edit::edit_list))
         .route("/version", get(version))
         .route("/update", get(update::update))
-        // .route("/legacy/song/:id", get(display_song_handler))
         .route("/edit-yml", get(edit::edit_yml))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
@@ -99,6 +96,7 @@ struct ApiSongDetail {
     deezer_url: String,
     deezer_app_url: String,
     pdf_url: String,
+    key: String,
 }
 
 async fn api_songs(State(state): State<AppState>) -> Result<Json<Vec<ApiSong>>, StatusCode> {
@@ -137,10 +135,10 @@ async fn api_song(
         .find(|(song_id, _, _, _, _)| song_id == &id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let (id, title, author, _key, _deezer_url) = song;
+    let (id, title, author, key, _deezer_url) = song;
     let deezer_url = make_deezer_url(&title, &author);
     let deezer_app_url = make_deezer_app_url(&title, &author);
-    let pdf_url = format!("/api/pdf/{}", id);
+    let pdf_url = format!("/api/pdf/{id}");
 
     Ok(Json(ApiSongDetail {
         id,
@@ -149,6 +147,7 @@ async fn api_song(
         deezer_url,
         deezer_app_url,
         pdf_url,
+        key,
     }))
 }
 
@@ -170,7 +169,7 @@ async fn api_pdf(
 
     match get_song_pdf(&state.s3_client, &author, &title).await {
         Ok(pdf_bytes) => {
-            let filename = format!("{} - {}.pdf", author, title);
+            let filename = format!("{author} - {title}.pdf");
             (
                 StatusCode::OK,
                 [
@@ -188,85 +187,8 @@ async fn api_pdf(
     }
 }
 
-async fn index(State(_state): State<AppState>) -> Html<&'static str> {
-    Html(
-        r#"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M T L</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-    <link rel="manifest" href="/static/site.webmanifest">
-    <style>
-        @font-face {
-            font-family: 'Fontskrivan';
-            src: url('/static/skriva-3.woff') format('woff');
-        }
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            min-height: 100vh;
-            background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
-            background-size: contain;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .container {
-            position: relative;
-            text-align: center;
-            padding: 2rem;
-        }
-        nav {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        nav a {
-            display: block;
-            padding: 1.5rem 3rem;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            text-decoration: none;
-            border-radius: 10px;
-            font-family: 'Fontskrivan', cursive;
-            font-size: 2.5rem;
-            font-weight: 900;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-        nav a:hover {
-            background: rgba(0, 0, 0, 0.7);
-            transform: translateY(-2px);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <nav>
-            <a href="/songs">Songs</a>
-        </nav>
-    </div>
-</body>
-</html>
-"#,
-    )
-}
-
 async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
-}
-
-async fn display_song_handler(State(state): State<AppState>, Path(id): Path<String>) -> Html<String> {
-    display_song(&state.s3_client, &id).await
 }
 
 #[derive(Deserialize)]
@@ -455,244 +377,6 @@ async fn save_lyrics_handler(
         urlencoding::encode(&form.author),
         urlencoding::encode(&form.title),
         urlencoding::encode(&form.section)
-    ))
-}
-
-#[derive(Deserialize)]
-struct SongsQuery {
-    #[serde(default)]
-    sort: Option<String>,
-}
-
-async fn songs(State(state): State<AppState>, Query(query): Query<SongsQuery>) -> Html<String> {
-    let mut songs = get_all_songs(&state.s3_client).await.unwrap_or_default();
-
-    let sort_by = query.sort.as_deref().unwrap_or("title");
-    match sort_by {
-        "author" => songs.sort_by(|a, b| {
-            a.1.to_lowercase()
-                .cmp(&b.1.to_lowercase())
-                .then(a.0.to_lowercase().cmp(&b.0.to_lowercase()))
-        }),
-        _ => songs.sort_by(|a, b| {
-            a.0.to_lowercase()
-                .cmp(&b.0.to_lowercase())
-                .then(a.1.to_lowercase().cmp(&b.1.to_lowercase()))
-        }),
-    }
-
-    let mut song_list = String::new();
-    for (id, title, author, _key, _deezer_url) in &songs {
-        let song_url = format!("/song/{id}");
-        if sort_by == "author" {
-            song_list.push_str(&format!(
-                r#"<li><a href="{}" class="song-link"><span class="author">{}</span> <span class="connector">performs</span> <span class="title">{}</span></a></li>"#,
-                song_url,
-                html_escape(author),
-                html_escape(title)
-            ));
-        } else {
-            song_list.push_str(&format!(
-                r#"<li><a href="{}" class="song-link"><span class="title">{}</span> <span class="connector">by</span> <span class="author">{}</span></a></li>"#,
-                song_url,
-                html_escape(title),
-                html_escape(author)
-            ));
-        }
-    }
-
-    Html(format!(
-        r#"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Songs - M T L</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-    <link rel="manifest" href="/static/site.webmanifest">
-    <style>
-        @font-face {{
-            font-family: 'Fontskrivan';
-            src: url('/static/skriva-3.woff') format('woff');
-            font-weight: normal;
-            font-style: normal;
-        }}
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        body {{
-            min-height: 100vh;
-            background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
-            background-size: contain;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 2rem;
-        }}
-        .container {{
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-        }}
-        h1 {{
-            color: #333;
-            margin-bottom: 1.5rem;
-            font-size: 2rem;
-        }}
-        .back-link {{
-            display: inline-block;
-            margin-bottom: 1rem;
-            color: #667eea;
-            text-decoration: none;
-        }}
-        .back-link:hover {{
-            text-decoration: underline;
-        }}
-        ul {{
-            list-style: none;
-        }}
-        li {{
-            padding: 0.75rem;
-            border-bottom: 1px solid #eee;
-        }}
-        li:nth-child(odd) {{
-            background: lightpink;
-        }}
-        li:nth-child(even) {{
-            background: lavender;
-        }}
-        li:last-child {{
-            border-bottom: none;
-        }}
-        .song-link {{
-            text-decoration: none;
-            display: block;
-        }}
-        .song-link:hover {{
-            opacity: 0.8;
-        }}
-        .title {{
-            font-family: 'Fontskrivan', cursive;
-            font-weight: 900;
-            font-size: 1.2em;
-            color: #2563eb;
-            -webkit-text-stroke: 0.5px #2563eb;
-        }}
-        .author {{
-            font-family: 'Fontskrivan', cursive;
-            font-weight: 900;
-            font-size: 1.2em;
-            color: #ea580c;
-            -webkit-text-stroke: 0.5px #ea580c;
-        }}
-        .connector {{
-            color: #999;
-            font-size: 0.85em;
-        }}
-        .count {{
-            color: #999;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
-        }}
-        .sort-buttons {{
-            margin-bottom: 1rem;
-        }}
-        .sort-btn {{
-            padding: 0.5rem 1rem;
-            margin-right: 0.5rem;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 0.9rem;
-            background: #eee;
-            color: #333;
-        }}
-        .sort-btn:hover {{
-            background: #ddd;
-        }}
-        .sort-btn.active {{
-            background: #667eea;
-            color: white;
-        }}
-        .search-box {{
-            margin-bottom: 1rem;
-        }}
-        .search-box input {{
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1rem;
-        }}
-        .search-box input:focus {{
-            outline: none;
-            border-color: #667eea;
-        }}
-        .hidden {{
-            display: none;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <a href="/" class="back-link">← Back</a>
-        <h1>Songs</h1>
-        <div class="sort-buttons">
-            <a href="/songs?sort=title" class="sort-btn {}" data-sort="title">Sort by Title</a>
-            <a href="/songs?sort=author" class="sort-btn {}" data-sort="author">Sort by Author</a>
-        </div>
-        <div class="search-box">
-            <input type="text" id="search" placeholder="Search..." autocomplete="off">
-        </div>
-        <p class="count"><span id="visible-count">{}</span> songs</p>
-        <ul id="song-list">
-            {}
-        </ul>
-    </div>
-    <script>
-        const searchInput = document.getElementById('search');
-        const songList = document.getElementById('song-list');
-        const visibleCount = document.getElementById('visible-count');
-        const songs = songList.querySelectorAll('li');
-
-        function fuzzyMatch(text, query) {{
-            let ti = 0;
-            for (let qi = 0; qi < query.length; qi++) {{
-                const char = query[qi];
-                while (ti < text.length && text[ti] !== char) ti++;
-                if (ti >= text.length) return false;
-                ti++;
-            }}
-            return true;
-        }}
-
-        searchInput.addEventListener('input', function() {{
-            const query = this.value.toLowerCase();
-            let count = 0;
-            songs.forEach(song => {{
-                const title = song.querySelector('.title').textContent.toLowerCase();
-                const author = song.querySelector('.author').textContent.toLowerCase();
-                const match = fuzzyMatch(title + ' ' + author, query);
-                song.classList.toggle('hidden', !match);
-                if (match) count++;
-            }});
-            visibleCount.textContent = count;
-        }});
-    </script>
-</body>
-</html>
-"#,
-        if sort_by == "title" { "active" } else { "" },
-        if sort_by == "author" { "active" } else { "" },
-        songs.len(),
-        song_list
     ))
 }
 
