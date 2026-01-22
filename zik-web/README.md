@@ -12,7 +12,13 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
   - PDF viewer
   - Deezer (Web) link
   - Deezer (App) link for Android
-- **Edit Page**: Edit song YAML files with syntax highlighting
+- **Edit Pages**: Multiple editors with syntax highlighting
+  - Edit YML: YAML editor with validation
+  - Edit Lilypond: .ly file editor
+  - Edit Lyrics: Lyrics text editor
+  - Edit TeX: LaTeX editor
+- **Master Page**: Song compilation workflow
+- **Update Page**: Trigger S3 sync
 - **PDF Viewer**: View song PDFs directly from S3
 
 ## Tech Stack
@@ -54,16 +60,26 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 ```
 zik-web/
   src/
-    main.rs    - API routes and handlers
-    songs.rs   - S3 operations and song rendering
-    edit.rs    - Edit page handlers
-    update.rs  - Update endpoint
+    main.rs      - API routes and handlers
+    edit.rs      - Edit page handlers
+    update.rs    - Update endpoint
+    song/
+      mod.rs       - Song module exports
+      model.rs     - Song data structures
+      songs.rs     - S3 operations and song listing
+      edit_lyrics.rs - Lyrics editing handlers
 
 frontend/
   src/
-    pages/     - React page components
-    components/- Reusable UI components
-    api/       - API client functions
+    pages/       - React page components
+      EditYmlPage.tsx
+      EditLilypondPage.tsx
+      EditLyricsPage.tsx
+      EditTexPage.tsx
+      MasterPage.tsx
+      UpdatePage.tsx
+    components/  - Reusable UI components
+    api/         - API client functions
 ```
 
 ## Deployment

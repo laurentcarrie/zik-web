@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.10.0] - 2026-01-22
+
+### Added
+- Edit YML page with CodeMirror YAML editor and live validation
+- Edit Lilypond page for .ly files with syntax highlighting
+- Edit Lyrics page for lyrics editing
+- Edit TeX page for .tex files with LaTeX syntax highlighting
+- Master page for song compilation workflow
+- Update page for triggering S3 sync
+- PressBook page enhancements with concert PDF support
+- Song module refactoring with model.rs, edit_lyrics.rs
+
+### Changed
+- Backend refactored: songs.rs moved to song/ module
+- Improved API types with additional song metadata
+- Enhanced SongsPage with better navigation
+- Vite config updated with additional proxy routes
+
+## [0.9.0] - 2026-01-22
+
+### Added
+- Settings gear button on song detail page
+
+### Changed
+- Edit page back button now uses browser history (history.back())
+- Updated Dockerfile to use Rust 1.88
+
+### Fixed
+- Back button navigation using history.back() properly
+- Borrow checker issue in Deezer URL functions
+
 ## [0.8.0] - 2026-01-22
 
 ### Added
