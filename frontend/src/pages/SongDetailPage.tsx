@@ -27,11 +27,13 @@ function getSettings(): ServiceSettings {
 }
 
 function makeSpotifyUrl(title: string, author: string): string {
-  return `https://open.spotify.com/search/${encodeURIComponent(`${title} ${author}`)}`
+  const query = encodeURIComponent(`${title} ${author}`)
+  return `https://open.spotify.com/search?q=${query}`
 }
 
 function makeSpotifyAppUrl(title: string, author: string): string {
-  return `spotify:search:${encodeURIComponent(`${title} ${author}`)}`
+  const query = encodeURIComponent(`${title} ${author}`)
+  return `spotify:search:${query}`
 }
 
 export default function SongDetailPage() {
