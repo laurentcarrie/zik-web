@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0] - 2026-01-22
+
+### Added
+- UUID field in SongEntry for stable song URLs
+- Two Deezer buttons: "Deezer (Web)" for browsers, "Deezer (App)" for Android app
+
+### Changed
+- Song URLs now use UUID instead of array index (`/song/:uuid`)
+- Deezer URL format uses path-based `/search/{query}` for web compatibility
+
 ## [0.4.0] - 2026-01-22
 
 ### Changed
