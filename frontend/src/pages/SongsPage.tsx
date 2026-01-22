@@ -20,9 +20,14 @@ function fuzzyMatch(text: string, query: string): boolean {
   return true
 }
 
+function exactMatch(text: string, query: string): boolean {
+  return text.toLowerCase().includes(query.toLowerCase())
+}
+
 export default function SongsPage() {
   const [sortBy, setSortBy] = useState<SortBy>('title')
   const [searchQuery, setSearchQuery] = useState('')
+  const [useFuzzy, setUseFuzzy] = useState(true)
 
   const { data: songs = [], isLoading, error } = useQuery({
     queryKey: ['songs'],
@@ -33,8 +38,9 @@ export default function SongsPage() {
     let filtered = songs
 
     if (searchQuery) {
+      const matchFn = useFuzzy ? fuzzyMatch : exactMatch
       filtered = songs.filter(song =>
-        fuzzyMatch(`${song.title} ${song.author}`, searchQuery)
+        matchFn(`${song.title} ${song.author}`, searchQuery)
       )
     }
 
@@ -46,7 +52,7 @@ export default function SongsPage() {
       return a.title.toLowerCase().localeCompare(b.title.toLowerCase()) ||
              a.author.toLowerCase().localeCompare(b.author.toLowerCase())
     })
-  }, [songs, sortBy, searchQuery])
+  }, [songs, sortBy, searchQuery, useFuzzy])
 
   if (error) {
     return (
@@ -98,6 +104,23 @@ export default function SongsPage() {
           onChange={setSearchQuery}
           placeholder="Search..."
         />
+
+        <label className="flex items-center gap-2 mb-4 cursor-pointer">
+          <span className={`text-sm ${!useFuzzy ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Exact</span>
+          <button
+            onClick={() => setUseFuzzy(!useFuzzy)}
+            className={`relative w-10 h-6 rounded-full transition-colors ${
+              useFuzzy ? 'bg-[#667eea]' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                useFuzzy ? 'left-5' : 'left-1'
+              }`}
+            />
+          </button>
+          <span className={`text-sm ${useFuzzy ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Fuzzy</span>
+        </label>
 
         <p className="text-gray-500 text-sm mb-4">
           {filteredAndSortedSongs.length} songs
