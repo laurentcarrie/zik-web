@@ -162,7 +162,7 @@ export default function SongDetailPage() {
           )}
 
           <ActionButton
-            href={`/edit-yml?key=${encodeURIComponent(song.key)}`}
+            href={`/edit-yml/${song.id}`}
             variant="edit"
           >
             <EditIcon className="w-5 h-5" /> Edit

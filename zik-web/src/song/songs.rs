@@ -1,38 +1,21 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
-use serde::{Deserialize, Serialize};
 use std::path::Path;
+use strudel_of_lilypond::{LilyPondParser, StrudelGenerator};
 use tokio::fs;
 use uuid::Uuid;
+
+use super::{SongEntry, SongYml};
 
 pub const BUCKET: &str = "laurent-zik";
 const SONGS_PREFIX: &str = "songs/";
 const FONT_S3_KEY: &str = "static/skriva-3.woff";
 const FONT_LOCAL_PATH: &str = "static/skriva-3.woff";
 
-#[derive(Deserialize)]
-struct SongInfo {
-    title: String,
-    author: String,
-}
-
-#[derive(Deserialize)]
-struct SongYml {
-    info: SongInfo,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SongEntry {
-    pub id: String,
-    pub title: String,
-    pub author: String,
-    pub key: String,
-    pub deezer_url: String,
-}
-
 pub async fn get_all_songs(
     client: &Client,
-) -> Result<Vec<(String, String, String, String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<(String, String, String, String, String)>, Box<dyn std::error::Error + Send + Sync>>
+{
     let resp = client
         .get_object()
         .bucket(BUCKET)
@@ -54,6 +37,7 @@ pub async fn write_all_songs_to_s3(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut songs = Vec::new();
     let mut continuation_token: Option<String> = None;
+    println!("run write_all_songs_to_s3");
 
     loop {
         let mut request = client.list_objects_v2().bucket(BUCKET).prefix(SONGS_PREFIX);
@@ -67,6 +51,8 @@ pub async fn write_all_songs_to_s3(
         for object in response.contents() {
             if let Some(key) = object.key() {
                 if key.ends_with("/song.yml") {
+                    println!("found song");
+
                     match client.get_object().bucket(BUCKET).key(key).send().await {
                         Ok(resp) => {
                             let bytes = resp.body.collect().await?.into_bytes();
@@ -81,14 +67,19 @@ pub async fn write_all_songs_to_s3(
                                         &song_yml.info.author,
                                     ),
                                 });
+                            } else {
+                                println!("problem with {key}");
+                                return Err(
+                                    format!("could not load song.yml with key {key}").into()
+                                );
                             }
                         }
-                        Err(_) => continue,
+                        Err(e) => return Err(e.into()),
                     }
                 }
             }
         }
-
+        println!("nb songs : {}", &songs.len());
         if response.is_truncated() == Some(true) {
             continuation_token = response.next_continuation_token().map(|s| s.to_string());
         } else {
@@ -205,6 +196,25 @@ pub async fn get_lyrics(
     Ok(String::from_utf8(bytes.to_vec())?)
 }
 
+pub async fn get_lyrics_by_key(
+    client: &Client,
+    key: &str,
+    id: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    // key is like "songs/author/title/song.yml", extract directory
+    let dir = key.rsplit_once('/').map(|(d, _)| d).unwrap_or(key);
+    let lyrics_key = format!("{dir}/lyrics/{id}.tex");
+    let resp = client
+        .get_object()
+        .bucket(BUCKET)
+        .key(&lyrics_key)
+        .send()
+        .await?;
+
+    let bytes = resp.body.collect().await?.into_bytes();
+    Ok(String::from_utf8(bytes.to_vec())?)
+}
+
 pub async fn save_lyrics(
     client: &Client,
     author: &str,
@@ -225,3 +235,59 @@ pub async fn save_lyrics(
     Ok(())
 }
 
+pub async fn save_lyrics_by_key(
+    client: &Client,
+    key: &str,
+    id: &str,
+    content: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // key is like "songs/author/title/song.yml", extract directory
+    let dir = key.rsplit_once('/').map(|(d, _)| d).unwrap_or(key);
+    let lyrics_key = format!("{dir}/lyrics/{id}.tex");
+    client
+        .put_object()
+        .bucket(BUCKET)
+        .key(&lyrics_key)
+        .body(ByteStream::from(content.as_bytes().to_vec()))
+        .content_type("text/plain")
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+pub async fn write_to_s3(
+    client: &Client,
+    key: &str,
+    data: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    client
+        .put_object()
+        .bucket(BUCKET)
+        .key(key)
+        .body(ByteStream::from(data.as_bytes().to_vec()))
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+pub async fn read_from_s3(
+    client: &Client,
+    key: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let resp = client.get_object().bucket(BUCKET).key(key).send().await?;
+
+    let bytes = resp.body.collect().await?.into_bytes();
+    Ok(String::from_utf8(bytes.to_vec())?)
+}
+
+pub fn lilypond_to_html(
+    input: &str,
+    stem: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let parser = LilyPondParser::new();
+    let result = parser.parse(input)?;
+    let html = StrudelGenerator::generate_html(&result.staves, Some(&result.tempo), stem);
+    Ok(html)
+}

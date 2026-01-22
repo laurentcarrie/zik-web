@@ -1,21 +1,25 @@
 mod edit;
-mod songs;
+mod song;
 mod update;
 
 use aws_config::Region;
 use aws_sdk_s3::Client;
 use axum::{
-    Form, Json, Router,
+    Json, Router,
     extract::{Path, Query, State},
-    http::{StatusCode, header, Method},
-    response::{Html, IntoResponse, Redirect, Response},
+    http::{Method, StatusCode, header},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
-use songs::{download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, make_deezer_url, save_lyrics};
+use song::{
+    download_font_from_s3, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
+    get_song_yml, lilypond_to_html, make_deezer_app_url, make_deezer_url, read_from_s3,
+    save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_to_s3,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -47,15 +51,24 @@ async fn main() {
     let api_routes = Router::new()
         .route("/songs", get(api_songs))
         .route("/song/:id", get(api_song))
+        .route("/song/:id/yml", get(api_song_yml))
+        .route("/song/:id/yml", post(api_save_song_yml))
+        .route("/song/:id/lyrics/:section_id", get(api_lyrics))
+        .route("/song/:id/lyrics/:section_id", post(api_save_lyrics))
         .route("/pdf/:id", get(api_pdf))
+        .route("/press-book/photos", get(api_press_book_photos))
+        .route("/press-book/photo/*key", get(api_press_book_photo))
+        .route("/press-book/videos", get(api_press_book_videos))
+        .route("/press-book/video/*key", get(api_press_book_video))
+        .route("/s3/*key", get(api_read_from_s3))
+        .route("/s3/*key", post(api_write_to_s3))
+        .route("/lilypond-to-html", post(api_lilypond_to_html))
         .with_state(state.clone());
 
     // Legacy HTML routes (can be removed after full migration)
     let legacy_routes = Router::new()
-        .route("/edit", get(edit::edit_list))
         .route("/version", get(version))
         .route("/update", get(update::update))
-        .route("/edit-yml", get(edit::edit_yml))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
         .route("/edit-lyrics", get(edit_lyrics))
@@ -63,8 +76,7 @@ async fn main() {
         .with_state(state);
 
     // SPA fallback - serve index.html for all non-API, non-static routes
-    let spa_service = ServeDir::new("dist")
-        .not_found_service(ServeFile::new("dist/index.html"));
+    let spa_service = ServeDir::new("dist").not_found_service(ServeFile::new("dist/index.html"));
 
     let app = Router::new()
         .nest("/api", api_routes)
@@ -79,6 +91,11 @@ async fn main() {
 }
 
 // API response types
+#[derive(Serialize)]
+struct ApiError {
+    error: String,
+}
+
 #[derive(Serialize)]
 struct ApiSong {
     id: String,
@@ -99,27 +116,34 @@ struct ApiSongDetail {
     key: String,
 }
 
-async fn api_songs(State(state): State<AppState>) -> Result<Json<Vec<ApiSong>>, StatusCode> {
-    let songs = get_all_songs(&state.s3_client)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let api_songs: Vec<ApiSong> = songs
-        .into_iter()
-        .map(|(id, title, author, _key, _deezer_url)| {
-            let deezer_url = make_deezer_url(&title, &author);
-            let deezer_app_url = make_deezer_app_url(&title, &author);
-            ApiSong {
-                id,
-                title,
-                author,
-                deezer_url,
-                deezer_app_url,
-            }
-        })
-        .collect();
-
-    Ok(Json(api_songs))
+async fn api_songs(State(state): State<AppState>) -> Response {
+    match get_all_songs(&state.s3_client).await {
+        Ok(songs) => {
+            let api_songs: Vec<ApiSong> = songs
+                .into_iter()
+                .map(|(id, title, author, _key, _deezer_url)| {
+                    let deezer_url = make_deezer_url(&title, &author);
+                    let deezer_app_url = make_deezer_app_url(&title, &author);
+                    ApiSong {
+                        id,
+                        title,
+                        author,
+                        deezer_url,
+                        deezer_app_url,
+                    }
+                })
+                .collect();
+            Json(api_songs).into_response()
+        }
+        Err(e) => {
+            let error_msg = e.to_string();
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: error_msg }),
+            )
+                .into_response()
+        }
+    }
 }
 
 async fn api_song(
@@ -151,16 +175,133 @@ async fn api_song(
     }))
 }
 
-async fn api_pdf(
+#[derive(Serialize)]
+struct ApiSongYml {
+    content: String,
+}
+
+async fn api_song_yml(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Response {
+) -> Result<Json<ApiSongYml>, StatusCode> {
+    let songs = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let song = songs
+        .into_iter()
+        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let (_id, _title, _author, key, _deezer_url) = song;
+
+    let content = get_song_yml(&state.s3_client, &key)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    println!("content : {:?}", &content);
+    // let song_yml: SongYml = serde_yaml::from_str(&content)
+    //     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // println!("structure length: {}", song_yml.structure.len());
+
+    Ok(Json(ApiSongYml { content }))
+}
+
+#[derive(Deserialize)]
+struct SaveYmlBody {
+    content: String,
+}
+
+async fn api_save_song_yml(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<SaveYmlBody>,
+) -> Result<StatusCode, StatusCode> {
+    let songs = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let song = songs
+        .into_iter()
+        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let (_id, _title, _author, key, _deezer_url) = song;
+
+    save_song_yml(&state.s3_client, &key, &body.content)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
+#[derive(Serialize)]
+struct ApiLyrics {
+    content: String,
+}
+
+async fn api_lyrics(
+    State(state): State<AppState>,
+    Path((id, section_id)): Path<(String, String)>,
+) -> Result<Json<ApiLyrics>, StatusCode> {
+    let songs = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let song = songs
+        .into_iter()
+        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let (_id, _title, _author, key, _deezer_url) = song;
+
+    let content = get_lyrics_by_key(&state.s3_client, &key, &section_id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(ApiLyrics { content }))
+}
+
+#[derive(Deserialize)]
+struct SaveLyricsBody {
+    content: String,
+}
+
+async fn api_save_lyrics(
+    State(state): State<AppState>,
+    Path((id, section_id)): Path<(String, String)>,
+    Json(body): Json<SaveLyricsBody>,
+) -> Result<StatusCode, StatusCode> {
+    let songs = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let song = songs
+        .into_iter()
+        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let (_id, _title, _author, key, _deezer_url) = song;
+
+    save_lyrics_by_key(&state.s3_client, &key, &section_id, &body.content)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
+async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let songs = match get_all_songs(&state.s3_client).await {
         Ok(s) => s,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response(),
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
     };
 
-    let song = match songs.into_iter().find(|(song_id, _, _, _, _)| song_id == &id) {
+    let song = match songs
+        .into_iter()
+        .find(|(song_id, _, _, _, _)| song_id == &id)
+    {
         Some(s) => s,
         None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
     };
@@ -185,6 +326,238 @@ async fn api_pdf(
         }
         Err(e) => (StatusCode::NOT_FOUND, format!("PDF not found: {e}")).into_response(),
     }
+}
+
+const PRESS_BOOK_PHOTOS_PREFIX: &str = "press-book/truskell-2025-06-06/photos/";
+const PRESS_BOOK_VIDEOS_PREFIX: &str = "press-book/truskell-2025-06-06/videos/";
+
+async fn api_press_book_photos(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    let mut photos = Vec::new();
+    let mut continuation_token: Option<String> = None;
+
+    loop {
+        let mut request = state
+            .s3_client
+            .list_objects_v2()
+            .bucket(song::BUCKET)
+            .prefix(PRESS_BOOK_PHOTOS_PREFIX);
+
+        if let Some(token) = continuation_token {
+            request = request.continuation_token(token);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        for object in response.contents() {
+            if let Some(key) = object.key() {
+                // Only include image files
+                let lower_key = key.to_lowercase();
+                if lower_key.ends_with(".jpg")
+                    || lower_key.ends_with(".jpeg")
+                    || lower_key.ends_with(".png")
+                    || lower_key.ends_with(".gif")
+                    || lower_key.ends_with(".webp")
+                {
+                    photos.push(key.to_string());
+                }
+            }
+        }
+
+        if response.is_truncated() == Some(true) {
+            continuation_token = response.next_continuation_token().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    photos.sort();
+    Ok(Json(photos))
+}
+
+async fn api_press_book_photo(State(state): State<AppState>, Path(key): Path<String>) -> Response {
+    // Validate the key is within the press-book photos folder
+    if !key.starts_with(PRESS_BOOK_PHOTOS_PREFIX) {
+        return (StatusCode::FORBIDDEN, "Access denied").into_response();
+    }
+
+    match state
+        .s3_client
+        .get_object()
+        .bucket(song::BUCKET)
+        .key(&key)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let content_type = resp
+                .content_type()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "image/jpeg".to_string());
+
+            match resp.body.collect().await {
+                Ok(bytes) => (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, content_type)],
+                    bytes.into_bytes().to_vec(),
+                )
+                    .into_response(),
+                Err(_) => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read image").into_response()
+                }
+            }
+        }
+        Err(_) => (StatusCode::NOT_FOUND, "Photo not found").into_response(),
+    }
+}
+
+async fn api_press_book_videos(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    let mut videos = Vec::new();
+    let mut continuation_token: Option<String> = None;
+
+    loop {
+        let mut request = state
+            .s3_client
+            .list_objects_v2()
+            .bucket(song::BUCKET)
+            .prefix(PRESS_BOOK_VIDEOS_PREFIX);
+
+        if let Some(token) = continuation_token {
+            request = request.continuation_token(token);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        for object in response.contents() {
+            if let Some(key) = object.key() {
+                // Only include video files
+                let lower_key = key.to_lowercase();
+                if lower_key.ends_with(".mp4")
+                    || lower_key.ends_with(".mov")
+                    || lower_key.ends_with(".webm")
+                    || lower_key.ends_with(".avi")
+                {
+                    videos.push(key.to_string());
+                }
+            }
+        }
+
+        if response.is_truncated() == Some(true) {
+            continuation_token = response.next_continuation_token().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    videos.sort();
+    Ok(Json(videos))
+}
+
+async fn api_press_book_video(State(state): State<AppState>, Path(key): Path<String>) -> Response {
+    // Validate the key is within the press-book videos folder
+    if !key.starts_with(PRESS_BOOK_VIDEOS_PREFIX) {
+        return (StatusCode::FORBIDDEN, "Access denied").into_response();
+    }
+
+    match state
+        .s3_client
+        .get_object()
+        .bucket(song::BUCKET)
+        .key(&key)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let content_type = resp
+                .content_type()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "video/mp4".to_string());
+
+            match resp.body.collect().await {
+                Ok(bytes) => (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, content_type)],
+                    bytes.into_bytes().to_vec(),
+                )
+                    .into_response(),
+                Err(_) => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read video").into_response()
+                }
+            }
+        }
+        Err(_) => (StatusCode::NOT_FOUND, "Video not found").into_response(),
+    }
+}
+
+#[derive(Serialize)]
+struct ReadS3Response {
+    data: String,
+}
+
+async fn api_read_from_s3(
+    State(state): State<AppState>,
+    Path(key): Path<String>,
+) -> Result<Json<ReadS3Response>, StatusCode> {
+    println!("read from s3 {key:?}");
+    let data = read_from_s3(&state.s3_client, &key)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(ReadS3Response { data }))
+}
+
+#[derive(Deserialize)]
+struct WriteS3Body {
+    data: String,
+}
+
+async fn api_write_to_s3(
+    State(state): State<AppState>,
+    Path(key): Path<String>,
+    Json(body): Json<WriteS3Body>,
+) -> Result<StatusCode, StatusCode> {
+    write_to_s3(&state.s3_client, &key, &body.data)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
+#[derive(Deserialize)]
+struct LilypondToHtmlBody {
+    input: String,
+    stem: String,
+    tempo: Option<u32>,
+}
+
+#[derive(Serialize)]
+struct LilypondToHtmlResponse {
+    html: String,
+}
+
+async fn api_lilypond_to_html(
+    Json(body): Json<LilypondToHtmlBody>,
+) -> Result<Json<LilypondToHtmlResponse>, (StatusCode, String)> {
+    // Replace \songtempo with actual tempo value if provided
+    let input = if let Some(tempo) = body.tempo {
+        body.input.replace("\\songtempo", &tempo.to_string())
+    } else {
+        body.input
+    };
+
+    let html = lilypond_to_html(&input, &body.stem)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(LilypondToHtmlResponse { html }))
 }
 
 async fn version() -> &'static str {
@@ -216,176 +589,6 @@ async fn serve_pdf(State(state): State<AppState>, Query(query): Query<PdfQuery>)
         }
         Err(e) => (StatusCode::NOT_FOUND, format!("PDF not found: {e}")).into_response(),
     }
-}
-
-#[derive(Deserialize)]
-struct LyricsQuery {
-    author: String,
-    title: String,
-    section: String,
-}
-
-async fn edit_lyrics(
-    State(state): State<AppState>,
-    Query(query): Query<LyricsQuery>,
-) -> Html<String> {
-    let content = get_lyrics(
-        &state.s3_client,
-        &query.author,
-        &query.title,
-        &query.section,
-    )
-    .await
-    .unwrap_or_default();
-
-    Html(format!(
-        r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Lyrics - {} - M T L</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
-    <style>
-        body {{
-            min-height: 100vh;
-            background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
-            background-size: contain;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 2rem;
-        }}
-        .container {{
-            max-width: 900px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-        }}
-        .back-link {{
-            display: inline-block;
-            margin-bottom: 1rem;
-            color: #667eea;
-            text-decoration: none;
-        }}
-        .back-link:hover {{
-            text-decoration: underline;
-        }}
-        h1 {{
-            color: #333;
-            margin-bottom: 0.5rem;
-        }}
-        .info {{
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
-        }}
-        .CodeMirror {{
-            height: 400px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-        }}
-        .button-row {{
-            display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
-        }}
-        .save-btn {{
-            padding: 0.75rem 1.5rem;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-        }}
-        .save-btn:hover {{
-            background: #5a67d8;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <a href="javascript:history.back()" class="back-link">← Back</a>
-        <h1>Edit Lyrics: {}</h1>
-        <p class="info">{} / {}</p>
-        <form method="post" action="/save-lyrics" id="lyrics-form">
-            <input type="hidden" name="author" value="{}">
-            <input type="hidden" name="title" value="{}">
-            <input type="hidden" name="section" value="{}">
-            <textarea name="content" id="editor">{}</textarea>
-            <div class="button-row">
-                <button type="submit" class="save-btn">Save</button>
-            </div>
-        </form>
-    </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/stex/stex.min.js"></script>
-    <script>
-        const textarea = document.getElementById('editor');
-        const editor = CodeMirror.fromTextArea(textarea, {{
-            mode: 'stex',
-            theme: 'monokai',
-            lineNumbers: true,
-            lineWrapping: true
-        }});
-
-        document.getElementById('lyrics-form').addEventListener('submit', function(e) {{
-            textarea.value = editor.getValue();
-        }});
-    </script>
-</body>
-</html>"#,
-        html_escape(&query.section),
-        html_escape(&query.section),
-        html_escape(&query.author),
-        html_escape(&query.title),
-        html_escape(&query.author),
-        html_escape(&query.title),
-        html_escape(&query.section),
-        html_escape(&content)
-    ))
-}
-
-#[derive(Deserialize)]
-struct SaveLyricsForm {
-    author: String,
-    title: String,
-    section: String,
-    content: String,
-}
-
-async fn save_lyrics_handler(
-    State(state): State<AppState>,
-    Form(form): Form<SaveLyricsForm>,
-) -> Redirect {
-    let _ = save_lyrics(
-        &state.s3_client,
-        &form.author,
-        &form.title,
-        &form.section,
-        &form.content,
-    )
-    .await;
-    Redirect::to(&format!(
-        "/edit-lyrics?author={}&title={}&section={}",
-        urlencoding::encode(&form.author),
-        urlencoding::encode(&form.title),
-        urlencoding::encode(&form.section)
-    ))
-}
-
-pub fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }
 
 #[cfg(test)]

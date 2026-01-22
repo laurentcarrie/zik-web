@@ -1,0 +1,114 @@
+files:
+  lilypond:
+    - pont.ly
+    - solo.ly
+  tex: []
+  wav: []
+info:
+  title: Black Velvet
+  author: Alannah Myles
+  tempo: 91
+  time_signature: null
+meta:
+  date: "2025-10-26"
+  digest: 41324fdf06caf7629dc66063bf540380
+structure:
+  - id: intro
+    item: !Chords
+      title: intro
+      type: intro
+      section_body: null
+      rows:
+        - Dm | Dm | Dm | Dm | x2
+  - id: couplet1
+    item: !Chords
+      title: couplet 1
+      type: couplet
+      section_body: null
+      rows:
+        - Dm | Dm | Dm | Dm | x2
+  - id: prerefrain1
+    item: !Chords
+      title: pré refrain 1
+      type: prerefrain
+      section_body: null
+      rows:
+        - 'A | G | F | C '
+  - id: refrain1
+    item: !Chords
+      title: refrain 1
+      type: refrain
+      section_body: null
+      rows:
+        - Gm | C | Gm | Ef Bf
+        - 'Gm | C | Bfsept Afsept | '
+  - id: hr
+    item: !HRule 80
+  - id: fill1
+    item: !Chords
+      title: fill 1
+      type: fill
+      section_body: null
+      rows:
+        - ' Dm | Dm | Dm | Dm '
+  - id: hr
+    item: !HRule 80
+  - id: couplet2
+    item: !Ref
+      title: couplet 2
+      section_body: null
+      type: couplet
+      link: couplet1
+  - id: prerefrain2
+    item: !Ref
+      title: pré refrain 2
+      section_body: null
+      type: prerefrain
+      link: prerefrain1
+  - id: refrain2
+    item: !Ref
+      title: refrain 2
+      section_body: null
+      type: refrain
+      link: refrain1
+  - id: nc
+    item: NewColumn
+  - id: hr
+    item: !HRule 80
+  - id: solo1
+    item: !Chords
+      title: solo 1
+      type: solo
+      section_body: null
+      rows:
+        - ' Dm | Dm'
+  - id: pontsolo
+    item: !Chords
+      title: pont-solo
+      type: pont
+      section_body: null
+      rows:
+        - ' Gm | Am | Dm | Dm '
+        - 'Gm | Ef | Bf | HRest '
+  - id: solo
+    item: !Chords
+      title: solo
+      type: solo
+      section_body: null
+      rows:
+        - Dm | Dm | Dm | Dm
+        - Dm | Dm | Dm | Dm
+  - id: hr
+    item: !HRule 80
+  - id: refrain3
+    item: !Ref
+      title: refrain 3
+      section_body: null
+      type: refrain
+      link: refrain1
+  - id: refrain4
+    item: !Ref
+      title: refrain 4
+      section_body: null
+      type: refrain
+      link: refrain1
