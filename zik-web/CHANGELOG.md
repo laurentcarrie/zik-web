@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0] - 2026-01-22
+
+### Added
+- Font (skriva-3.woff) now stored in S3 and downloaded on server startup
+- Song detail page at /song/:id with Edit YML and View PDF buttons
+- Edit YML page with CodeMirror syntax highlighting and YAML validation
+- Custom YAML schema support for tags (!Chords, !Lyrics, etc.)
+- Edit lyrics page for .tex files with LaTeX syntax highlighting
+- PDF endpoint to serve PDF files from S3
+- Edit page listing all songs for editing
+- Deezer button for each song linking to Deezer search
+- deezer_url field in SongEntry
+- make_deezer_url helper function
+- PDF and Deezer buttons in grilles page
+- Alternating row colors (lightpink/lavender) in grilles page
+
+### Changed
+- Grilles page now shows PDF and Deezer buttons instead of linking song title to PDF
+- Refactored code into modules: edit.rs, update.rs
+
 ## [0.2.0] - 2026-01-21
 
 ### Added
