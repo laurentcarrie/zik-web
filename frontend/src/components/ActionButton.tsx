@@ -16,6 +16,14 @@ const variantStyles = {
   edit: 'bg-[#6b7280] hover:bg-gray-600',
 }
 
+function PdfIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 13H10c.83 0 1.5.67 1.5 1.5S10.83 16 10 16H9v1.5H8.5V13zM9 15h1c.28 0 .5-.22.5-.5s-.22-.5-.5-.5H9v1zm3.5-2h1.75c.83 0 1.5.67 1.5 1.5v2c0 .83-.67 1.5-1.5 1.5H12.5V13zm1 4h.75c.28 0 .5-.22.5-.5v-2c0-.28-.22-.5-.5-.5h-.75v3zm3-4H18v.5h-1v1h1v.5h-1v1.5h-.5V13z"/>
+    </svg>
+  )
+}
+
 function DeezerIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -32,7 +40,7 @@ function SpotifyIcon({ className }: { className?: string }) {
   )
 }
 
-export { DeezerIcon, SpotifyIcon }
+export { PdfIcon, DeezerIcon, SpotifyIcon }
 
 export default function ActionButton({ href, variant, target, children }: ActionButtonProps) {
   return (
