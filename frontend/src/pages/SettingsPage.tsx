@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 interface ServiceSettings {
@@ -28,6 +28,14 @@ export default function SettingsPage() {
       spotifyApp: false,
     }
   })
+  const [version, setVersion] = useState<string>('')
+
+  useEffect(() => {
+    fetch('/version')
+      .then(res => res.text())
+      .then(setVersion)
+      .catch(() => setVersion('unknown'))
+  }, [])
 
   const handleChange = (key: keyof ServiceSettings) => {
     const newSettings = { ...settings, [key]: !settings[key] }
@@ -90,6 +98,8 @@ export default function SettingsPage() {
             <span className="text-gray-700">Spotify (App)</span>
           </label>
         </div>
+
+        <p className="mt-8 text-gray-400 text-sm">Version {version}</p>
       </div>
     </div>
   )
