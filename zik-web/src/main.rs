@@ -133,11 +133,11 @@ async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-async fn display_song(State(state): State<AppState>, Path(id): Path<usize>) -> Html<String> {
+async fn display_song(State(state): State<AppState>, Path(id): Path<String>) -> Html<String> {
     let songs = get_all_songs(&state.s3_client).await.unwrap_or_default();
 
-    match songs.get(id) {
-        Some((title, author, _key, deezer_url)) => Html(format!(
+    match songs.iter().find(|(song_id, _, _, _, _)| song_id == &id) {
+        Some((_, title, author, _key, deezer_url)) => Html(format!(
             r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -468,8 +468,8 @@ async fn songs(State(state): State<AppState>, Query(query): Query<SongsQuery>) -
     }
 
     let mut song_list = String::new();
-    for (idx, (title, author, _key, _deezer_url)) in songs.iter().enumerate() {
-        let song_url = format!("/song/{idx}");
+    for (id, title, author, _key, _deezer_url) in &songs {
+        let song_url = format!("/song/{id}");
         if sort_by == "author" {
             song_list.push_str(&format!(
                 r#"<li><a href="{}" class="song-link"><span class="author">{}</span> <span class="connector">performs</span> <span class="title">{}</span></a></li>"#,
