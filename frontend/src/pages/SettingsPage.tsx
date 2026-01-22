@@ -53,7 +53,7 @@ export default function SettingsPage() {
           &larr; Back
         </Link>
 
-        <p className="text-gray-400 text-sm mb-2">Version {version}</p>
+        <p className="text-gray-500 text-base mb-2">Version {version}</p>
         <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Settings</h1>
 
         <div className="space-y-4">
