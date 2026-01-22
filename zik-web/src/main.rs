@@ -52,7 +52,6 @@ async fn main() {
 
     // Legacy HTML routes (can be removed after full migration)
     let legacy_routes = Router::new()
-        .route("/legacy", get(index))
         .route("/edit", get(edit::edit_list))
         .route("/version", get(version))
         .route("/update", get(update::update))
@@ -184,79 +183,6 @@ async fn api_pdf(
         }
         Err(e) => (StatusCode::NOT_FOUND, format!("PDF not found: {e}")).into_response(),
     }
-}
-
-async fn index(State(_state): State<AppState>) -> Html<&'static str> {
-    Html(
-        r#"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M T L</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-    <link rel="manifest" href="/static/site.webmanifest">
-    <style>
-        @font-face {
-            font-family: 'Fontskrivan';
-            src: url('/static/skriva-3.woff') format('woff');
-        }
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            min-height: 100vh;
-            background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
-            background-size: contain;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .container {
-            position: relative;
-            text-align: center;
-            padding: 2rem;
-        }
-        nav {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        nav a {
-            display: block;
-            padding: 1.5rem 3rem;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            text-decoration: none;
-            border-radius: 10px;
-            font-family: 'Fontskrivan', cursive;
-            font-size: 2.5rem;
-            font-weight: 900;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-        nav a:hover {
-            background: rgba(0, 0, 0, 0.7);
-            transform: translateY(-2px);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <nav>
-            <a href="/songs">Songs</a>
-        </nav>
-    </div>
-</body>
-</html>
-"#,
-    )
 }
 
 async fn version() -> &'static str {
