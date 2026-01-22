@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 interface ServiceSettings {
   deezerWeb: boolean
@@ -19,6 +19,7 @@ function setCookie(name: string, value: string, days: number = 365) {
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
   const [settings, setSettings] = useState<ServiceSettings>(() => {
     const saved = getCookie('serviceSettings')
     return saved ? JSON.parse(saved) : {
@@ -46,12 +47,12 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-3xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
-        <Link
-          to="/"
-          className="inline-block mb-4 text-[#667eea] no-underline hover:underline"
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-block mb-4 text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-base"
         >
           &larr; Back
-        </Link>
+        </button>
 
         <p className="text-gray-500 text-base mb-2">Version {version}</p>
         <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Settings</h1>
