@@ -1,0 +1,1 @@
+export NETLIFY_DATABASE_URL="postgresql://neondb_owner:npg_3aQpY8WvzNXo@ep-little-heart-aemm8p5b-pooler.c-2.us-east-2.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
