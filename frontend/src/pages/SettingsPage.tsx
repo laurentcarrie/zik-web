@@ -53,6 +53,7 @@ export default function SettingsPage() {
           &larr; Back
         </Link>
 
+        <p className="text-gray-400 text-sm mb-2">Version {version}</p>
         <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Settings</h1>
 
         <div className="space-y-4">
@@ -98,8 +99,6 @@ export default function SettingsPage() {
             <span className="text-gray-700">Spotify (App)</span>
           </label>
         </div>
-
-        <p className="mt-8 text-gray-400 text-sm">Version {version}</p>
       </div>
     </div>
   )
