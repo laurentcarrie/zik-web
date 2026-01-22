@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
-use songs::{display_song, download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, make_deezer_url, save_lyrics};
+use songs::{download_font_from_s3, get_all_songs, get_lyrics, get_song_pdf, make_deezer_app_url, make_deezer_url, save_lyrics};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -57,7 +57,6 @@ async fn main() {
         .route("/edit", get(edit::edit_list))
         .route("/version", get(version))
         .route("/update", get(update::update))
-        // .route("/legacy/song/:id", get(display_song_handler))
         .route("/edit-yml", get(edit::edit_yml))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
@@ -140,7 +139,7 @@ async fn api_song(
     let (id, title, author, _key, _deezer_url) = song;
     let deezer_url = make_deezer_url(&title, &author);
     let deezer_app_url = make_deezer_app_url(&title, &author);
-    let pdf_url = format!("/api/pdf/{}", id);
+    let pdf_url = format!("/api/pdf/{id}");
 
     Ok(Json(ApiSongDetail {
         id,
@@ -170,7 +169,7 @@ async fn api_pdf(
 
     match get_song_pdf(&state.s3_client, &author, &title).await {
         Ok(pdf_bytes) => {
-            let filename = format!("{} - {}.pdf", author, title);
+            let filename = format!("{author} - {title}.pdf");
             (
                 StatusCode::OK,
                 [
@@ -263,10 +262,6 @@ async fn index(State(_state): State<AppState>) -> Html<&'static str> {
 
 async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
-}
-
-async fn display_song_handler(State(state): State<AppState>, Path(id): Path<String>) -> Html<String> {
-    display_song(&state.s3_client, &id).await
 }
 
 #[derive(Deserialize)]
