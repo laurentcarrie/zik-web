@@ -65,7 +65,7 @@ export default function SettingsPage() {
               type="checkbox"
               checked={settings.deezerWeb}
               onChange={() => handleChange('deezerWeb')}
-              className="w-5 h-5 accent-[#a238ff]"
+              className="w-5 h-5 accent-[#191414]"
             />
             <span className="text-gray-700">Deezer (Web)</span>
           </label>

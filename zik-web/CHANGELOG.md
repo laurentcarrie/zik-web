@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0] - 2026-01-23
+
+### Changed
+- Deezer app URL now uses `deezer://` protocol for native app launch
+- Deezer URLs now include `/track` suffix for direct track search
+- Deezer icon replaced with official favicon (purple heart)
+- Deezer web button background changed to dark (#191414) for better icon visibility
+- Spotify web search URL now includes `/tracks` filter
+
+### Added
+- Deezer favicon asset (`deezer-favicon.ico`)
+
 ## [0.13.0] - 2026-01-23
 
 ### Fixed
