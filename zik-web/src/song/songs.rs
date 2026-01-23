@@ -8,6 +8,7 @@ use uuid::Uuid;
 use super::{SongEntry, SongYml};
 
 pub const BUCKET: &str = "zik-laurent";
+pub const CLOUDFRONT_URL: &str = "https://d2n27e7te5g63n.cloudfront.net";
 const SONGS_PREFIX: &str = "songs/";
 const FONT_S3_KEY: &str = "static/skriva-3.woff";
 const FONT_LOCAL_PATH: &str = "static/skriva-3.woff";
@@ -167,6 +168,16 @@ pub fn make_deezer_app_url(title: &str, author: &str) -> String {
 
 fn normalize_for_pdf_key(s: &str) -> String {
     s.to_lowercase().replace([' ', '\'', '\u{2019}'], "_")
+}
+
+pub fn make_cloudfront_pdf_url(author: &str, title: &str) -> String {
+    let normalized_author = normalize_for_pdf_key(author);
+    let normalized_title = normalize_for_pdf_key(title);
+    format!("{CLOUDFRONT_URL}/pdf/{normalized_author}--@--{normalized_title}.pdf")
+}
+
+pub fn make_cloudfront_url(key: &str) -> String {
+    format!("{CLOUDFRONT_URL}/{key}")
 }
 
 pub async fn get_song_pdf(

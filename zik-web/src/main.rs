@@ -17,8 +17,9 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
     download_font_from_s3, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
-    get_song_yml, lilypond_to_html, make_deezer_app_url, make_deezer_url, read_from_s3,
-    save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_to_s3,
+    get_song_yml, lilypond_to_html, make_cloudfront_pdf_url, make_cloudfront_url,
+    make_deezer_app_url, make_deezer_url, read_from_s3, save_lyrics_by_key, save_lyrics_handler,
+    save_song_yml, write_to_s3,
 };
 
 #[derive(Clone)]
@@ -162,7 +163,7 @@ async fn api_song(
     let (id, title, author, key, _deezer_url) = song;
     let deezer_url = make_deezer_url(&title, &author);
     let deezer_app_url = make_deezer_app_url(&title, &author);
-    let pdf_url = format!("/api/pdf/{id}");
+    let pdf_url = make_cloudfront_pdf_url(&author, &title);
 
     Ok(Json(ApiSongDetail {
         id,
@@ -363,7 +364,7 @@ async fn api_press_book_photos(
                     || lower_key.ends_with(".gif")
                     || lower_key.ends_with(".webp")
                 {
-                    photos.push(key.to_string());
+                    photos.push(make_cloudfront_url(key));
                 }
             }
         }
@@ -446,7 +447,7 @@ async fn api_press_book_videos(
                     || lower_key.ends_with(".webm")
                     || lower_key.ends_with(".avi")
                 {
-                    videos.push(key.to_string());
+                    videos.push(make_cloudfront_url(key));
                 }
             }
         }
