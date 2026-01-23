@@ -9,7 +9,7 @@ interface ActionButtonProps {
 
 const variantStyles = {
   pdf: 'bg-[#dc2626] hover:bg-red-700',
-  deezer: 'bg-[#a238ff] hover:bg-purple-700',
+  deezer: 'bg-[#191414] hover:bg-gray-800',
   'deezer-app': 'bg-[#ff6b35] hover:bg-orange-600',
   spotify: 'bg-[#1DB954] hover:bg-green-600',
   'spotify-app': 'bg-[#191414] hover:bg-gray-800',
@@ -26,9 +26,7 @@ function PdfIcon({ className }: { className?: string }) {
 
 function DeezerIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M18.81 4.16v3.03H24V4.16h-5.19zM6.27 8.38v3.027h5.189V8.38h-5.19zm12.54 0v3.027H24V8.38h-5.19zM6.27 12.594v3.027h5.189v-3.027h-5.19zm6.27 0v3.027h5.19v-3.027h-5.19zm6.27 0v3.027H24v-3.027h-5.19zM0 16.81v3.029h5.19v-3.03H0zm6.27 0v3.029h5.189v-3.03h-5.19zm6.27 0v3.029h5.19v-3.03h-5.19zm6.27 0v3.029H24v-3.03h-5.19z"/>
-    </svg>
+    <img src="/deezer-favicon.ico" alt="Deezer" className={className} />
   )
 }
 

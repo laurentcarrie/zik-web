@@ -28,7 +28,7 @@ function getSettings(): ServiceSettings {
 
 function makeSpotifyUrl(title: string, author: string): string {
   const query = encodeURIComponent(`${title} ${author}`)
-  return `https://open.spotify.com/search/${query}`
+  return `https://open.spotify.com/search/${query}/tracks`
 }
 
 function makeSpotifyAppUrl(title: string, author: string): string {

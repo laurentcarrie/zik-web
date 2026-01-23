@@ -154,14 +154,14 @@ pub async fn save_song_yml(
 
 pub fn make_deezer_url(title: &str, author: &str) -> String {
     format!(
-        "https://www.deezer.com/search/{}",
+        "https://www.deezer.com/search/{}/track",
         urlencoding::encode(&format!("{title} {author}"))
     )
 }
 
 pub fn make_deezer_app_url(title: &str, author: &str) -> String {
     format!(
-        "https://www.deezer.com/search/{}",
+        "deezer://www.deezer.com/search/{}/track",
         urlencoding::encode(&format!("{title} {author}"))
     )
 }
