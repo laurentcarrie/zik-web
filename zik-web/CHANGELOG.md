@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0] - 2026-01-23
+
+### Added
+- CloudFront CDN integration for serving static assets
+- `make_cloudfront_pdf_url()` and `make_cloudfront_url()` helper functions
+
+### Changed
+- S3 bucket renamed from `laurent-zik` to `zik-laurent`
+- PDFs now served via CloudFront instead of backend proxy
+- Press-book photos and videos served via CloudFront
+- Frontend loads media directly from CloudFront URLs
+
 ## [0.10.0] - 2026-01-22
 
 ### Added

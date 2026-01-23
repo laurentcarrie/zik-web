@@ -118,7 +118,7 @@ export default function PressBookPage() {
               {/* Main image */}
               <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
                 <img
-                  src={`/api/press-book/photo/${photos[currentIndex]}`}
+                  src={photos[currentIndex]}
                   alt={`Photo ${currentIndex + 1}`}
                   className="w-full h-full object-contain"
                 />
@@ -168,7 +168,7 @@ export default function PressBookPage() {
                     }`}
                   >
                     <img
-                      src={`/api/press-book/photo/${photo}`}
+                      src={photo}
                       alt={`Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -187,7 +187,7 @@ export default function PressBookPage() {
               {videos.map((video) => (
                 <li key={video}>
                   <a
-                    href={`/api/press-book/video/${video}`}
+                    href={video}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-700 no-underline"
