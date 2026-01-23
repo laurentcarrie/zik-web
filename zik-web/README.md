@@ -26,6 +26,7 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
 - **Backend**: Rust with Axum web framework
 - **Frontend**: React + Vite + Tailwind CSS
 - **Storage**: AWS S3 for songs, PDFs, and static assets
+- **CDN**: CloudFront for serving PDFs, photos, and videos
 - **Deployment**: AWS App Runner with multi-stage Docker build
 
 ## Running Locally
