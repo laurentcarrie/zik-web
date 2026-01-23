@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.13.0] - 2026-01-23
+
+### Fixed
+- App Runner IAM policies now reference correct S3 bucket name (`zik-laurent` instead of `laurent-zik`)
+
 ## [0.12.0] - 2026-01-23
 
 ### Changed
