@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.12.0] - 2026-01-23
+
+### Changed
+- Dependency updates (Cargo.lock refresh)
+
 ## [0.11.0] - 2026-01-23
 
 ### Added
