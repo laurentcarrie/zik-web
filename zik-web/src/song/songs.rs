@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::{SongEntry, SongYml};
 
-pub const BUCKET: &str = "laurent-zik";
+pub const BUCKET: &str = "zik-laurent";
 const SONGS_PREFIX: &str = "songs/";
 const FONT_S3_KEY: &str = "static/skriva-3.woff";
 const FONT_LOCAL_PATH: &str = "static/skriva-3.woff";
