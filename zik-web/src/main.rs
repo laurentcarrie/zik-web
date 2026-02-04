@@ -6,8 +6,9 @@ use aws_config::Region;
 use aws_sdk_s3::Client;
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Path, Query, State, Request},
     http::{Method, StatusCode, header},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -48,22 +49,30 @@ async fn main() {
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(Any);
 
-    // API routes
-    let api_routes = Router::new()
+    // Public API routes (read operations)
+    let public_api_routes = Router::new()
         .route("/songs", get(api_songs))
         .route("/song/:id", get(api_song))
         .route("/song/:id/yml", get(api_song_yml))
-        .route("/song/:id/yml", post(api_save_song_yml))
         .route("/song/:id/lyrics/:section_id", get(api_lyrics))
-        .route("/song/:id/lyrics/:section_id", post(api_save_lyrics))
         .route("/pdf/:id", get(api_pdf))
         .route("/press-book/photos", get(api_press_book_photos))
         .route("/press-book/photo/*key", get(api_press_book_photo))
         .route("/press-book/videos", get(api_press_book_videos))
         .route("/press-book/video/*key", get(api_press_book_video))
         .route("/s3/*key", get(api_read_from_s3))
-        .route("/s3/*key", post(api_write_to_s3))
+        .route("/make-report", get(api_make_report))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
+        .route("/auth/verify", post(verify_password))
+        .with_state(state.clone());
+
+    // Protected API routes (write operations) - require auth
+    let protected_api_routes = Router::new()
+        .route("/song/:id/yml", post(api_save_song_yml))
+        .route("/song/:id/lyrics/:section_id", post(api_save_lyrics))
+        .route("/s3/*key", post(api_write_to_s3))
+        .route("/make", post(api_make))
+        .layer(middleware::from_fn(write_auth_middleware))
         .with_state(state.clone());
 
     // Legacy HTML routes (can be removed after full migration)
@@ -78,6 +87,10 @@ async fn main() {
 
     // SPA fallback - serve index.html for all non-API, non-static routes
     let spa_service = ServeDir::new("dist").not_found_service(ServeFile::new("dist/index.html"));
+
+    let api_routes = Router::new()
+        .merge(public_api_routes)
+        .merge(protected_api_routes);
 
     let app = Router::new()
         .nest("/api", api_routes)
@@ -516,6 +529,16 @@ async fn api_read_from_s3(
     Ok(Json(ReadS3Response { data }))
 }
 
+async fn api_make_report(
+    State(state): State<AppState>,
+) -> Result<Json<ReadS3Response>, StatusCode> {
+    let data = read_from_s3(&state.s3_client, "sandbox/make-report.yml")
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(ReadS3Response { data }))
+}
+
 #[derive(Deserialize)]
 struct WriteS3Body {
     data: String,
@@ -563,6 +586,101 @@ async fn api_lilypond_to_html(
 
 async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+// Auth middleware for write operations
+async fn write_auth_middleware(
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let expected = std::env::var("WRITE_PASSWORD").ok();
+
+    // Skip auth if no password configured
+    if expected.is_none() {
+        return Ok(next.run(request).await);
+    }
+
+    let provided = request.headers()
+        .get("X-Write-Password")
+        .and_then(|h| h.to_str().ok());
+
+    if provided == expected.as_deref() {
+        Ok(next.run(request).await)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+#[derive(Deserialize)]
+struct VerifyPasswordRequest {
+    password: String,
+}
+
+async fn verify_password(
+    Json(req): Json<VerifyPasswordRequest>,
+) -> impl IntoResponse {
+    let expected = std::env::var("WRITE_PASSWORD").unwrap_or_default();
+    if req.password == expected {
+        StatusCode::OK
+    } else {
+        StatusCode::UNAUTHORIZED
+    }
+}
+
+#[derive(Deserialize)]
+struct MakeRequest {
+    path: String,
+}
+
+#[derive(Serialize)]
+struct MakeResponse {
+    success: bool,
+    message: String,
+    report: Option<String>,
+}
+
+async fn api_make(
+    State(state): State<AppState>,
+    Json(req): Json<MakeRequest>,
+) -> Result<Json<MakeResponse>, (StatusCode, Json<MakeResponse>)> {
+    // Extract directory from song path (e.g., "songs/author/title/song.yml" -> "songs/author/title")
+    let dir = req.path.trim_end_matches("/song.yml");
+
+    // Build S3 URLs for srcdir and sandbox
+    let srcdir = format!("s3://{}/{}", song::BUCKET, dir);
+    let sandbox = format!("s3://{}/sandbox", song::BUCKET);
+
+    println!("api_make: srcdir={}", srcdir);
+    println!("api_make: sandbox={}", sandbox);
+
+    let result = band_songbook::make_all_with_storage(&srcdir, &sandbox, None, None).await;
+
+    // Try to read the make-report.yml from S3
+    let report_key = "sandbox/make-report.yml";
+    let report = read_from_s3(&state.s3_client, report_key).await.ok();
+
+    match result {
+        Ok((success, _graph)) => {
+            if success {
+                Ok(Json(MakeResponse {
+                    success: true,
+                    message: "Build succeeded".to_string(),
+                    report,
+                }))
+            } else {
+                Err((StatusCode::INTERNAL_SERVER_ERROR, Json(MakeResponse {
+                    success: false,
+                    message: "Build failed".to_string(),
+                    report,
+                })))
+            }
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(MakeResponse {
+            success: false,
+            message: e,
+            report,
+        }))),
+    }
 }
 
 #[derive(Deserialize)]
