@@ -730,8 +730,9 @@ dependencies = [
 
 [[package]]
 name = "band-songbook"
-version = "0.0.4"
-source = "git+https://github.com/laurentcarrie/songbook-lambda?branch=main#9a63938f3d97e7610620e28dfe0469f9cefd2a2e"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37fbdc9a8645e3810ea8b477c36b45b244e03f448d1c91e5a00604261afecdb7"
 dependencies = [
  "argh",
  "aws-config",
@@ -2676,7 +2677,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls 0.23.36",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "thiserror",
  "tokio",
  "tracing",
@@ -2713,9 +2714,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
