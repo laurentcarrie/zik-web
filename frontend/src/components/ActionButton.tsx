@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 interface ActionButtonProps {
-  href: string
+  href?: string
   variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app' | 'edit'
   target?: '_blank' | '_self'
   children: ReactNode
@@ -59,7 +59,7 @@ function MakeIcon({ className }: { className?: string }) {
 export { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon, MakeIcon }
 
 export default function ActionButton({ href, variant, target, children, disabled, title }: ActionButtonProps) {
-  if (disabled) {
+  if (disabled || !href) {
     return (
       <div className="relative group">
         <span
