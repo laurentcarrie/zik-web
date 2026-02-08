@@ -42,6 +42,26 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
+      - name: Update App Runner service with environment variables
+        run: |
+          aws apprunner update-service \
+            --service-arn $APP_RUNNER_SERVICE_ARN \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": {
+                  "Port": "8080",
+                  "RuntimeEnvironmentVariables": {
+                    "WRITE_PASSWORD": "${{ secrets.WRITE_PASSWORD }}",
+                    "NOTIFICATION_EMAIL": "${{ secrets.NOTIFICATION_EMAIL }}",
+                    "SENDER_EMAIL": "${{ secrets.SENDER_EMAIL }}"
+                  }
+                }
+              },
+              "AutoDeploymentsEnabled": false
+            }'
+
       - name: Deploy to App Runner
         run: |
           aws apprunner start-deployment --service-arn $APP_RUNNER_SERVICE_ARN

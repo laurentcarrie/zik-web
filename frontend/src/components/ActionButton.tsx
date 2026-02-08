@@ -5,6 +5,8 @@ interface ActionButtonProps {
   variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app' | 'edit'
   target?: '_blank' | '_self'
   children: ReactNode
+  disabled?: boolean
+  title?: string
 }
 
 const variantStyles = {
@@ -46,14 +48,40 @@ function EditIcon({ className }: { className?: string }) {
   )
 }
 
-export { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon }
+function MakeIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+    </svg>
+  )
+}
 
-export default function ActionButton({ href, variant, target, children }: ActionButtonProps) {
+export { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon, MakeIcon }
+
+export default function ActionButton({ href, variant, target, children, disabled, title }: ActionButtonProps) {
+  if (disabled) {
+    return (
+      <div className="relative group">
+        <span
+          className="inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
+                      h-[44px] w-24 justify-center bg-gray-400 cursor-not-allowed"
+        >
+          {children}
+        </span>
+        {title && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+            {title}
+          </div>
+        )}
+      </div>
+    )
+  }
   return (
     <a
       href={href}
       target={target}
       rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+      title={title}
       className={`inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
                   h-[44px] w-24 justify-center
                   transition-colors active:scale-95

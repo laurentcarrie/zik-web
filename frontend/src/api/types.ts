@@ -7,7 +7,8 @@ export interface Song {
 }
 
 export interface SongDetail extends Song {
-  pdf_url: string
+  pdf_url?: string
+  pdf_lyrics_url?: string
   key: string
 }
 

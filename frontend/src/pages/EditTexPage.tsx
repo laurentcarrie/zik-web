@@ -6,6 +6,8 @@ import { StreamLanguage } from '@codemirror/language'
 import { stex } from '@codemirror/legacy-modes/mode/stex'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { fetchSong } from '../api/songs'
+import { useAuth, getStoredPassword } from '../context/AuthContext'
+import PasswordModal from '../components/PasswordModal'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -26,12 +28,20 @@ async function fetchTex(songKey: string, filename: string): Promise<{ data: stri
 async function saveTex(songKey: string, filename: string, data: string): Promise<void> {
   const dir = songKey.substring(0, songKey.lastIndexOf('/'))
   const s3Key = `${dir}/${filename}`
+  const password = getStoredPassword()
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (password) {
+    headers['X-Write-Password'] = password
+  }
   const res = await fetch(`${API_BASE}/api/s3/${s3Key}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ data }),
   })
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error('Unauthorized')
+    }
     throw new Error('Failed to save tex file')
   }
 }
@@ -39,6 +49,8 @@ async function saveTex(songKey: string, filename: string, data: string): Promise
 export default function EditTexPage() {
   const { id, filename } = useParams<{ id: string; filename: string }>()
   const [content, setContent] = useState('')
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const { isAuthenticated } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
     setContent(value)
@@ -61,8 +73,12 @@ export default function EditTexPage() {
     onSuccess: () => {
       alert('Saved successfully!')
     },
-    onError: () => {
-      alert('Failed to save')
+    onError: (error: Error) => {
+      if (error.message === 'Unauthorized') {
+        setShowPasswordModal(true)
+      } else {
+        alert('Failed to save')
+      }
     },
   })
 
@@ -73,12 +89,32 @@ export default function EditTexPage() {
   }, [texData])
 
   function handleSave() {
+    if (!isAuthenticated) {
+      setShowPasswordModal(true)
+      return
+    }
+    saveMutation.mutate()
+  }
+
+  function handlePasswordSuccess() {
+    setShowPasswordModal(false)
     saveMutation.mutate()
   }
 
   function handleClose() {
     window.close()
   }
+
+  // Escape key closes window
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !showPasswordModal) {
+        handleClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showPasswordModal])
 
   if (songLoading || texLoading) {
     return (
@@ -142,6 +178,12 @@ export default function EditTexPage() {
           </button>
         </div>
       </div>
+
+      <PasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSuccess={handlePasswordSuccess}
+      />
     </div>
   )
 }

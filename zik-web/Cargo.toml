@@ -1,6 +1,6 @@
 [package]
 name = "zik-web"
-version = "0.14.0"
+version = "0.15.0"
 edition = "2024"
 
 [dependencies]
@@ -10,9 +10,15 @@ tower-http = { version = "0.5", features = ["fs", "cors"] }
 tower = "0.5"
 aws-config = "1.1"
 aws-sdk-s3 = "1.15"
+aws-sdk-cloudwatchlogs = "1.15"
+aws-sdk-lambda = "1.15"
+aws-sdk-sesv2 = "1.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 urlencoding = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
 strudel-of-lilypond = "0.3"
+band-songbook = { path = "../../songbook-lambda/band-songbook" }
+tempfile = "3"
+chrono = "0.4"

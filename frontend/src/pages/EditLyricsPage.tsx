@@ -6,6 +6,8 @@ import { StreamLanguage } from '@codemirror/language'
 import { stex } from '@codemirror/legacy-modes/mode/stex'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { fetchSong } from '../api/songs'
+import { useAuth, getStoredPassword } from '../context/AuthContext'
+import PasswordModal from '../components/PasswordModal'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -21,12 +23,20 @@ async function fetchLyrics(songId: string, sectionId: string): Promise<{ content
 }
 
 async function saveLyrics(songId: string, sectionId: string, content: string): Promise<void> {
+  const password = getStoredPassword()
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (password) {
+    headers['X-Write-Password'] = password
+  }
   const res = await fetch(`${API_BASE}/api/song/${songId}/lyrics/${sectionId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ content }),
   })
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error('Unauthorized')
+    }
     throw new Error('Failed to save lyrics')
   }
 }
@@ -34,6 +44,8 @@ async function saveLyrics(songId: string, sectionId: string, content: string): P
 export default function EditLyricsPage() {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>()
   const [content, setContent] = useState('')
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const { isAuthenticated } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
     setContent(value)
@@ -56,8 +68,12 @@ export default function EditLyricsPage() {
     onSuccess: () => {
       alert('Saved successfully!')
     },
-    onError: () => {
-      alert('Failed to save')
+    onError: (error: Error) => {
+      if (error.message === 'Unauthorized') {
+        setShowPasswordModal(true)
+      } else {
+        alert('Failed to save')
+      }
     },
   })
 
@@ -68,12 +84,32 @@ export default function EditLyricsPage() {
   }, [lyricsData])
 
   function handleSave() {
+    if (!isAuthenticated) {
+      setShowPasswordModal(true)
+      return
+    }
+    saveMutation.mutate()
+  }
+
+  function handlePasswordSuccess() {
+    setShowPasswordModal(false)
     saveMutation.mutate()
   }
 
   function handleClose() {
     window.close()
   }
+
+  // Escape key closes window
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !showPasswordModal) {
+        handleClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showPasswordModal])
 
   if (songLoading || lyricsLoading) {
     return (
@@ -137,6 +173,12 @@ export default function EditLyricsPage() {
           </button>
         </div>
       </div>
+
+      <PasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSuccess={handlePasswordSuccess}
+      />
     </div>
   )
 }

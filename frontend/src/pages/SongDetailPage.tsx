@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { fetchSong } from '../api/songs'
-import ActionButton, { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon } from '../components/ActionButton'
+import { fetchSong, fetchSongs } from '../api/songs'
+import ActionButton, { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon, MakeIcon } from '../components/ActionButton'
+import { useAuth, getStoredPassword } from '../context/AuthContext'
+
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 interface ServiceSettings {
   deezerWeb: boolean
@@ -50,17 +53,249 @@ function GearIcon({ className }: { className?: string }) {
 
 export default function SongDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [settings, setSettings] = useState<ServiceSettings>(getSettings)
+  const [buildError, setBuildError] = useState<{ pathbuf: string } | null>(null)
+  const [logContent, setLogContent] = useState<string>('')
+  const [showLogModal, setShowLogModal] = useState(false)
+  const [logModalTitle, setLogModalTitle] = useState('')
+  const [logSearchQuery, setLogSearchQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const [lambdaRunning, setLambdaRunning] = useState<boolean | null>(null)
+  const [lambdaTimestamp, setLambdaTimestamp] = useState<string>('')
+  const [lambdaDuration, setLambdaDuration] = useState<number | null>(null)
+  const [building, setBuilding] = useState(false)
+  const [buildMessage, setBuildMessage] = useState<string | null>(null)
+  const [pdfVersion, setPdfVersion] = useState(0) // Cache-buster for PDF iframes
+  const { isAuthenticated } = useAuth()
+
+  // Clear build message when navigating to a different song
+  useEffect(() => {
+    setBuildMessage(null)
+  }, [id])
 
   useEffect(() => {
     setSettings(getSettings())
+    checkLambdaStatus()
+
+    // Continuously poll lambda status every 5 seconds
+    const statusInterval = setInterval(checkLambdaStatus, 5000)
+    return () => clearInterval(statusInterval)
   }, [])
 
-  const { data: song, isLoading, error } = useQuery({
+  function formatDuration(secs: number): string {
+    const mins = Math.floor(secs / 60)
+    const remainingSecs = secs % 60
+    if (mins > 0) {
+      return `${mins}m ${remainingSecs}s`
+    }
+    return `${remainingSecs}s`
+  }
+
+  async function checkLambdaStatus() {
+    try {
+      const res = await fetch(`${API_BASE}/api/lambda-status`)
+      if (res.ok) {
+        const data = await res.json()
+        setLambdaRunning(data.running)
+        setLambdaTimestamp(data.timestamp || '')
+        setLambdaDuration(data.duration_secs ?? null)
+      }
+    } catch {
+      setLambdaRunning(null)
+    }
+  }
+
+  async function triggerBuild() {
+    setBuilding(true)
+    setBuildMessage(null)
+
+    // Check if a build is already running
+    try {
+      const statusRes = await fetch(`${API_BASE}/api/lambda-status`)
+      if (statusRes.ok) {
+        const statusData = await statusRes.json()
+        if (statusData.running) {
+          setBuildMessage('A build is already running. Please wait for it to complete.')
+          setBuilding(false)
+          return
+        }
+      }
+    } catch {
+      // Continue anyway if status check fails
+    }
+
+    try {
+      const password = getStoredPassword()
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (password) {
+        headers['X-Write-Password'] = password
+      }
+      const res = await fetch(`${API_BASE}/api/invoke-build`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ song_key: song?.key }),
+      })
+      const data = await res.json()
+      setBuildMessage(data.message)
+      // Start polling for build status
+      if (data.success) {
+        startBuildPolling()
+      }
+    } catch {
+      setBuildMessage('Build request failed')
+    } finally {
+      setBuilding(false)
+    }
+  }
+
+  function startBuildPolling() {
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/lambda-status`)
+        if (res.ok) {
+          const data = await res.json()
+          setLambdaRunning(data.running)
+          setLambdaTimestamp(data.timestamp || '')
+          setLambdaDuration(data.duration_secs ?? null)
+
+          // Stop polling when build is done
+          if (!data.running) {
+            clearInterval(pollInterval)
+            setBuildMessage('Build completed')
+            // Refresh song data (to get updated pdf_lyrics_url if created)
+            refetchSong()
+            // Refresh PDF iframes with cache-buster
+            setPdfVersion(v => v + 1)
+            // Refresh build error status
+            refreshBuildError()
+          }
+        }
+      } catch {
+        clearInterval(pollInterval)
+      }
+    }, 3000) // Poll every 3 seconds
+  }
+
+  async function refreshBuildError() {
+    if (!song?.key) return
+    try {
+      const reportRes = await fetch(`${API_BASE}/api/make-report`)
+      if (reportRes.ok) {
+        const reportData = await reportRes.json()
+        const keyParts = song.key.split('/')
+        if (keyParts.length >= 3) {
+          const songDir = `${keyParts[1]}/${keyParts[2]}`
+          const failed = reportData.nodes?.find((node: { pathbuf: string; status: string }) =>
+            node.status === 'BuildFailed' && node.pathbuf.startsWith(songDir)
+          )
+          setBuildError(failed || null)
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  const { data: song, isLoading, error, refetch: refetchSong } = useQuery({
     queryKey: ['song', id],
     queryFn: () => fetchSong(id!),
     enabled: !!id,
   })
+
+  // Fetch all songs for navigation
+  const { data: allSongs } = useQuery({
+    queryKey: ['songs'],
+    queryFn: fetchSongs,
+  })
+
+  // Compute sorted songs and prev/next navigation
+  const { prevSong, nextSong } = useMemo(() => {
+    if (!allSongs || !id) return { prevSong: null, nextSong: null }
+
+    const sorted = [...allSongs].sort((a, b) => {
+      const authorCompare = a.author.localeCompare(b.author)
+      if (authorCompare !== 0) return authorCompare
+      return a.title.localeCompare(b.title)
+    })
+
+    const currentIndex = sorted.findIndex(s => s.id === id)
+    if (currentIndex === -1) return { prevSong: null, nextSong: null }
+
+    return {
+      prevSong: currentIndex > 0 ? sorted[currentIndex - 1] : null,
+      nextSong: currentIndex < sorted.length - 1 ? sorted[currentIndex + 1] : null,
+    }
+  }, [allSongs, id])
+
+  // Keyboard shortcuts for navigation and modal
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Escape closes modal
+      if (e.key === 'Escape' && showLogModal) {
+        setShowLogModal(false)
+        setLogSearchQuery('')
+        setCurrentMatchIndex(0)
+        return
+      }
+      // Don't navigate if user is typing in an input or modal is open
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || showLogModal) {
+        return
+      }
+      if (e.key === 'ArrowLeft' && prevSong) {
+        navigate(`/song/${prevSong.id}`)
+      } else if (e.key === 'ArrowRight' && nextSong) {
+        navigate(`/song/${nextSong.id}`)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [prevSong, nextSong, navigate, showLogModal])
+
+  // Check for build errors when song is loaded
+  useEffect(() => {
+    if (!song?.key) return
+    const songKey = song.key
+
+    async function checkBuildError() {
+      try {
+        const res = await fetch(`${API_BASE}/api/make-report`)
+        if (res.ok) {
+          const data = await res.json()
+          // Extract directory from key: "songs/author/title/song.yml" -> "author/title"
+          const keyParts = songKey.split('/')
+          if (keyParts.length >= 3) {
+            const songDir = `${keyParts[1]}/${keyParts[2]}`
+            const failed = data.nodes?.find((node: { pathbuf: string; status: string }) =>
+              node.status === 'BuildFailed' && node.pathbuf.startsWith(songDir)
+            )
+            setBuildError(failed || null)
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    checkBuildError()
+  }, [song?.key])
+
+  async function openLogFile(pathbuf: string, type: 'stdout' | 'stderr') {
+    const logKey = `sandbox/logs/${pathbuf}.${type}`
+    setLogModalTitle(`${pathbuf} - ${type}`)
+    setLogContent('Loading...')
+    setShowLogModal(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/s3/${logKey}`)
+      if (res.ok) {
+        const data = await res.json()
+        setLogContent(data.data || '(empty)')
+      } else {
+        setLogContent('Failed to load log file')
+      }
+    } catch {
+      setLogContent('Failed to load log file')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -98,6 +333,24 @@ export default function SongDetailPage() {
           >
             &larr; Back to Songs
           </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => prevSong && navigate(`/song/${prevSong.id}`)}
+              disabled={!prevSong}
+              className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title={prevSong ? `${prevSong.author} - ${prevSong.title}` : 'No previous song'}
+            >
+              &larr; Prev
+            </button>
+            <button
+              onClick={() => nextSong && navigate(`/song/${nextSong.id}`)}
+              disabled={!nextSong}
+              className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title={nextSong ? `${nextSong.author} - ${nextSong.title}` : 'No next song'}
+            >
+              Next &rarr;
+            </button>
+          </div>
           <Link
             to="/settings"
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -110,9 +363,51 @@ export default function SongDetailPage() {
         <h1 className="font-[Fontskrivan] font-black text-2xl md:text-3xl text-[#2563eb] mb-2">
           {song.title}
         </h1>
-        <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-6">
+        <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-4">
           {song.author}
         </p>
+
+        {lambdaRunning !== null && (
+          <div className="mb-4">
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+              lambdaRunning
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${
+                lambdaRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+              }`}></span>
+              {lambdaRunning ? 'Build Running' : 'Idle'}
+              {lambdaTimestamp && (
+                <span className="ml-1 opacity-75">
+                  ({lambdaRunning ? 'started' : 'last run'}: {lambdaTimestamp}
+                  {lambdaDuration !== null && `, ${formatDuration(lambdaDuration)}`})
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+
+        {buildError && (
+          <div className="mb-6 p-4 bg-red-50 rounded-lg border border-red-200">
+            <div className="flex items-center gap-3">
+              <span className="text-red-600 font-medium">Build Failed</span>
+              <span className="font-mono text-sm text-gray-600">{buildError.pathbuf}</span>
+              <button
+                onClick={() => openLogFile(buildError.pathbuf, 'stdout')}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                stdout
+              </button>
+              <button
+                onClick={() => openLogFile(buildError.pathbuf, 'stderr')}
+                className="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600"
+              >
+                stderr
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <ActionButton
@@ -164,11 +459,200 @@ export default function SongDetailPage() {
           <ActionButton
             href={`/edit-yml/${song.id}`}
             variant="edit"
+            disabled={!isAuthenticated}
+            title={!isAuthenticated ? 'Enable Edit/Build in Settings first' : undefined}
           >
             <EditIcon className="w-5 h-5" /> Edit
           </ActionButton>
+
+          <div className="relative group">
+            <button
+              onClick={triggerBuild}
+              disabled={building || !isAuthenticated}
+              className="inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
+                        h-[44px] w-24 justify-center transition-colors active:scale-95
+                        bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <MakeIcon className="w-5 h-5" /> {building ? '...' : 'Build'}
+            </button>
+            {!isAuthenticated && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                Enable Edit/Build in Settings first
+              </div>
+            )}
+          </div>
+        </div>
+
+        {buildMessage && (
+          <div className={`mt-4 p-3 rounded-lg ${buildMessage.includes('succeeded') ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+            {buildMessage}
+          </div>
+        )}
+
+        {/* PDF Previews */}
+        <div className="mt-6 flex gap-4">
+          {/* Main PDF */}
+          {song.pdf_url ? (
+            <a
+              href={song.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
+              style={{ width: '170px', height: '240px' }}
+            >
+              <iframe
+                src={`${song.pdf_url}?v=${pdfVersion}`}
+                title="PDF Preview"
+                style={{
+                  width: '850px',
+                  height: '1200px',
+                  transform: 'scale(0.2)',
+                  transformOrigin: 'top left',
+                  border: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            </a>
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 text-sm"
+              style={{ width: '170px', height: '240px' }}
+            >
+              PDF missing
+            </div>
+          )}
+          {/* Lyrics PDF */}
+          {song.pdf_lyrics_url ? (
+            <a
+              href={song.pdf_lyrics_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
+              style={{ width: '170px', height: '240px' }}
+            >
+              <iframe
+                src={`${song.pdf_lyrics_url}?v=${pdfVersion}`}
+                title="Lyrics PDF Preview"
+                style={{
+                  width: '850px',
+                  height: '1200px',
+                  transform: 'scale(0.2)',
+                  transformOrigin: 'top left',
+                  border: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            </a>
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 text-sm"
+              style={{ width: '170px', height: '240px' }}
+            >
+              Lyrics PDF missing
+            </div>
+          )}
         </div>
       </div>
+
+      {showLogModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-gray-800 text-xl font-bold">{logModalTitle}</h2>
+              <button
+                onClick={() => { setShowLogModal(false); setLogSearchQuery('') }}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="mb-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Search in log..."
+                  value={logSearchQuery}
+                  onChange={(e) => { setLogSearchQuery(e.target.value); setCurrentMatchIndex(0) }}
+                  onKeyDown={(e) => {
+                    const matches = logContent.match(new RegExp(logSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []
+                    if (e.key === 'Enter' && matches.length > 0) {
+                      e.preventDefault()
+                      const nextIndex = e.shiftKey
+                        ? (currentMatchIndex - 1 + matches.length) % matches.length
+                        : (currentMatchIndex + 1) % matches.length
+                      setCurrentMatchIndex(nextIndex)
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                {logSearchQuery && (() => {
+                  const matches = logContent.match(new RegExp(logSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []
+                  return matches.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentMatchIndex((currentMatchIndex - 1 + matches.length) % matches.length)}
+                        className="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                        title="Previous match (Shift+Enter)"
+                      >
+                        &uarr;
+                      </button>
+                      <button
+                        onClick={() => setCurrentMatchIndex((currentMatchIndex + 1) % matches.length)}
+                        className="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                        title="Next match (Enter)"
+                      >
+                        &darr;
+                      </button>
+                    </>
+                  )
+                })()}
+              </div>
+              {logSearchQuery && (
+                <span className="text-sm text-gray-500 mt-1 block">
+                  {(() => {
+                    const matches = logContent.match(new RegExp(logSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []
+                    return matches.length > 0 ? `${currentMatchIndex + 1} of ${matches.length} matches` : 'No matches'
+                  })()}
+                </span>
+              )}
+            </div>
+            <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-96 text-sm font-mono whitespace-pre-wrap">
+              {logSearchQuery ? (
+                (() => {
+                  let matchCount = -1
+                  return logContent.split(new RegExp(`(${logSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')).map((part, i) => {
+                    if (part.toLowerCase() === logSearchQuery.toLowerCase()) {
+                      matchCount++
+                      const isCurrentMatch = matchCount === currentMatchIndex
+                      return (
+                        <mark
+                          key={i}
+                          ref={isCurrentMatch ? (el) => el?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : undefined}
+                          className={isCurrentMatch ? 'bg-orange-500 text-white' : 'bg-yellow-400 text-black'}
+                        >
+                          {part}
+                        </mark>
+                      )
+                    }
+                    return part
+                  })
+                })()
+              ) : (
+                logContent
+              )}
+            </pre>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setShowLogModal(false); setLogSearchQuery(''); setCurrentMatchIndex(0) }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

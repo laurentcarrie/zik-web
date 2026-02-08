@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.15.0] - 2026-02-08
+
+### Added
+- Email notifications when build is triggered (AWS SES)
+- In-memory tracking for immediate build status feedback
+- Continuous lambda status polling every 5 seconds
+- PDF previews auto-refresh after build completes
+- "PDF missing" / "Lyrics PDF missing" placeholders when files don't exist
+- `lambda-status.sh` script to check Lambda status from command line
+
+### Changed
+- Lambda status detection now uses log events instead of CloudWatch metrics (faster)
+- PDFs now served from `delivery/` path instead of `sandbox/`
+- Both PDF and lyrics PDF handled consistently (existence check before returning URL)
+- Environment variables for secrets: `WRITE_PASSWORD`, `NOTIFICATION_EMAIL`, `SENDER_EMAIL`
+- GitHub Actions workflow updated to pass secrets to App Runner
+
+### Removed
+- CloudWatch metrics client (no longer needed)
+- `make_cloudfront_pdf_url()` function (unused)
+
+### Fixed
+- Build status "running" indicator now updates immediately when build starts
+- Build message cleared when navigating between songs
+
 ## [0.14.0] - 2026-01-23
 
 ### Changed

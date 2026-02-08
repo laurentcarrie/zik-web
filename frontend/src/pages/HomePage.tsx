@@ -60,48 +60,33 @@ export default function HomePage() {
         <nav className="flex flex-row gap-4 items-center">
           <Link
             to="/songs"
-            className="group relative block p-4 bg-black/50 text-white no-underline rounded-xl
+            className="group relative flex flex-col items-center p-4 bg-black/50 text-white no-underline rounded-xl
                        transition-all duration-300 backdrop-blur-sm
                        hover:bg-black/70 hover:-translate-y-0.5
                        active:scale-95"
           >
             <ScrollIcon />
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2
-                           bg-black/80 text-white text-sm px-3 py-1 rounded-lg
-                           opacity-0 group-hover:opacity-100 transition-opacity
-                           whitespace-nowrap pointer-events-none">
-              Songs
-            </span>
+            <span className="mt-2 text-sm">Songs</span>
           </Link>
           <Link
             to="/press-book"
-            className="group relative block p-4 bg-black/50 text-white no-underline rounded-xl
+            className="group relative flex flex-col items-center p-4 bg-black/50 text-white no-underline rounded-xl
                        transition-all duration-300 backdrop-blur-sm
                        hover:bg-black/70 hover:-translate-y-0.5
                        active:scale-95"
           >
             <PressIcon />
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2
-                           bg-black/80 text-white text-sm px-3 py-1 rounded-lg
-                           opacity-0 group-hover:opacity-100 transition-opacity
-                           whitespace-nowrap pointer-events-none">
-              Press Book
-            </span>
+            <span className="mt-2 text-sm">Press Book</span>
           </Link>
           <Link
             to="/settings"
-            className="group relative block p-4 bg-black/50 text-white no-underline rounded-xl
+            className="group relative flex flex-col items-center p-4 bg-black/50 text-white no-underline rounded-xl
                        transition-all duration-300 backdrop-blur-sm
                        hover:bg-black/70 hover:-translate-y-0.5
                        active:scale-95"
           >
             <GearIcon />
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2
-                           bg-black/80 text-white text-sm px-3 py-1 rounded-lg
-                           opacity-0 group-hover:opacity-100 transition-opacity
-                           whitespace-nowrap pointer-events-none">
-              Parameters
-            </span>
+            <span className="mt-2 text-sm">Settings</span>
           </Link>
         </nav>
       </div>

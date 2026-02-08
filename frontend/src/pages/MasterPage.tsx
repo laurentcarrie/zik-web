@@ -6,6 +6,8 @@ import yaml from 'js-yaml'
 import CodeMirror from '@uiw/react-codemirror'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { useAuth } from '../context/AuthContext'
+import PasswordModal from '../components/PasswordModal'
 
 // Custom YAML schema to handle custom tags
 const customTags = [
@@ -30,6 +32,8 @@ export default function MasterPage() {
   const [content, setContent] = useState('')
   const [isValid, setIsValid] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const { isAuthenticated } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
     setContent(value)
@@ -52,8 +56,12 @@ export default function MasterPage() {
     onSuccess: () => {
       alert('Saved successfully!')
     },
-    onError: () => {
-      alert('Failed to save')
+    onError: (error: Error) => {
+      if (error.message === 'Unauthorized') {
+        setShowPasswordModal(true)
+      } else {
+        alert('Failed to save')
+      }
     },
   })
 
@@ -85,9 +93,17 @@ export default function MasterPage() {
   }
 
   function handleSave() {
-    if (isValid) {
-      saveMutation.mutate(content)
+    if (!isValid) return
+    if (!isAuthenticated) {
+      setShowPasswordModal(true)
+      return
     }
+    saveMutation.mutate(content)
+  }
+
+  function handlePasswordSuccess() {
+    setShowPasswordModal(false)
+    saveMutation.mutate(content)
   }
 
   function handleClose() {
@@ -166,6 +182,12 @@ export default function MasterPage() {
           </span>
         </div>
       </div>
+
+      <PasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSuccess={handlePasswordSuccess}
+      />
     </div>
   )
 }
