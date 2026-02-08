@@ -62,10 +62,6 @@ jobs:
               "AutoDeploymentsEnabled": false
             }'
 
-      - name: Deploy to App Runner
-        run: |
-          aws apprunner start-deployment --service-arn $APP_RUNNER_SERVICE_ARN
-
       - name: Wait for deployment
         run: |
           echo "Waiting for App Runner deployment..."
