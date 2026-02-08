@@ -500,9 +500,11 @@ export default function SongDetailPage() {
               className="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
               style={{ width: '170px', height: '240px' }}
             >
+              {/* Desktop: show PDF iframe preview */}
               <iframe
                 src={`${song.pdf_url}?v=${pdfVersion}`}
                 title="PDF Preview"
+                className="hidden md:block"
                 style={{
                   width: '850px',
                   height: '1200px',
@@ -512,6 +514,13 @@ export default function SongDetailPage() {
                   pointerEvents: 'none',
                 }}
               />
+              {/* Mobile: show PDF icon with label */}
+              <div className="md:hidden flex flex-col items-center justify-center h-full bg-red-50">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16 text-red-600 mb-2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 13H10c.83 0 1.5.67 1.5 1.5S10.83 16 10 16H9v1.5H8.5V13zM9 15h1c.28 0 .5-.22.5-.5s-.22-.5-.5-.5H9v1zm3.5-2h1.75c.83 0 1.5.67 1.5 1.5v2c0 .83-.67 1.5-1.5 1.5H12.5V13zm1 4h.75c.28 0 .5-.22.5-.5v-2c0-.28-.22-.5-.5-.5h-.75v3zm3-4H18v.5h-1v1h1v.5h-1v1.5h-.5V13z"/>
+                </svg>
+                <span className="text-red-700 font-medium text-sm">Chord Sheet</span>
+              </div>
             </a>
           ) : (
             <div
@@ -530,9 +539,11 @@ export default function SongDetailPage() {
               className="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
               style={{ width: '170px', height: '240px' }}
             >
+              {/* Desktop: show PDF iframe preview */}
               <iframe
                 src={`${song.pdf_lyrics_url}?v=${pdfVersion}`}
                 title="Lyrics PDF Preview"
+                className="hidden md:block"
                 style={{
                   width: '850px',
                   height: '1200px',
@@ -542,6 +553,13 @@ export default function SongDetailPage() {
                   pointerEvents: 'none',
                 }}
               />
+              {/* Mobile: show PDF icon with label */}
+              <div className="md:hidden flex flex-col items-center justify-center h-full bg-blue-50">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16 text-blue-600 mb-2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 13H10c.83 0 1.5.67 1.5 1.5S10.83 16 10 16H9v1.5H8.5V13zM9 15h1c.28 0 .5-.22.5-.5s-.22-.5-.5-.5H9v1zm3.5-2h1.75c.83 0 1.5.67 1.5 1.5v2c0 .83-.67 1.5-1.5 1.5H12.5V13zm1 4h.75c.28 0 .5-.22.5-.5v-2c0-.28-.22-.5-.5-.5h-.75v3zm3-4H18v.5h-1v1h1v.5h-1v1.5h-.5V13z"/>
+                </svg>
+                <span className="text-blue-700 font-medium text-sm">Lyrics</span>
+              </div>
             </a>
           ) : (
             <div
