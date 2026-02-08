@@ -228,7 +228,7 @@ async fn api_song(
     };
 
     // Check lyrics PDF
-    let lyrics_key = format!("delivery/pdf-lyrics/{pdf_name}-lyrics.pdf");
+    let lyrics_key = format!("delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf");
     let pdf_lyrics_url = match state
         .s3_client
         .head_object()
@@ -432,7 +432,7 @@ async fn api_pdf_lyrics(State(state): State<AppState>, Path(id): Path<String>) -
         time_signature: None,
     };
     let pdf_name = song_info.pdf_name_of_song();
-    let key = format!("delivery/pdf-lyrics/{pdf_name}-lyrics.pdf");
+    let key = format!("delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf");
 
     match state
         .s3_client
