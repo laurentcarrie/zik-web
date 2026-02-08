@@ -8,6 +8,7 @@ on:
       - 'zik-web/**'
       - 'frontend/**'
       - 'Dockerfile.production'
+      - '.github/workflows/deploy.yml'
 
 env:
   AWS_REGION: eu-west-3
