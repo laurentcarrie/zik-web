@@ -65,15 +65,32 @@ jobs:
 
       - name: Wait for deployment
         run: |
-          echo "Waiting for App Runner deployment..."
-          for i in {1..30}; do
+          echo "Waiting for App Runner deployment to start..."
+          # First, wait for deployment to start (status changes from RUNNING)
+          for i in {1..10}; do
+            STATUS=$(aws apprunner describe-service --service-arn $APP_RUNNER_SERVICE_ARN --query 'Service.Status' --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "OPERATION_IN_PROGRESS" ]; then
+              echo "Deployment started!"
+              break
+            fi
+            sleep 5
+          done
+
+          echo "Waiting for deployment to complete..."
+          # Then wait for deployment to complete (status returns to RUNNING)
+          for i in {1..60}; do
             STATUS=$(aws apprunner describe-service --service-arn $APP_RUNNER_SERVICE_ARN --query 'Service.Status' --output text)
             echo "Status: $STATUS"
             if [ "$STATUS" = "RUNNING" ]; then
               echo "Deployment successful!"
               exit 0
             fi
-            sleep 20
+            if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ] || [ "$STATUS" = "UPDATE_FAILED" ]; then
+              echo "Deployment failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 10
           done
           echo "Deployment timed out"
           exit 1
