@@ -24,6 +24,11 @@ function getVideoName(path: string): string {
   return filename.replace(/\.(mp4|mov|webm|avi)$/i, '')
 }
 
+function getVideoThumbnail(videoUrl: string): string {
+  // Assumes thumbnail is stored as video.mp4.thumb.jpg
+  return videoUrl + '.thumb.jpg'
+}
+
 function ChevronLeftIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -36,14 +41,6 @@ function ChevronRightIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
       <path fillRule="evenodd" d="M16.28 11.47a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06-1.06L14.69 12 7.72 5.03a.75.75 0 0 1 1.06-1.06l7.5 7.5Z" clipRule="evenodd" />
-    </svg>
-  )
-}
-
-function PlayIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path fillRule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" />
     </svg>
   )
 }
@@ -179,25 +176,28 @@ export default function PressBookPage() {
           </div>
         )}
 
-        {/* Videos List */}
+        {/* Videos Grid */}
         {videos.length > 0 && (
           <div>
             <h2 className="text-gray-700 text-xl font-semibold mb-4">Videos</h2>
-            <ul className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {videos.map((video) => (
-                <li key={video}>
-                  <a
-                    href={video}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-700 no-underline"
+                <div key={video} className="rounded-lg overflow-hidden bg-black">
+                  <video
+                    controls
+                    preload="metadata"
+                    poster={getVideoThumbnail(video)}
+                    className="w-full aspect-video"
                   >
-                    <PlayIcon className="w-6 h-6 text-[#667eea] flex-shrink-0" />
-                    <span className="truncate">{getVideoName(video)}</span>
-                  </a>
-                </li>
+                    <source src={video} type={video.endsWith('.mov') ? 'video/quicktime' : 'video/mp4'} />
+                    Your browser does not support the video tag.
+                  </video>
+                  <div className="bg-gray-800 px-3 py-2">
+                    <span className="text-white text-sm truncate block">{getVideoName(video)}</span>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
 

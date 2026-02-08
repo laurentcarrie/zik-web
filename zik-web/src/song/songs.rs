@@ -1,5 +1,6 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
+use band_songbook::model::SongInfo;
 use std::path::Path;
 use strudel_of_lilypond::{LilyPondParser, StrudelGenerator};
 use tokio::fs;
@@ -166,16 +167,6 @@ pub fn make_deezer_app_url(title: &str, author: &str) -> String {
     )
 }
 
-fn normalize_for_pdf_key(s: &str) -> String {
-    s.to_lowercase().replace([' ', '\'', '\u{2019}'], "_")
-}
-
-pub fn make_cloudfront_pdf_url(author: &str, title: &str) -> String {
-    let normalized_author = normalize_for_pdf_key(author);
-    let normalized_title = normalize_for_pdf_key(title);
-    format!("{CLOUDFRONT_URL}/pdf/{normalized_author}--@--{normalized_title}.pdf")
-}
-
 pub fn make_cloudfront_url(key: &str) -> String {
     format!("{CLOUDFRONT_URL}/{key}")
 }
@@ -185,9 +176,14 @@ pub async fn get_song_pdf(
     author: &str,
     title: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-    let normalized_author = normalize_for_pdf_key(author);
-    let normalized_title = normalize_for_pdf_key(title);
-    let key = format!("pdf/{normalized_author}--@--{normalized_title}.pdf");
+    let song_info = SongInfo {
+        title: title.to_string(),
+        author: author.to_string(),
+        tempo: 0,
+        time_signature: None,
+    };
+    let pdf_name = song_info.pdf_name_of_song();
+    let key = format!("delivery/pdf/{pdf_name}.pdf");
     let resp = client.get_object().bucket(BUCKET).key(&key).send().await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
