@@ -12,6 +12,8 @@ interface ServiceSettings {
   deezerApp: boolean
   spotifyWeb: boolean
   spotifyApp: boolean
+  pdfEnabled?: boolean
+  lyricsEnabled?: boolean
 }
 
 function getCookie(name: string): string | null {
@@ -411,8 +413,18 @@ export default function SongDetailPage() {
             href={song.pdf_url}
             variant="pdf"
             target="_blank"
+            disabled={!(settings.pdfEnabled ?? true)}
           >
             <PdfIcon className="w-5 h-5" /> PDF
+          </ActionButton>
+
+          <ActionButton
+            href={song.pdf_lyrics_url}
+            variant="pdf"
+            target="_blank"
+            disabled={!(settings.lyricsEnabled ?? true)}
+          >
+            <PdfIcon className="w-5 h-5" /> Lyrics
           </ActionButton>
 
           {settings.deezerWeb && (
@@ -462,15 +474,16 @@ export default function SongDetailPage() {
             <EditIcon className="w-5 h-5" /> Edit
           </ActionButton>
 
-          <div className="relative group">
+          <div className={`relative group ${!isAuthenticated ? 'self-center' : ''}`}>
             <button
               onClick={triggerBuild}
               disabled={building || !isAuthenticated}
-              className="inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
-                        h-[44px] w-24 justify-center transition-colors active:scale-95
-                        bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className={isAuthenticated
+                ? "inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-24 justify-center transition-colors active:scale-95 bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                : "inline-flex items-center gap-0.5 px-1 py-0.5 text-white no-underline rounded text-[8px] font-medium h-[22px] w-12 justify-center bg-gray-400 cursor-not-allowed opacity-50"
+              }
             >
-              <MakeIcon className="w-5 h-5" /> {building ? '...' : 'Build'}
+              <MakeIcon className={isAuthenticated ? "w-5 h-5" : "w-2 h-2"} /> {building ? '...' : 'Build'}
             </button>
             {!isAuthenticated && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">

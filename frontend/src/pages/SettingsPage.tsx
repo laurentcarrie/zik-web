@@ -15,6 +15,8 @@ interface ServiceSettings {
   deezerApp: boolean
   spotifyWeb: boolean
   spotifyApp: boolean
+  pdfEnabled: boolean
+  lyricsEnabled: boolean
 }
 
 function getCookie(name: string): string | null {
@@ -36,6 +38,8 @@ export default function SettingsPage() {
       deezerApp: true,
       spotifyWeb: false,
       spotifyApp: false,
+      pdfEnabled: true,
+      lyricsEnabled: true,
     }
   })
   const [version, setVersion] = useState<string>('')
@@ -279,6 +283,30 @@ export default function SettingsPage() {
         <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Settings</h1>
 
         <div className="space-y-4">
+          <h2 className="text-gray-700 text-lg font-semibold mb-3">PDF Buttons</h2>
+
+          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
+            <input
+              type="checkbox"
+              checked={settings.pdfEnabled ?? true}
+              onChange={() => handleChange('pdfEnabled')}
+              className="w-5 h-5 accent-[#dc2626]"
+            />
+            <span className="text-gray-700">PDF (Chord Sheet)</span>
+          </label>
+
+          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
+            <input
+              type="checkbox"
+              checked={settings.lyricsEnabled ?? true}
+              onChange={() => handleChange('lyricsEnabled')}
+              className="w-5 h-5 accent-[#dc2626]"
+            />
+            <span className="text-gray-700">Lyrics PDF</span>
+          </label>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-gray-200 space-y-4">
           <h2 className="text-gray-700 text-lg font-semibold mb-3">Music Services</h2>
 
           <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
