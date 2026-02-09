@@ -36,6 +36,12 @@ pub struct AppState {
     ses_client: SesClient,
     /// Timestamp when last build was triggered (for immediate status feedback)
     build_triggered_at: Arc<Mutex<Option<std::time::Instant>>>,
+    /// S3 URL prefix for song sources, e.g. "s3://zik-laurent"
+    srcdir_prefix: String,
+    /// S3 URL for delivery output, e.g. "s3://zik-laurent/delivery"
+    delivery: String,
+    /// S3 URL for settings file, e.g. "s3://zik-laurent/songs/settings.yml"
+    settings: String,
 }
 
 #[tokio::main]
@@ -54,12 +60,22 @@ async fn main() {
         eprintln!("Warning: Failed to download font from S3: {e}");
     }
 
+    let srcdir_prefix = std::env::var("SRCDIR_PREFIX")
+        .unwrap_or_else(|_| "s3://zik-laurent".to_string());
+    let delivery = std::env::var("DELIVERY")
+        .unwrap_or_else(|_| "s3://zik-laurent/delivery".to_string());
+    let settings = std::env::var("SETTINGS")
+        .unwrap_or_else(|_| "s3://zik-laurent/songs/settings.yml".to_string());
+
     let state = AppState {
         s3_client,
         logs_client,
         lambda_client,
         ses_client,
         build_triggered_at: Arc::new(Mutex::new(None)),
+        srcdir_prefix,
+        delivery,
+        settings,
     };
 
     // CORS layer for development
@@ -1076,12 +1092,11 @@ async fn api_invoke_build(
     use aws_sdk_lambda::primitives::Blob;
 
     // song_key is like "songs/author/title/song.yml", extract the directory
-    // srcdir should be "s3://zik-laurent/songs/author/title"
     let song_dir = body.song_key.trim_end_matches("/song.yml");
-    let srcdir = format!("s3://zik-laurent/{song_dir}");
-    let delivery = "s3://zik-laurent/delivery".to_string();
-    let settings = "s3://zik-laurent/songs/settings.yml".to_string();
-    let all_songs = "s3://zik-laurent/all-songs.yml".to_string();
+    let srcdir = format!("{}/{song_dir}", state.srcdir_prefix);
+    let delivery = state.delivery.clone();
+    let settings = state.settings.clone();
+    let all_songs = format!("{}/all-songs.yml", state.srcdir_prefix);
 
     let payload = serde_json::json!({
         "srcdir": srcdir,
