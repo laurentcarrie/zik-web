@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # Local Netlify folder
 .netlify
+
+# runtime cache (downloaded from S3)
+static/

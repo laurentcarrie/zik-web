@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { fetchSong, fetchSongs } from '../api/songs'
 import ActionButton, { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon, MakeIcon } from '../components/ActionButton'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
+
 interface ServiceSettings {
-  deezerWeb: boolean
-  deezerApp: boolean
-  spotifyWeb: boolean
-  spotifyApp: boolean
+  musicService: MusicService
   pdfEnabled?: boolean
   lyricsEnabled?: boolean
 }
@@ -21,13 +21,30 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[2]) : null
 }
 
+function isMobileDevice(): boolean {
+  return window.innerWidth < 768 || /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)
+}
+
 function getSettings(): ServiceSettings {
   const saved = getCookie('serviceSettings')
-  return saved ? JSON.parse(saved) : {
-    deezerWeb: true,
-    deezerApp: true,
-    spotifyWeb: false,
-    spotifyApp: false,
+  if (saved) {
+    const parsed = JSON.parse(saved)
+    // Migrate old format to new
+    if ('deezerWeb' in parsed && !('musicService' in parsed)) {
+      const mobile = isMobileDevice()
+      return {
+        musicService: mobile ? 'deezerApp' : 'deezerWeb',
+        pdfEnabled: parsed.pdfEnabled ?? true,
+        lyricsEnabled: parsed.lyricsEnabled ?? true,
+      }
+    }
+    return parsed
+  }
+  const mobile = isMobileDevice()
+  return {
+    musicService: mobile ? 'deezerApp' : 'deezerWeb',
+    pdfEnabled: true,
+    lyricsEnabled: true,
   }
 }
 
@@ -54,6 +71,7 @@ function GearIcon({ className }: { className?: string }) {
 }
 
 export default function SongDetailPage() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [settings, setSettings] = useState<ServiceSettings>(getSettings)
@@ -117,7 +135,7 @@ export default function SongDetailPage() {
       if (statusRes.ok) {
         const statusData = await statusRes.json()
         if (statusData.running) {
-          setBuildMessage('A build is already running. Please wait for it to complete.')
+          setBuildMessage(t('song.buildAlreadyRunning'))
           setBuilding(false)
           return
         }
@@ -163,7 +181,7 @@ export default function SongDetailPage() {
           // Stop polling when build is done
           if (!data.running) {
             clearInterval(pollInterval)
-            setBuildMessage('Build completed')
+            setBuildMessage(t('song.buildCompleted'))
             // Refresh song data
             refetchSong()
             // Refresh build error status
@@ -315,7 +333,7 @@ export default function SongDetailPage() {
             to="/songs"
             className="inline-block mt-4 text-[#667eea] hover:underline"
           >
-            &larr; Back to Songs
+            &larr; {t('nav.backToSongs')}
           </Link>
         </div>
       </div>
@@ -330,24 +348,24 @@ export default function SongDetailPage() {
             to="/songs"
             className="text-[#667eea] no-underline hover:underline"
           >
-            &larr; Back to Songs
+            &larr; {t('nav.backToSongs')}
           </Link>
           <div className="flex items-center gap-2">
             <button
               onClick={() => prevSong && navigate(`/song/${prevSong.id}`)}
               disabled={!prevSong}
               className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title={prevSong ? `${prevSong.author} - ${prevSong.title}` : 'No previous song'}
+              title={prevSong ? `${prevSong.author} - ${prevSong.title}` : undefined}
             >
-              &larr; Prev
+              &larr; {t('nav.prev')}
             </button>
             <button
               onClick={() => nextSong && navigate(`/song/${nextSong.id}`)}
               disabled={!nextSong}
               className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title={nextSong ? `${nextSong.author} - ${nextSong.title}` : 'No next song'}
+              title={nextSong ? `${nextSong.author} - ${nextSong.title}` : undefined}
             >
-              Next &rarr;
+              {t('nav.next')} &rarr;
             </button>
           </div>
           <Link
@@ -376,10 +394,10 @@ export default function SongDetailPage() {
               <span className={`w-2 h-2 rounded-full ${
                 lambdaRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
               }`}></span>
-              {lambdaRunning ? 'Build Running' : 'Idle'}
+              {lambdaRunning ? t('song.buildRunning') : t('song.idle')}
               {lambdaTimestamp && (
                 <span className="ml-1 opacity-75">
-                  ({lambdaRunning ? 'started' : 'last run'}: {lambdaTimestamp}
+                  ({lambdaRunning ? t('song.started') : t('song.lastRun')}: {lambdaTimestamp}
                   {lambdaDuration !== null && `, ${formatDuration(lambdaDuration)}`})
                 </span>
               )}
@@ -390,7 +408,7 @@ export default function SongDetailPage() {
         {buildError && (
           <div className="mb-6 p-4 bg-red-50 rounded-lg border border-red-200">
             <div className="flex items-center gap-3">
-              <span className="text-red-600 font-medium">Build Failed</span>
+              <span className="text-red-600 font-medium">{t('song.buildFailed')}</span>
               <span className="font-mono text-sm text-gray-600">{buildError.pathbuf}</span>
               <button
                 onClick={() => openLogFile(buildError.pathbuf, 'stdout')}
@@ -414,8 +432,9 @@ export default function SongDetailPage() {
             variant="pdf"
             target="_blank"
             disabled={!(settings.pdfEnabled ?? true)}
+            title={!song.pdf_url ? t('song.pdfMissing') : undefined}
           >
-            <PdfIcon className="w-5 h-5" /> PDF
+            <PdfIcon className="w-5 h-5" /> {t('buttons.pdf')}
           </ActionButton>
 
           <ActionButton
@@ -423,45 +442,46 @@ export default function SongDetailPage() {
             variant="pdf"
             target="_blank"
             disabled={!(settings.lyricsEnabled ?? true)}
+            title={!song.pdf_lyrics_url ? t('song.lyricsMissing') : undefined}
           >
-            <PdfIcon className="w-5 h-5" /> Lyrics
+            <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics')}
           </ActionButton>
 
-          {settings.deezerWeb && (
+          {settings.musicService === 'deezerWeb' && (
             <ActionButton
               href={song.deezer_url}
               variant="deezer"
               target="_blank"
             >
-              <DeezerIcon className="w-5 h-5" /> Web
+              <DeezerIcon className="w-5 h-5" /> {t('buttons.web')}
             </ActionButton>
           )}
 
-          {settings.deezerApp && (
+          {settings.musicService === 'deezerApp' && (
             <ActionButton
               href={song.deezer_app_url}
               variant="deezer-app"
             >
-              <DeezerIcon className="w-5 h-5" /> App
+              <DeezerIcon className="w-5 h-5" /> {t('buttons.app')}
             </ActionButton>
           )}
 
-          {settings.spotifyWeb && (
+          {settings.musicService === 'spotifyWeb' && (
             <ActionButton
               href={makeSpotifyUrl(song.title, song.author)}
               variant="spotify"
               target="_blank"
             >
-              <SpotifyIcon className="w-5 h-5" /> Web
+              <SpotifyIcon className="w-5 h-5" /> {t('buttons.web')}
             </ActionButton>
           )}
 
-          {settings.spotifyApp && (
+          {settings.musicService === 'spotifyApp' && (
             <ActionButton
               href={makeSpotifyAppUrl(song.title, song.author)}
               variant="spotify-app"
             >
-              <SpotifyIcon className="w-5 h-5" /> App
+              <SpotifyIcon className="w-5 h-5" /> {t('buttons.app')}
             </ActionButton>
           )}
 
@@ -469,9 +489,9 @@ export default function SongDetailPage() {
             href={`/edit-yml/${song.id}`}
             variant="edit"
             disabled={!isAuthenticated}
-            title={!isAuthenticated ? 'Enable Edit/Build in Settings first' : undefined}
+            title={!isAuthenticated ? t('settings.enableEditBuildFirst') : undefined}
           >
-            <EditIcon className="w-5 h-5" /> Edit
+            <EditIcon className="w-5 h-5" /> {t('buttons.edit')}
           </ActionButton>
 
           <div className={`relative group ${!isAuthenticated ? 'self-center' : ''}`}>
@@ -480,14 +500,14 @@ export default function SongDetailPage() {
               disabled={building || !isAuthenticated}
               className={isAuthenticated
                 ? "inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-24 justify-center transition-colors active:scale-95 bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                : "inline-flex items-center gap-0.5 px-1 py-0.5 text-white no-underline rounded text-[8px] font-medium h-[22px] w-12 justify-center bg-gray-400 cursor-not-allowed opacity-50"
+                : "inline-flex items-center gap-1 px-1.5 py-0.5 text-white no-underline rounded text-[10px] font-medium h-[24px] w-16 justify-center bg-gray-400 cursor-not-allowed opacity-60"
               }
             >
-              <MakeIcon className={isAuthenticated ? "w-5 h-5" : "w-2 h-2"} /> {building ? '...' : 'Build'}
+              <MakeIcon className={isAuthenticated ? "w-5 h-5" : "w-3 h-3"} /> {building ? '...' : t('buttons.build')}
             </button>
             {!isAuthenticated && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                Enable Edit/Build in Settings first
+                {t('settings.enableEditBuildFirst')}
               </div>
             )}
           </div>

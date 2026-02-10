@@ -1,0 +1,63 @@
+{
+  "nav": {
+    "back": "Retour",
+    "backToSongs": "Retour aux chansons",
+    "prev": "Préc",
+    "next": "Suiv"
+  },
+  "songs": {
+    "title": "Chansons",
+    "searchPlaceholder": "Rechercher...",
+    "sortByTitle": "Titre",
+    "sortByAuthor": "Auteur"
+  },
+  "song": {
+    "pdfMissing": "PDF manquant",
+    "lyricsMissing": "PDF paroles manquant",
+    "buildRunning": "Compilation en cours",
+    "idle": "Inactif",
+    "started": "démarré",
+    "lastRun": "dernier",
+    "buildFailed": "Échec de compilation",
+    "buildCompleted": "Compilation terminée",
+    "buildAlreadyRunning": "Une compilation est déjà en cours. Veuillez patienter."
+  },
+  "buttons": {
+    "pdf": "PDF",
+    "lyrics": "Paroles",
+    "web": "Web",
+    "app": "App",
+    "edit": "Éditer",
+    "build": "Compiler"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "version": "Version",
+    "pdfButtons": "Boutons PDF",
+    "pdfChordSheet": "PDF (Grille d'accords)",
+    "lyricsPdf": "PDF Paroles",
+    "musicServices": "Services de musique",
+    "deezerWeb": "Deezer (Web)",
+    "deezerApp": "Deezer (App)",
+    "spotifyWeb": "Spotify (Web)",
+    "spotifyApp": "Spotify (App)",
+    "editBuild": "Édition / Compilation",
+    "editBuildEnabled": "Édition/Compilation activée (cliquer pour désactiver)",
+    "enterPassword": "Entrer le mot de passe pour activer l'édition",
+    "writeAccessActive": "Accès en écriture actif",
+    "renderingSettings": "Paramètres de rendu",
+    "makeReport": "Rapport de compilation",
+    "enableEditBuildFirst": "Activer Édition/Compilation dans les Paramètres"
+  },
+  "home": {
+    "songs": "Chansons",
+    "settings": "Paramètres",
+    "pressBook": "Press Book"
+  },
+  "language": {
+    "title": "Langue",
+    "english": "Anglais",
+    "french": "Français",
+    "browserPreference": "Préférence du navigateur"
+  }
+}

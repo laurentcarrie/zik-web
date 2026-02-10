@@ -4,17 +4,18 @@ import CodeMirror from '@uiw/react-codemirror'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
 import yaml from 'js-yaml'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 const SETTINGS_KEY = 'songs/settings.yml'
 
+type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
+
 interface ServiceSettings {
-  deezerWeb: boolean
-  deezerApp: boolean
-  spotifyWeb: boolean
-  spotifyApp: boolean
+  musicService: MusicService
   pdfEnabled: boolean
   lyricsEnabled: boolean
 }
@@ -24,20 +25,36 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[2]) : null
 }
 
+function isMobileDevice(): boolean {
+  return window.innerWidth < 768 || /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)
+}
+
 function setCookie(name: string, value: string, days: number = 365) {
   const expires = new Date(Date.now() + days * 864e5).toUTCString()
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`
 }
 
 export default function SettingsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [settings, setSettings] = useState<ServiceSettings>(() => {
     const saved = getCookie('serviceSettings')
-    return saved ? JSON.parse(saved) : {
-      deezerWeb: true,
-      deezerApp: true,
-      spotifyWeb: false,
-      spotifyApp: false,
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // Migrate old format to new
+      if ('deezerWeb' in parsed && !('musicService' in parsed)) {
+        const mobile = isMobileDevice()
+        return {
+          musicService: mobile ? 'deezerApp' : 'deezerWeb',
+          pdfEnabled: parsed.pdfEnabled ?? true,
+          lyricsEnabled: parsed.lyricsEnabled ?? true,
+        }
+      }
+      return parsed
+    }
+    const mobile = isMobileDevice()
+    return {
+      musicService: mobile ? 'deezerApp' : 'deezerWeb',
       pdfEnabled: true,
       lyricsEnabled: true,
     }
@@ -49,6 +66,11 @@ export default function SettingsPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [passwordAction, setPasswordAction] = useState<'save' | 'enable'>('save')
   const [showRenderingSettings, setShowRenderingSettings] = useState(false)
+  const [showSequences, setShowSequences] = useState(false)
+  const [patternNames, setPatternNames] = useState<string[]>([])
+  const [patternsLoading, setPatternsLoading] = useState(false)
+  const [patternListening, setPatternListening] = useState<string | null>(null)
+  const [patternTempo, setPatternTempo] = useState(120)
   const [isYamlValid, setIsYamlValid] = useState(true)
   const [yamlErrorMessage, setYamlErrorMessage] = useState('')
   const [showMakeReport, setShowMakeReport] = useState(false)
@@ -64,6 +86,10 @@ export default function SettingsPage() {
   const [lambdaTimestamp, setLambdaTimestamp] = useState<string>('')
   const [lambdaDuration, setLambdaDuration] = useState<number | null>(null)
   const [songs, setSongs] = useState<Array<{ id: string; key: string }>>([])
+  const [languagePref, setLanguagePref] = useState<'en' | 'fr' | 'browser'>(() => {
+    const saved = getCookie('languagePref')
+    return (saved as 'en' | 'fr' | 'browser') || 'browser'
+  })
   const { isAuthenticated, clearPassword } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
@@ -121,6 +147,62 @@ export default function SettingsPage() {
       await loadSettingsYml()
     }
     setShowRenderingSettings(true)
+  }
+
+  async function loadPatterns() {
+    setPatternsLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/s3/drum-patterns/all-patterns.yml`)
+      if (res.ok) {
+        const data = await res.json()
+        const parsed = yaml.load(data.data) as string[] | null
+        setPatternNames(parsed || [])
+      } else {
+        setPatternNames([])
+      }
+    } catch {
+      setPatternNames([])
+    } finally {
+      setPatternsLoading(false)
+    }
+  }
+
+  async function openSequences() {
+    setShowSequences(true)
+    await loadPatterns()
+  }
+
+  async function handleListenPattern(name: string) {
+    setPatternListening(name)
+    try {
+      // Fetch the pattern YAML from S3
+      const res = await fetch(`${API_BASE}/api/s3/drum-patterns/${name}.yml`)
+      if (!res.ok) throw new Error('Failed to fetch pattern file')
+      const s3Data = await res.json()
+
+      // Convert to HTML via backend
+      const htmlRes = await fetch(`${API_BASE}/api/drum-pattern-to-html`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: s3Data.data, name, tempo: patternTempo }),
+      })
+      if (!htmlRes.ok) {
+        const errorText = await htmlRes.text()
+        throw new Error(errorText || 'Failed to convert drum pattern to HTML')
+      }
+      const htmlData = await htmlRes.json()
+
+      const newWindow = window.open('', '_blank')
+      if (newWindow) {
+        newWindow.document.write(htmlData.html)
+        newWindow.document.close()
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Failed to load pattern: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setPatternListening(null)
+    }
   }
 
   function formatDuration(secs: number): string {
@@ -263,96 +345,121 @@ export default function SettingsPage() {
     // For 'enable' action, the isAuthenticated state is automatically updated by the auth context
   }
 
-  const handleChange = (key: keyof ServiceSettings) => {
+  const handleCheckboxChange = (key: 'pdfEnabled' | 'lyricsEnabled') => {
     const newSettings = { ...settings, [key]: !settings[key] }
     setSettings(newSettings)
     setCookie('serviceSettings', JSON.stringify(newSettings))
   }
 
+  const handleMusicServiceChange = (service: MusicService) => {
+    const newSettings = { ...settings, musicService: service }
+    setSettings(newSettings)
+    setCookie('serviceSettings', JSON.stringify(newSettings))
+  }
+
+  const handleLanguageChange = (pref: 'en' | 'fr' | 'browser') => {
+    setLanguagePref(pref)
+    setCookie('languagePref', pref)
+    if (pref === 'browser') {
+      const browserLang = navigator.language.split('-')[0]
+      i18n.changeLanguage(browserLang === 'fr' ? 'fr' : 'en')
+    } else {
+      i18n.changeLanguage(pref)
+    }
+  }
+
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-3xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-block mb-4 text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-base"
-        >
-          &larr; Back
-        </button>
+    <div className="min-h-screen p-4 md:p-6">
+      <div className="max-w-2xl mx-auto bg-white/95 rounded-xl p-4 md:p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-sm"
+          >
+            &larr; {t('nav.back')}
+          </button>
+          <span className="text-gray-400 text-xs">{t('settings.version')} {version}</span>
+        </div>
 
-        <p className="text-gray-500 text-base mb-2">Version {version}</p>
-        <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Settings</h1>
+        <h1 className="text-gray-800 text-xl font-bold mb-4">{t('settings.title')}</h1>
 
-        <div className="space-y-4">
-          <h2 className="text-gray-700 text-lg font-semibold mb-3">PDF Buttons</h2>
-
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
+        <div className="space-y-1">
+          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('settings.pdfButtons')}</h2>
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
             <input
               type="checkbox"
               checked={settings.pdfEnabled ?? true}
-              onChange={() => handleChange('pdfEnabled')}
-              className="w-5 h-5 accent-[#dc2626]"
+              onChange={() => handleCheckboxChange('pdfEnabled')}
+              className="w-4 h-4 accent-[#dc2626]"
             />
-            <span className="text-gray-700">PDF (Chord Sheet)</span>
+            <span className="text-gray-700 text-sm">{t('settings.pdfChordSheet')}</span>
           </label>
-
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
             <input
               type="checkbox"
               checked={settings.lyricsEnabled ?? true}
-              onChange={() => handleChange('lyricsEnabled')}
-              className="w-5 h-5 accent-[#dc2626]"
+              onChange={() => handleCheckboxChange('lyricsEnabled')}
+              className="w-4 h-4 accent-[#dc2626]"
             />
-            <span className="text-gray-700">Lyrics PDF</span>
+            <span className="text-gray-700 text-sm">{t('settings.lyricsPdf')}</span>
           </label>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-200 space-y-4">
-          <h2 className="text-gray-700 text-lg font-semibold mb-3">Music Services</h2>
-
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
-            <input
-              type="checkbox"
-              checked={settings.deezerWeb}
-              onChange={() => handleChange('deezerWeb')}
-              className="w-5 h-5 accent-[#191414]"
-            />
-            <span className="text-gray-700">Deezer (Web)</span>
-          </label>
-
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
-            <input
-              type="checkbox"
-              checked={settings.deezerApp}
-              onChange={() => handleChange('deezerApp')}
-              className="w-5 h-5 accent-[#ff6b35]"
-            />
-            <span className="text-gray-700">Deezer (App)</span>
-          </label>
-
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
-            <input
-              type="checkbox"
-              checked={settings.spotifyWeb}
-              onChange={() => handleChange('spotifyWeb')}
-              className="w-5 h-5 accent-[#1DB954]"
-            />
-            <span className="text-gray-700">Spotify (Web)</span>
-          </label>
-
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
-            <input
-              type="checkbox"
-              checked={settings.spotifyApp}
-              onChange={() => handleChange('spotifyApp')}
-              className="w-5 h-5 accent-[#1DB954]"
-            />
-            <span className="text-gray-700">Spotify (App)</span>
-          </label>
+        <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
+          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('language.title')}</h2>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 px-2">
+            <label className="flex items-center gap-2 cursor-pointer py-1">
+              <input
+                type="radio"
+                name="language"
+                checked={languagePref === 'en'}
+                onChange={() => handleLanguageChange('en')}
+                className="w-4 h-4 accent-[#667eea]"
+              />
+              <span className="text-gray-700 text-sm">{t('language.english')}</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer py-1">
+              <input
+                type="radio"
+                name="language"
+                checked={languagePref === 'fr'}
+                onChange={() => handleLanguageChange('fr')}
+                className="w-4 h-4 accent-[#667eea]"
+              />
+              <span className="text-gray-700 text-sm">{t('language.french')}</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer py-1">
+              <input
+                type="radio"
+                name="language"
+                checked={languagePref === 'browser'}
+                onChange={() => handleLanguageChange('browser')}
+                className="w-4 h-4 accent-[#667eea]"
+              />
+              <span className="text-gray-700 text-sm">{t('language.browserPreference')}</span>
+            </label>
+          </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <h2 className="text-gray-700 text-lg font-semibold mb-3">Edit / Build</h2>
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-100">
+        <div className="mt-4 pt-3 border-t border-gray-200">
+          <div className="flex items-center gap-3 px-2">
+            <h2 className="text-gray-700 text-sm font-semibold">{t('settings.musicServices')}</h2>
+            <select
+              value={settings.musicService}
+              onChange={(e) => handleMusicServiceChange(e.target.value as MusicService)}
+              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#667eea]"
+            >
+              <option value="deezerWeb">{t('settings.deezerWeb')}</option>
+              <option value="deezerApp">{t('settings.deezerApp')}</option>
+              <option value="spotifyWeb">{t('settings.spotifyWeb')}</option>
+              <option value="spotifyApp">{t('settings.spotifyApp')}</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-200">
+          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('settings.editBuild')}</h2>
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
             <input
               type="checkbox"
               checked={isAuthenticated}
@@ -364,29 +471,35 @@ export default function SettingsPage() {
                   clearPassword()
                 }
               }}
-              className="w-5 h-5 accent-[#667eea]"
+              className="w-4 h-4 accent-[#667eea]"
             />
-            <span className="text-gray-700">
-              {isAuthenticated ? 'Edit/Build enabled (click to disable)' : 'Enter password to enable Edit/Build'}
+            <span className="text-gray-700 text-sm">
+              {isAuthenticated ? t('settings.editBuildEnabled') : t('settings.enterPassword')}
             </span>
           </label>
           {isAuthenticated && (
-            <p className="text-green-600 text-sm ml-11">Write access is active</p>
+            <p className="text-green-600 text-xs ml-6">{t('settings.writeAccessActive')}</p>
           )}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3">
+        <div className="mt-4 pt-3 border-t border-gray-200 flex gap-2">
           <button
             onClick={openRenderingSettings}
-            className="px-4 py-2 bg-[#667eea] text-white rounded-lg hover:bg-[#5a67d8]"
+            className="px-3 py-1.5 text-sm bg-[#667eea] text-white rounded-lg hover:bg-[#5a67d8]"
           >
-            Rendering Settings
+            {t('settings.renderingSettings')}
+          </button>
+          <button
+            onClick={openSequences}
+            className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+          >
+            Sequences
           </button>
           <button
             onClick={openMakeReport}
-            className="px-4 py-2 bg-[#10b981] text-white rounded-lg hover:bg-[#059669]"
+            className="px-3 py-1.5 text-sm bg-[#10b981] text-white rounded-lg hover:bg-[#059669]"
           >
-            Make Report
+            {t('settings.makeReport')}
           </button>
         </div>
       </div>
@@ -444,6 +557,80 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {showSequences && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-gray-800 text-xl font-bold">Drum Patterns</h2>
+              <button
+                onClick={() => setShowSequences(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <label className="text-gray-700 text-sm font-medium whitespace-nowrap">Tempo: {patternTempo}</label>
+              <input
+                type="range"
+                min={40}
+                max={240}
+                value={patternTempo}
+                onChange={(e) => setPatternTempo(Number(e.target.value))}
+                className="flex-1 accent-orange-500"
+              />
+            </div>
+            {patternsLoading ? (
+              <p className="text-gray-500">Loading...</p>
+            ) : patternNames.length === 0 ? (
+              <p className="text-gray-500 italic">No patterns found</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {patternNames.map((name) => (
+                  <div key={name} className="flex flex-col gap-1">
+                    <a
+                      href={`/edit-drums-global/${encodeURIComponent(name)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      {name}
+                    </a>
+                    <button
+                      onClick={() => handleListenPattern(name)}
+                      disabled={patternListening !== null}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-orange-300 text-orange-900 rounded-lg text-sm hover:bg-orange-400 transition-colors disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                      {patternListening === name ? 'Loading...' : 'Listen'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={loadPatterns}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Reload
+              </button>
+              <button
+                onClick={() => setShowSequences(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showMakeReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
@@ -460,10 +647,10 @@ export default function SettingsPage() {
                       <span className={`w-2 h-2 rounded-full ${
                         lambdaRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
                       }`}></span>
-                      {lambdaRunning ? 'Build Running' : 'Idle'}
+                      {lambdaRunning ? t('song.buildRunning') : t('song.idle')}
                       {lambdaTimestamp && (
                         <span className="ml-1 opacity-75">
-                          ({lambdaRunning ? 'started' : 'last run'}: {lambdaTimestamp}
+                          ({lambdaRunning ? t('song.started') : t('song.lastRun')}: {lambdaTimestamp}
                           {lambdaDuration !== null && `, ${formatDuration(lambdaDuration)}`})
                         </span>
                       )}

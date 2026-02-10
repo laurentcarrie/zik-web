@@ -20,9 +20,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    download_font_from_s3, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
-    get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url, make_deezer_url,
-    read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_to_s3,
+    download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key,
+    get_song_pdf, get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url,
+    make_deezer_url, read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml,
+    write_to_s3,
 };
 
 use std::sync::Arc;
@@ -36,6 +37,12 @@ pub struct AppState {
     ses_client: SesClient,
     /// Timestamp when last build was triggered (for immediate status feedback)
     build_triggered_at: Arc<Mutex<Option<std::time::Instant>>>,
+    /// S3 URL prefix for song sources, e.g. "s3://zik-laurent"
+    srcdir_prefix: String,
+    /// S3 URL for delivery output, e.g. "s3://zik-laurent/delivery"
+    delivery: String,
+    /// S3 URL for settings file, e.g. "s3://zik-laurent/songs/settings.yml"
+    settings: String,
 }
 
 #[tokio::main]
@@ -54,12 +61,22 @@ async fn main() {
         eprintln!("Warning: Failed to download font from S3: {e}");
     }
 
+    let srcdir_prefix =
+        std::env::var("SRCDIR_PREFIX").unwrap_or_else(|_| "s3://zik-laurent".to_string());
+    let delivery =
+        std::env::var("DELIVERY").unwrap_or_else(|_| "s3://zik-laurent/delivery".to_string());
+    let settings = std::env::var("SETTINGS")
+        .unwrap_or_else(|_| "s3://zik-laurent/songs/settings.yml".to_string());
+
     let state = AppState {
         s3_client,
         logs_client,
         lambda_client,
         ses_client,
         build_triggered_at: Arc::new(Mutex::new(None)),
+        srcdir_prefix,
+        delivery,
+        settings,
     };
 
     // CORS layer for development
@@ -84,6 +101,7 @@ async fn main() {
         .route("/make-report", get(api_make_report))
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
+        .route("/drum-pattern-to-html", post(api_drum_pattern_to_html))
         .route("/auth/verify", post(verify_password))
         .with_state(state.clone());
 
@@ -895,6 +913,22 @@ async fn api_lilypond_to_html(
     Ok(Json(LilypondToHtmlResponse { html }))
 }
 
+#[derive(Deserialize)]
+struct DrumPatternToHtmlBody {
+    data: String,
+    name: String,
+    tempo: Option<u32>,
+}
+
+async fn api_drum_pattern_to_html(
+    Json(body): Json<DrumPatternToHtmlBody>,
+) -> Result<Json<LilypondToHtmlResponse>, (StatusCode, String)> {
+    let tempo = body.tempo.unwrap_or(120);
+    let html = drum_pattern_to_html(&body.data, &body.name, tempo)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(LilypondToHtmlResponse { html }))
+}
+
 async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
@@ -973,7 +1007,7 @@ async fn api_make(
     println!("api_make: sandbox={sandbox}");
 
     let result =
-        band_songbook::make_all_with_storage(&srcdir, local_sandbox.path(), None, None, &sandbox)
+        band_songbook::make_all_with_storage(&srcdir, local_sandbox.path(), None, None, &sandbox, &[])
             .await;
 
     // Try to read the make-report.yml from S3
@@ -1076,12 +1110,11 @@ async fn api_invoke_build(
     use aws_sdk_lambda::primitives::Blob;
 
     // song_key is like "songs/author/title/song.yml", extract the directory
-    // srcdir should be "s3://zik-laurent/songs/author/title"
     let song_dir = body.song_key.trim_end_matches("/song.yml");
-    let srcdir = format!("s3://zik-laurent/{song_dir}");
-    let delivery = "s3://zik-laurent/delivery".to_string();
-    let settings = "s3://zik-laurent/songs/settings.yml".to_string();
-    let all_songs = "s3://zik-laurent/all-songs.yml".to_string();
+    let srcdir = format!("{}/{song_dir}", state.srcdir_prefix);
+    let delivery = state.delivery.clone();
+    let settings = state.settings.clone();
+    let all_songs = format!("{}/all-songs.yml", state.srcdir_prefix);
 
     let payload = serde_json::json!({
         "srcdir": srcdir,

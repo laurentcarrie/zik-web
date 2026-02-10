@@ -8,6 +8,8 @@ import EditYmlPage from './pages/EditYmlPage'
 import EditLyricsPage from './pages/EditLyricsPage'
 import EditLilypondPage from './pages/EditLilypondPage'
 import EditTexPage from './pages/EditTexPage'
+import EditDrumsPage from './pages/EditDrumsPage'
+import EditDrumsGlobalPage from './pages/EditDrumsGlobalPage'
 import MasterPage from './pages/MasterPage'
 import UpdatePage from './pages/UpdatePage'
 
@@ -23,6 +25,8 @@ function App() {
       <Route path="/edit-lyrics/:id/:sectionId" element={<EditLyricsPage />} />
       <Route path="/edit-lilypond/:id/:filename" element={<EditLilypondPage />} />
       <Route path="/edit-tex/:id/:filename" element={<EditTexPage />} />
+      <Route path="/edit-drums/:id/:filename" element={<EditDrumsPage />} />
+      <Route path="/edit-drums-global/:name" element={<EditDrumsGlobalPage />} />
       <Route path="/master/:id" element={<MasterPage />} />
       <Route path="/update" element={<UpdatePage />} />
     </Routes>

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 function ScrollIcon() {
   return (
@@ -54,6 +55,8 @@ function GearIcon() {
 }
 
 export default function HomePage() {
+  const { t } = useTranslation()
+
   return (
     <div className="min-h-screen flex justify-center items-center p-8">
       <div className="text-center">
@@ -66,7 +69,7 @@ export default function HomePage() {
                        active:scale-95"
           >
             <ScrollIcon />
-            <span className="mt-2 text-sm">Songs</span>
+            <span className="mt-2 text-sm">{t('home.songs')}</span>
           </Link>
           <Link
             to="/press-book"
@@ -76,7 +79,7 @@ export default function HomePage() {
                        active:scale-95"
           >
             <PressIcon />
-            <span className="mt-2 text-sm">Press Book</span>
+            <span className="mt-2 text-sm">{t('home.pressBook')}</span>
           </Link>
           <Link
             to="/settings"
@@ -86,7 +89,7 @@ export default function HomePage() {
                        active:scale-95"
           >
             <GearIcon />
-            <span className="mt-2 text-sm">Settings</span>
+            <span className="mt-2 text-sm">{t('home.settings')}</span>
           </Link>
         </nav>
       </div>

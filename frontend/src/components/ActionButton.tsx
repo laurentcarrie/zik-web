@@ -63,8 +63,8 @@ export default function ActionButton({ href, variant, target, children, disabled
     return (
       <div className="relative group self-center">
         <span
-          className="inline-flex items-center gap-0.5 px-1 py-0.5 text-white no-underline rounded text-[8px] font-medium
-                      h-[22px] w-12 justify-center bg-gray-400 cursor-not-allowed opacity-50 [&>svg]:w-2 [&>svg]:h-2"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 text-white no-underline rounded text-[10px] font-medium
+                      h-[24px] w-16 justify-center bg-gray-400 cursor-not-allowed opacity-60 [&>svg]:w-3 [&>svg]:h-3"
         >
           {children}
         </span>
@@ -83,7 +83,7 @@ export default function ActionButton({ href, variant, target, children, disabled
       rel={target === '_blank' ? 'noopener noreferrer' : undefined}
       title={title}
       className={`inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
-                  h-[44px] w-24 justify-center self-center
+                  h-[44px] min-w-24 justify-center self-center
                   transition-colors active:scale-95
                   ${variantStyles[variant]}`}
     >

@@ -5,6 +5,8 @@ pub struct SongFiles {
     pub lilypond: Vec<String>,
     pub tex: Vec<String>,
     pub wav: Vec<String>,
+    #[serde(default)]
+    pub drums: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]

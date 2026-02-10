@@ -1,0 +1,63 @@
+{
+  "nav": {
+    "back": "Back",
+    "backToSongs": "Back to Songs",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "songs": {
+    "title": "Songs",
+    "searchPlaceholder": "Search songs...",
+    "sortByTitle": "Title",
+    "sortByAuthor": "Author"
+  },
+  "song": {
+    "pdfMissing": "PDF missing",
+    "lyricsMissing": "Lyrics PDF missing",
+    "buildRunning": "Build Running",
+    "idle": "Idle",
+    "started": "started",
+    "lastRun": "last run",
+    "buildFailed": "Build Failed",
+    "buildCompleted": "Build completed",
+    "buildAlreadyRunning": "A build is already running. Please wait for it to complete."
+  },
+  "buttons": {
+    "pdf": "PDF",
+    "lyrics": "Lyrics",
+    "web": "Web",
+    "app": "App",
+    "edit": "Edit",
+    "build": "Build"
+  },
+  "settings": {
+    "title": "Settings",
+    "version": "Version",
+    "pdfButtons": "PDF Buttons",
+    "pdfChordSheet": "PDF (Chord Sheet)",
+    "lyricsPdf": "Lyrics PDF",
+    "musicServices": "Music Services",
+    "deezerWeb": "Deezer (Web)",
+    "deezerApp": "Deezer (App)",
+    "spotifyWeb": "Spotify (Web)",
+    "spotifyApp": "Spotify (App)",
+    "editBuild": "Edit / Build",
+    "editBuildEnabled": "Edit/Build enabled (click to disable)",
+    "enterPassword": "Enter password to enable Edit/Build",
+    "writeAccessActive": "Write access is active",
+    "renderingSettings": "Rendering Settings",
+    "makeReport": "Make Report",
+    "enableEditBuildFirst": "Enable Edit/Build in Settings first"
+  },
+  "home": {
+    "songs": "Songs",
+    "settings": "Settings",
+    "pressBook": "Press Book"
+  },
+  "language": {
+    "title": "Language",
+    "english": "English",
+    "french": "French",
+    "browserPreference": "Browser Preference"
+  }
+}
