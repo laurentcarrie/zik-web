@@ -14,10 +14,13 @@ const SETTINGS_KEY = 'songs/settings.yml'
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
 
+type LyricsMode = 'none' | '1-column' | '2-columns'
+
 interface ServiceSettings {
   musicService: MusicService
   pdfEnabled: boolean
-  lyricsEnabled: boolean
+  lyricsMode: LyricsMode
+  lyricsEnabled?: boolean // deprecated, for migration
 }
 
 function getCookie(name: string): string | null {
@@ -41,13 +44,20 @@ export default function SettingsPage() {
     const saved = getCookie('serviceSettings')
     if (saved) {
       const parsed = JSON.parse(saved)
-      // Migrate old format to new
+      // Migrate old format
       if ('deezerWeb' in parsed && !('musicService' in parsed)) {
         const mobile = isMobileDevice()
         return {
           musicService: mobile ? 'deezerApp' : 'deezerWeb',
           pdfEnabled: parsed.pdfEnabled ?? true,
-          lyricsEnabled: parsed.lyricsEnabled ?? true,
+          lyricsMode: parsed.lyricsMode ?? (parsed.lyricsEnabled === false ? 'none' : '1-column'),
+        }
+      }
+      // Migrate lyricsEnabled to lyricsMode
+      if ('lyricsEnabled' in parsed && !('lyricsMode' in parsed)) {
+        return {
+          ...parsed,
+          lyricsMode: parsed.lyricsEnabled === false ? 'none' : '1-column',
         }
       }
       return parsed
@@ -56,7 +66,7 @@ export default function SettingsPage() {
     return {
       musicService: mobile ? 'deezerApp' : 'deezerWeb',
       pdfEnabled: true,
-      lyricsEnabled: true,
+      lyricsMode: '1-column' as LyricsMode,
     }
   })
   const [version, setVersion] = useState<string>('')
@@ -345,7 +355,7 @@ export default function SettingsPage() {
     // For 'enable' action, the isAuthenticated state is automatically updated by the auth context
   }
 
-  const handleCheckboxChange = (key: 'pdfEnabled' | 'lyricsEnabled') => {
+  const handleCheckboxChange = (key: 'pdfEnabled') => {
     const newSettings = { ...settings, [key]: !settings[key] }
     setSettings(newSettings)
     setCookie('serviceSettings', JSON.stringify(newSettings))
@@ -394,15 +404,22 @@ export default function SettingsPage() {
             />
             <span className="text-gray-700 text-sm">{t('settings.pdfChordSheet')}</span>
           </label>
-          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
-            <input
-              type="checkbox"
-              checked={settings.lyricsEnabled ?? true}
-              onChange={() => handleCheckboxChange('lyricsEnabled')}
-              className="w-4 h-4 accent-[#dc2626]"
-            />
+          <div className="flex items-center gap-2 px-2 py-1.5">
             <span className="text-gray-700 text-sm">{t('settings.lyricsPdf')}</span>
-          </label>
+            <select
+              value={settings.lyricsMode ?? '1-column'}
+              onChange={(e) => {
+                const newSettings = { ...settings, lyricsMode: e.target.value as LyricsMode }
+                setSettings(newSettings)
+                setCookie('serviceSettings', JSON.stringify(newSettings))
+              }}
+              className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+            >
+              <option value="none">{t('settings.lyricsNone')}</option>
+              <option value="1-column">{t('settings.lyrics1Column')}</option>
+              <option value="2-columns">{t('settings.lyrics2Columns')}</option>
+            </select>
+          </div>
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">

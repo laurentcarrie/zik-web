@@ -9,11 +9,13 @@ import { useAuth, getStoredPassword } from '../context/AuthContext'
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
+type LyricsMode = 'none' | '1-column' | '2-columns'
 
 interface ServiceSettings {
   musicService: MusicService
   pdfEnabled?: boolean
-  lyricsEnabled?: boolean
+  lyricsMode?: LyricsMode
+  lyricsEnabled?: boolean // deprecated
 }
 
 function getCookie(name: string): string | null {
@@ -35,7 +37,14 @@ function getSettings(): ServiceSettings {
       return {
         musicService: mobile ? 'deezerApp' : 'deezerWeb',
         pdfEnabled: parsed.pdfEnabled ?? true,
-        lyricsEnabled: parsed.lyricsEnabled ?? true,
+        lyricsMode: parsed.lyricsMode ?? (parsed.lyricsEnabled === false ? 'none' : '1-column'),
+      }
+    }
+    // Migrate lyricsEnabled to lyricsMode
+    if ('lyricsEnabled' in parsed && !('lyricsMode' in parsed)) {
+      return {
+        ...parsed,
+        lyricsMode: parsed.lyricsEnabled === false ? 'none' : '1-column',
       }
     }
     return parsed
@@ -44,7 +53,7 @@ function getSettings(): ServiceSettings {
   return {
     musicService: mobile ? 'deezerApp' : 'deezerWeb',
     pdfEnabled: true,
-    lyricsEnabled: true,
+    lyricsMode: '1-column',
   }
 }
 
@@ -426,30 +435,28 @@ export default function SongDetailPage() {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <ActionButton
-              href={song.pdf_url}
-              variant="pdf"
-              target="_blank"
-              disabled={!song.pdf_url || !(settings.pdfEnabled ?? true)}
-            >
-              <PdfIcon className="w-5 h-5" /> {t('buttons.pdf')}
-            </ActionButton>
-            {!song.pdf_url && <span className="text-sm text-gray-400">{t('song.pdfMissing')}</span>}
-          </div>
+        <div className="flex flex-col sm:flex-row gap-3 sm:flex-wrap">
+          <ActionButton
+            href={song.pdf_url}
+            variant="pdf"
+            target="_blank"
+            disabled={!song.pdf_url || !(settings.pdfEnabled ?? true)}
+            title={!song.pdf_url ? t('song.pdfMissing') : undefined}
+          >
+            <PdfIcon className="w-5 h-5" /> {t('buttons.pdf')}
+          </ActionButton>
 
-          <div className="flex items-center gap-2">
+          {(settings.lyricsMode ?? '1-column') !== 'none' && (
             <ActionButton
-              href={song.pdf_lyrics_url}
+              href={song.pdf_lyrics_url ? `${song.pdf_lyrics_url}?columns=${(settings.lyricsMode ?? '1-column') === '2-columns' ? '2' : '1'}` : undefined}
               variant="pdf"
               target="_blank"
-              disabled={!song.pdf_lyrics_url || !(settings.lyricsEnabled ?? true)}
+              disabled={!song.pdf_lyrics_url}
+              title={!song.pdf_lyrics_url ? t('song.lyricsMissing') : undefined}
             >
               <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics')}
             </ActionButton>
-            {!song.pdf_lyrics_url && <span className="text-sm text-gray-400">{t('song.lyricsMissing')}</span>}
-          </div>
+          )}
 
           {settings.musicService === 'deezerWeb' && (
             <ActionButton
@@ -498,16 +505,16 @@ export default function SongDetailPage() {
             <EditIcon className="w-5 h-5" /> {t('buttons.edit')}
           </ActionButton>
 
-          <div className={`relative group ${!isAuthenticated ? 'self-center' : ''}`}>
+          <div className="relative group w-full sm:w-auto">
             <button
               onClick={triggerBuild}
               disabled={building || !isAuthenticated}
               className={isAuthenticated
-                ? "inline-flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-24 justify-center transition-colors active:scale-95 bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                : "inline-flex items-center gap-1 px-1.5 py-0.5 text-white no-underline rounded text-[10px] font-medium h-[24px] w-16 justify-center bg-gray-400 cursor-not-allowed opacity-60"
+                ? "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center transition-colors active:scale-95 bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                : "flex items-center gap-2 px-4 py-2 text-white no-underline rounded-lg text-sm font-medium h-[44px] w-full justify-center bg-gray-400 cursor-not-allowed opacity-60"
               }
             >
-              <MakeIcon className={isAuthenticated ? "w-5 h-5" : "w-3 h-3"} /> {building ? '...' : t('buttons.build')}
+              <MakeIcon className="w-5 h-5" /> {building ? '...' : t('buttons.build')}
             </button>
             {!isAuthenticated && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">

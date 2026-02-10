@@ -424,7 +424,16 @@ async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Respo
     }
 }
 
-async fn api_pdf_lyrics(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+#[derive(Deserialize)]
+struct PdfLyricsQuery {
+    columns: Option<String>,
+}
+
+async fn api_pdf_lyrics(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<PdfLyricsQuery>,
+) -> Response {
     let songs = match get_all_songs(&state.s3_client).await {
         Ok(s) => s,
         Err(_) => {
@@ -450,7 +459,11 @@ async fn api_pdf_lyrics(State(state): State<AppState>, Path(id): Path<String>) -
         time_signature: None,
     };
     let pdf_name = song_info.pdf_name_of_song();
-    let key = format!("delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf");
+    let folder = match query.columns.as_deref() {
+        Some("2") => "pdf-lyrics-2-column",
+        _ => "pdf-lyrics-1-column",
+    };
+    let key = format!("delivery/{folder}/{pdf_name}-lyrics.pdf");
 
     match state
         .s3_client
