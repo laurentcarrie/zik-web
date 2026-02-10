@@ -296,7 +296,7 @@ pub fn lilypond_to_html(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let parser = LilyPondParser::new();
     let result = parser.parse(input)?;
-    let html = StrudelGenerator::generate_html(&result.staves, Some(&result.tempo), stem);
+    let html = StrudelGenerator::generate_html(&result.staves, &result.tempo, stem);
     Ok(html)
 }
 

@@ -4,9 +4,9 @@ version = "0.15.0"
 edition = "2024"
 
 [dependencies]
-axum = "0.7"
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.5", features = ["fs", "cors"] }
+tower-http = { version = "0.6", features = ["fs", "cors"] }
 tower = "0.5"
 aws-config = "1.1"
 aws-sdk-s3 = "1.15"
@@ -19,6 +19,6 @@ serde_yaml = "0.9"
 urlencoding = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
 strudel-of-lilypond = "0.4.0"
-band-songbook = "0.0.10"
+band-songbook = "0.0.12"
 tempfile = "3"
 chrono = "0.4"

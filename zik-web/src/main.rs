@@ -1007,7 +1007,7 @@ async fn api_make(
     println!("api_make: sandbox={sandbox}");
 
     let result =
-        band_songbook::make_all_with_storage(&srcdir, local_sandbox.path(), None, None, &sandbox)
+        band_songbook::make_all_with_storage(&srcdir, local_sandbox.path(), None, None, &sandbox, &[])
             .await;
 
     // Try to read the make-report.yml from S3
