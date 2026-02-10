@@ -2,13 +2,8 @@ name: Deploy to AWS App Runner
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'zik-web/**'
-      - 'frontend/**'
-      - 'Dockerfile.production'
-      - '.github/workflows/deploy.yml'
+    tags:
+      - 'v*'
 
 env:
   AWS_REGION: eu-west-3
