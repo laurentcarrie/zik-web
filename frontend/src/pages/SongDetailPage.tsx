@@ -427,25 +427,29 @@ export default function SongDetailPage() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-          <ActionButton
-            href={song.pdf_url}
-            variant="pdf"
-            target="_blank"
-            disabled={!(settings.pdfEnabled ?? true)}
-            title={!song.pdf_url ? t('song.pdfMissing') : undefined}
-          >
-            <PdfIcon className="w-5 h-5" /> {t('buttons.pdf')}
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              href={song.pdf_url}
+              variant="pdf"
+              target="_blank"
+              disabled={!song.pdf_url || !(settings.pdfEnabled ?? true)}
+            >
+              <PdfIcon className="w-5 h-5" /> {t('buttons.pdf')}
+            </ActionButton>
+            {!song.pdf_url && <span className="text-sm text-gray-400">{t('song.pdfMissing')}</span>}
+          </div>
 
-          <ActionButton
-            href={song.pdf_lyrics_url}
-            variant="pdf"
-            target="_blank"
-            disabled={!(settings.lyricsEnabled ?? true)}
-            title={!song.pdf_lyrics_url ? t('song.lyricsMissing') : undefined}
-          >
-            <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics')}
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              href={song.pdf_lyrics_url}
+              variant="pdf"
+              target="_blank"
+              disabled={!song.pdf_lyrics_url || !(settings.lyricsEnabled ?? true)}
+            >
+              <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics')}
+            </ActionButton>
+            {!song.pdf_lyrics_url && <span className="text-sm text-gray-400">{t('song.lyricsMissing')}</span>}
+          </div>
 
           {settings.musicService === 'deezerWeb' && (
             <ActionButton
