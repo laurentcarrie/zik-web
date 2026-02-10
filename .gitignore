@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # runtime cache (downloaded from S3)
 static/
+
+# local scripts
+scripts/rebuild-pdfs-in-s3.sh
