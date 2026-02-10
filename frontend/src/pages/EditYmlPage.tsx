@@ -24,11 +24,41 @@ const CUSTOM_SCHEMA = createCustomSchema()
 
 interface StructureItem {
   id?: string
+  item?: { rows?: string[]; link?: string; type?: string }
+}
+
+interface SectionInfo {
+  id: string
+  type: string
+}
+
+const SECTION_COLORS: Record<string, { bg: string; hover: string }> = {
+  intro:      { bg: 'bg-amber-400',   hover: 'hover:bg-amber-500' },
+  couplet:    { bg: 'bg-green-500',   hover: 'hover:bg-green-600' },
+  couplet2:   { bg: 'bg-green-600',   hover: 'hover:bg-green-700' },
+  couplet3:   { bg: 'bg-green-700',   hover: 'hover:bg-green-800' },
+  prerefrain: { bg: 'bg-sky-300',     hover: 'hover:bg-sky-400' },
+  refrain:    { bg: 'bg-blue-400',    hover: 'hover:bg-blue-500' },
+  refrainb:   { bg: 'bg-cyan-400',    hover: 'hover:bg-cyan-500' },
+  pont:       { bg: 'bg-purple-400',  hover: 'hover:bg-purple-500' },
+  outro:      { bg: 'bg-teal-400',    hover: 'hover:bg-teal-500' },
+  solo:       { bg: 'bg-red-400',     hover: 'hover:bg-red-500' },
+  interlude:  { bg: 'bg-orange-400',  hover: 'hover:bg-orange-500' },
+  riff:       { bg: 'bg-gray-400',    hover: 'hover:bg-gray-500' },
+  fill:       { bg: 'bg-teal-200',    hover: 'hover:bg-teal-300' },
+  final:      { bg: 'bg-teal-400',    hover: 'hover:bg-teal-500' },
+}
+
+const DEFAULT_SECTION_COLOR = { bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600' }
+
+function getSectionColor(type: string) {
+  return SECTION_COLORS[type] || DEFAULT_SECTION_COLOR
 }
 
 interface SongFiles {
   lilypond?: string[]
   tex?: string[]
+  drums?: string[]
 }
 
 interface SongInfo {
@@ -46,8 +76,8 @@ const API_BASE = import.meta.env.VITE_API_URL || ''
 export default function EditYmlPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [sections, setSections] = useState<string[]>([])
-  const [files, setFiles] = useState<SongFiles>({ lilypond: [], tex: [] })
+  const [sections, setSections] = useState<SectionInfo[]>([])
+  const [files, setFiles] = useState<SongFiles>({ lilypond: [], tex: [], drums: [] })
   const [tempo, setTempo] = useState<number | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -113,18 +143,33 @@ export default function EditYmlPage() {
     try {
       const parsed = yaml.load(text, { schema: CUSTOM_SCHEMA }) as ParsedYaml | null
       const structure = parsed?.structure || []
-      const ids = structure
-        .filter((item): item is StructureItem & { id: string } => !!item?.id)
-        .map(item => item.id)
-      setSections(ids)
+      // Build a map of id -> type for resolving Ref links
+      const typeById: Record<string, string> = {}
+      for (const s of structure) {
+        if (s?.id && s?.item && typeof s.item === 'object' && s.item.type) {
+          typeById[s.id] = s.item.type
+        }
+      }
+      const sectionInfos = structure
+        .filter((item): item is StructureItem & { id: string; item: { type?: string; link?: string } } =>
+          !!item?.id && !!item?.item && typeof item.item === 'object' &&
+          ('rows' in item.item || 'link' in item.item))
+        .map(item => {
+          const type = item.item.type
+            || (item.item.link && typeById[item.item.link])
+            || ''
+          return { id: item.id, type }
+        })
+      setSections(sectionInfos)
       setFiles({
         lilypond: parsed?.files?.lilypond || [],
         tex: parsed?.files?.tex || [],
+        drums: parsed?.files?.drums || [],
       })
       setTempo(parsed?.info?.tempo)
     } catch {
-      setSections([])
-      setFiles({ lilypond: [], tex: [] })
+      setSections([] as SectionInfo[])
+      setFiles({ lilypond: [], tex: [], drums: [] })
       setTempo(undefined)
     }
   }
@@ -201,20 +246,23 @@ export default function EditYmlPage() {
           <h3 className="text-gray-700 font-medium mb-3">Lyrics</h3>
           <div className="flex flex-wrap gap-2">
             {sections.length > 0 ? (
-              sections.map((sectionId) => (
-                <a
-                  key={sectionId}
-                  href={`/edit-lyrics/${id}/${encodeURIComponent(sectionId)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  {sectionId}
-                </a>
-              ))
+              sections.map((section) => {
+                const color = getSectionColor(section.type)
+                return (
+                  <a
+                    key={section.id}
+                    href={`/edit-lyrics/${id}/${encodeURIComponent(section.id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] ${color.bg} text-white rounded-lg text-sm ${color.hover} transition-colors`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    {section.id}
+                  </a>
+                )
+              })
             ) : (
               <span className="text-gray-500 italic">No sections found in structure</span>
             )}
@@ -289,6 +337,27 @@ export default function EditYmlPage() {
           </div>
         </div>
 
+        {files.drums && files.drums.length > 0 && (
+          <div className="pt-4 border-t border-gray-200">
+            <h3 className="text-gray-700 font-medium mb-3">Drum Structures</h3>
+            <div className="flex flex-wrap gap-2">
+              {files.drums.map((file) => (
+                <a
+                  key={file}
+                  href={`/edit-drums/${id}/${encodeURIComponent(file)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  {file}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

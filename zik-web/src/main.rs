@@ -20,9 +20,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    download_font_from_s3, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
-    get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url, make_deezer_url,
-    read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_to_s3,
+    download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key,
+    get_song_pdf, get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url,
+    make_deezer_url, read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml,
+    write_to_s3,
 };
 
 use std::sync::Arc;
@@ -100,6 +101,7 @@ async fn main() {
         .route("/make-report", get(api_make_report))
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
+        .route("/drum-pattern-to-html", post(api_drum_pattern_to_html))
         .route("/auth/verify", post(verify_password))
         .with_state(state.clone());
 
@@ -908,6 +910,22 @@ async fn api_lilypond_to_html(
     let html = lilypond_to_html(&input, &body.stem)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    Ok(Json(LilypondToHtmlResponse { html }))
+}
+
+#[derive(Deserialize)]
+struct DrumPatternToHtmlBody {
+    data: String,
+    name: String,
+    tempo: Option<u32>,
+}
+
+async fn api_drum_pattern_to_html(
+    Json(body): Json<DrumPatternToHtmlBody>,
+) -> Result<Json<LilypondToHtmlResponse>, (StatusCode, String)> {
+    let tempo = body.tempo.unwrap_or(120);
+    let html = drum_pattern_to_html(&body.data, &body.name, tempo)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(LilypondToHtmlResponse { html }))
 }
 
