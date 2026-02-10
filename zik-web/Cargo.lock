@@ -2447,6 +2447,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pathdiff"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3441,11 +3447,15 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strudel-of-lilypond"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bd8a6017846acb2ca73ab2cafc7cef8ec796bffdc6f897dfe194a3ac2fa9410"
+checksum = "d38022565df8e663279a6f7d89d8af0fe640e05827e7caba99ea96d5180aa38e"
 dependencies = [
+ "argh",
+ "pathdiff",
  "regex",
+ "serde",
+ "serde_yaml",
 ]
 
 [[package]]

@@ -61,10 +61,10 @@ async fn main() {
         eprintln!("Warning: Failed to download font from S3: {e}");
     }
 
-    let srcdir_prefix = std::env::var("SRCDIR_PREFIX")
-        .unwrap_or_else(|_| "s3://zik-laurent".to_string());
-    let delivery = std::env::var("DELIVERY")
-        .unwrap_or_else(|_| "s3://zik-laurent/delivery".to_string());
+    let srcdir_prefix =
+        std::env::var("SRCDIR_PREFIX").unwrap_or_else(|_| "s3://zik-laurent".to_string());
+    let delivery =
+        std::env::var("DELIVERY").unwrap_or_else(|_| "s3://zik-laurent/delivery".to_string());
     let settings = std::env::var("SETTINGS")
         .unwrap_or_else(|_| "s3://zik-laurent/songs/settings.yml".to_string());
 
