@@ -1138,6 +1138,7 @@ async fn api_invoke_build(
         "settings": settings,
         "all_songs": all_songs,
         "pattern": pattern,
+        "log_level": "info",
     });
     let payload_bytes = serde_json::to_vec(&payload).unwrap_or_default();
 
