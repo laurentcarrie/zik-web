@@ -162,7 +162,7 @@ export default function SongDetailPage() {
       const res = await fetch(`${API_BASE}/api/invoke-build`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ song_key: song?.key }),
+        body: JSON.stringify({ song_key: song?.key, author: song?.author, title: song?.title }),
       })
       const data = await res.json()
       setBuildMessage(data.message)
@@ -510,8 +510,8 @@ export default function SongDetailPage() {
               onClick={triggerBuild}
               disabled={building || !isAuthenticated}
               className={isAuthenticated
-                ? "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center transition-colors active:scale-95 bg-[#8b5cf6] hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                : "flex items-center gap-2 px-4 py-2 text-white no-underline rounded-lg text-sm font-medium h-[44px] w-full justify-center bg-gray-400 cursor-not-allowed opacity-60"
+                ? "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center transition-colors active:scale-95 bg-[#8b5cf6]/70 hover:bg-[#8b5cf6]/90 disabled:bg-gray-400/50 disabled:cursor-not-allowed"
+                : "flex items-center gap-2 px-4 py-2 text-white no-underline rounded-lg text-sm font-medium h-[44px] w-full justify-center bg-gray-400/50 cursor-not-allowed"
               }
             >
               <MakeIcon className="w-5 h-5" /> {building ? '...' : t('buttons.build')}

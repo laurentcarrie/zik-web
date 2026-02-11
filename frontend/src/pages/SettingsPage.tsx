@@ -405,20 +405,34 @@ export default function SettingsPage() {
             <span className="text-gray-700 text-sm">{t('settings.pdfChordSheet')}</span>
           </label>
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <span className="text-gray-700 text-sm">{t('settings.lyricsPdf')}</span>
-            <select
-              value={settings.lyricsMode ?? '1-column'}
-              onChange={(e) => {
-                const newSettings = { ...settings, lyricsMode: e.target.value as LyricsMode }
-                setSettings(newSettings)
-                setCookie('serviceSettings', JSON.stringify(newSettings))
-              }}
-              className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
-            >
-              <option value="none">{t('settings.lyricsNone')}</option>
-              <option value="1-column">{t('settings.lyrics1Column')}</option>
-              <option value="2-columns">{t('settings.lyrics2Columns')}</option>
-            </select>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={(settings.lyricsMode ?? '1-column') !== 'none'}
+                onChange={() => {
+                  const enabled = (settings.lyricsMode ?? '1-column') !== 'none'
+                  const newSettings = { ...settings, lyricsMode: (enabled ? 'none' : '1-column') as LyricsMode }
+                  setSettings(newSettings)
+                  setCookie('serviceSettings', JSON.stringify(newSettings))
+                }}
+                className="w-4 h-4 accent-[#dc2626]"
+              />
+              <span className="text-gray-700 text-sm">{t('settings.lyricsPdf')}</span>
+            </label>
+            {(settings.lyricsMode ?? '1-column') !== 'none' && (
+              <select
+                value={settings.lyricsMode ?? '1-column'}
+                onChange={(e) => {
+                  const newSettings = { ...settings, lyricsMode: e.target.value as LyricsMode }
+                  setSettings(newSettings)
+                  setCookie('serviceSettings', JSON.stringify(newSettings))
+                }}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+              >
+                <option value="1-column">{t('settings.lyrics1Column')}</option>
+                <option value="2-columns">{t('settings.lyrics2Columns')}</option>
+              </select>
+            )}
           </div>
         </div>
 

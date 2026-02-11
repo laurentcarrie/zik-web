@@ -1114,6 +1114,8 @@ async fn send_build_notification(ses_client: &SesClient, song_dir: &str) {
 #[derive(Deserialize)]
 struct InvokeBuildRequest {
     song_key: String,
+    author: String,
+    title: String,
 }
 
 async fn api_invoke_build(
@@ -1124,7 +1126,8 @@ async fn api_invoke_build(
 
     // song_key is like "songs/author/title/song.yml", extract the directory
     let song_dir = body.song_key.trim_end_matches("/song.yml");
-    let srcdir = format!("{}/{song_dir}", state.srcdir_prefix);
+    let pattern = format!("{}{}", body.author, body.title);
+    let srcdir = format!("{}/songs", state.srcdir_prefix);
     let delivery = state.delivery.clone();
     let settings = state.settings.clone();
     let all_songs = format!("{}/all-songs.yml", state.srcdir_prefix);
@@ -1134,6 +1137,7 @@ async fn api_invoke_build(
         "delivery": delivery,
         "settings": settings,
         "all_songs": all_songs,
+        "pattern": pattern,
     });
     let payload_bytes = serde_json::to_vec(&payload).unwrap_or_default();
 
