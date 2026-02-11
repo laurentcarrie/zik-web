@@ -23,6 +23,22 @@ body {
   background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
   background-size: contain;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  position: relative;
+}
+
+body::before {
+  content: 'Move The Line';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-family: var(--font-fontskrivan), cursive;
+  font-size: 12.6rem;
+  color: rgba(255, 255, 255, 0.12);
+  -webkit-text-stroke: 3px rgba(37, 99, 235, 0.15);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 0;
 }
 
 #root {
