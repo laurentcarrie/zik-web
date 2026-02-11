@@ -229,7 +229,14 @@ async fn api_song(
         .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let SongItem { id, title, author, key, tempo, error } = s;
+    let SongItem {
+        id,
+        title,
+        author,
+        key,
+        tempo,
+        error,
+    } = s;
     let deezer_url = make_deezer_url(&title, &author);
     let deezer_app_url = make_deezer_app_url(&title, &author);
 
@@ -344,18 +351,32 @@ async fn api_save_song_yml(
         ));
     }
 
-    let items = get_all_songs(&state.s3_client)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiError { error: "Failed to load songs".into() })))?;
+    let items = get_all_songs(&state.s3_client).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError {
+                error: "Failed to load songs".into(),
+            }),
+        )
+    })?;
 
-    let s = items
-        .into_iter()
-        .find(|s| s.id == id)
-        .ok_or((StatusCode::NOT_FOUND, Json(ApiError { error: "Song not found".into() })))?;
+    let s = items.into_iter().find(|s| s.id == id).ok_or((
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            error: "Song not found".into(),
+        }),
+    ))?;
 
     save_song_yml(&state.s3_client, &s.key, &body.content)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiError { error: "Failed to save".into() })))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    error: "Failed to save".into(),
+                }),
+            )
+        })?;
 
     Ok(StatusCode::OK)
 }
@@ -1034,9 +1055,15 @@ async fn api_make(
     println!("api_make: srcdir={srcdir}");
     println!("api_make: sandbox={sandbox}");
 
-    let result =
-        band_songbook::make_all_with_storage(&srcdir, local_sandbox.path(), None, None, &sandbox, &[])
-            .await;
+    let result = band_songbook::make_all_with_storage(
+        &srcdir,
+        local_sandbox.path(),
+        None,
+        None,
+        &sandbox,
+        &[],
+    )
+    .await;
 
     // Try to read the make-report.yml from S3
     let report_key = "sandbox/make-report.yml";

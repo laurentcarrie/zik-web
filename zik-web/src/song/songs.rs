@@ -96,33 +96,31 @@ pub async fn write_all_songs_to_s3(
         let response = request.send().await?;
 
         for object in response.contents() {
-            if let Some(key) = object.key() {
-                if key.ends_with("/song.yml") {
-                    println!("found song");
+            if let Some(key) = object.key()
+                && key.ends_with("/song.yml")
+            {
+                println!("found song");
 
-                    match client.get_object().bucket(BUCKET).key(key).send().await {
-                        Ok(resp) => {
-                            let bytes = resp.body.collect().await?.into_bytes();
-                            if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
-                                songs.push(SongEntry {
-                                    id: Uuid::new_v4().to_string(),
-                                    title: song_yml.info.title.clone(),
-                                    author: song_yml.info.author.clone(),
-                                    key: key.to_string(),
-                                    deezer_url: make_deezer_url(
-                                        &song_yml.info.title,
-                                        &song_yml.info.author,
-                                    ),
-                                });
-                            } else {
-                                println!("problem with {key}");
-                                return Err(
-                                    format!("could not load song.yml with key {key}").into()
-                                );
-                            }
+                match client.get_object().bucket(BUCKET).key(key).send().await {
+                    Ok(resp) => {
+                        let bytes = resp.body.collect().await?.into_bytes();
+                        if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
+                            songs.push(SongEntry {
+                                id: Uuid::new_v4().to_string(),
+                                title: song_yml.info.title.clone(),
+                                author: song_yml.info.author.clone(),
+                                key: key.to_string(),
+                                deezer_url: make_deezer_url(
+                                    &song_yml.info.title,
+                                    &song_yml.info.author,
+                                ),
+                            });
+                        } else {
+                            println!("problem with {key}");
+                            return Err(format!("could not load song.yml with key {key}").into());
                         }
-                        Err(e) => return Err(e.into()),
                     }
+                    Err(e) => return Err(e.into()),
                 }
             }
         }

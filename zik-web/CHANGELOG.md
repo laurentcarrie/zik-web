@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.18.0] - 2026-02-11
+
+### Added
+- Song indexing via `world.yml` with Re-index button on settings page
+- Error songs shown in red in song list, with parse error details on song page
+- Song YAML validation on save from Master editor
+- Tempo button with metronome icon, generates Strudel REPL HTML in S3 delivery
+- CloudFront distribution and Lambda function in CloudFormation template
+- Rotating color-cycling background logo
+
+### Changed
+- Song list now sourced from `world.yml` instead of `all-songs.yml`
+- Song IDs derived from filesystem path (stable, deterministic) instead of random UUIDs
+- `band-songbook` dependency switched from local path to crates.io v0.0.18
+- CloudFront URL updated to new distribution
+- PDF button no longer gated by `pdfEnabled` setting
+
+### Fixed
+- Adapted to `file_stem_of_song()` rename in band-songbook v0.0.18
+- Legacy `write_all_songs_to_s3` test marked as ignored
+
 ## [0.15.0] - 2026-02-08
 
 ### Added

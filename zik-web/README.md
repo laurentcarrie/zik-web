@@ -7,18 +7,20 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
 - **Songs Page**: Browse all songs with search and sorting
   - Fuzzy search
   - Sort by title or author
+  - Error songs highlighted in red
   - Mobile-friendly design
 - **Song Detail Page**: View song with action buttons
-  - PDF viewer
-  - Deezer (Web) link
-  - Deezer (App) link for Android
+  - PDF and lyrics PDF viewer
+  - Tempo button (Strudel REPL with drum pattern)
+  - Deezer / Spotify links (Web and App)
+  - Build trigger with live Lambda status
 - **Edit Pages**: Multiple editors with syntax highlighting
-  - Edit YML: YAML editor with validation
+  - Edit YML: YAML editor with validation (validates Song structure on save)
   - Edit Lilypond: .ly file editor
   - Edit Lyrics: Lyrics text editor
   - Edit TeX: LaTeX editor
+- **Settings Page**: Music service preferences, Re-index songs
 - **Master Page**: Song compilation workflow
-- **Update Page**: Trigger S3 sync
 - **PDF Viewer**: View song PDFs directly from S3
 
 ## Tech Stack
@@ -50,11 +52,15 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 
 | Endpoint | Description |
 |----------|-------------|
-| `/api/songs` | JSON list of all songs |
-| `/api/song/:id` | Single song JSON |
+| `/api/songs` | JSON list of all songs (from world.yml) |
+| `/api/song/:id` | Single song detail with PDF/tempo URLs |
+| `/api/song/:id/yml` | Song YAML source |
 | `/api/pdf/:id` | PDF file for song |
+| `/api/pdf-lyrics/:id` | Lyrics PDF file |
+| `/api/invoke-build` | Trigger Lambda build (auth required) |
+| `/api/world` | Re-index songs to world.yml (auth required) |
+| `/api/lambda-status` | Lambda build status |
 | `/version` | Current version |
-| `/update` | Sync songs from S3 |
 
 ## Project Structure
 
