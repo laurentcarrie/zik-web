@@ -1,0 +1,42 @@
+[
+  {
+    "ResourceType": "AWS::S3::Bucket",
+    "LogicalResourceId": "S3Bucket",
+    "ResourceIdentifier": { "BucketName": "zik-laurent" }
+  },
+  {
+    "ResourceType": "AWS::S3::BucketPolicy",
+    "LogicalResourceId": "S3BucketPolicy",
+    "ResourceIdentifier": { "Bucket": "zik-laurent" }
+  },
+  {
+    "ResourceType": "AWS::ECR::Repository",
+    "LogicalResourceId": "ZikWebECR",
+    "ResourceIdentifier": { "RepositoryName": "zik-web" }
+  },
+  {
+    "ResourceType": "AWS::ECR::Repository",
+    "LogicalResourceId": "BandSongbookLambdaECR",
+    "ResourceIdentifier": { "RepositoryName": "band-songbook-lambda" }
+  },
+  {
+    "ResourceType": "AWS::IAM::Role",
+    "LogicalResourceId": "LambdaExecutionRole",
+    "ResourceIdentifier": { "RoleName": "cargo-lambda-role-71626fb1-b25c-4726-88fc-cf2f0162918c" }
+  },
+  {
+    "ResourceType": "AWS::IAM::Role",
+    "LogicalResourceId": "AppRunnerECRAccessRole",
+    "ResourceIdentifier": { "RoleName": "apprunner-ecr-access-role" }
+  },
+  {
+    "ResourceType": "AWS::IAM::Role",
+    "LogicalResourceId": "AppRunnerInstanceRole",
+    "ResourceIdentifier": { "RoleName": "apprunner-instance-role" }
+  },
+  {
+    "ResourceType": "AWS::CloudFront::OriginAccessControl",
+    "LogicalResourceId": "CloudFrontOAC",
+    "ResourceIdentifier": { "Id": "E1BW5WZDUFFV40" }
+  }
+]

@@ -4,12 +4,15 @@ export interface Song {
   author: string
   deezer_url: string
   deezer_app_url: string
+  key: string
+  tempo: number
+  error?: string
 }
 
 export interface SongDetail extends Song {
   pdf_url?: string
   pdf_lyrics_url?: string
-  key: string
+  tempo_url?: string
 }
 
 export interface SongYml {

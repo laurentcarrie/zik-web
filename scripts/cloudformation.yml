@@ -1,0 +1,295 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Infrastructure for zik-web (move-the-line.org).
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # S3
+  # ---------------------------------------------------------------------------
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: zik-laurent
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Retain
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${S3Bucket.Arn}/*"
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  # ---------------------------------------------------------------------------
+  # ECR Repositories
+  # ---------------------------------------------------------------------------
+  ZikWebECR:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: zik-web
+
+  BandSongbookLambdaECR:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: band-songbook-lambda
+
+  # ---------------------------------------------------------------------------
+  # IAM — Lambda Execution Role
+  # ---------------------------------------------------------------------------
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Properties:
+      RoleName: cargo-lambda-role-71626fb1-b25c-4726-88fc-cf2f0162918c
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "${S3Bucket.Arn}/songs/*"
+                  - !GetAtt S3Bucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${S3Bucket.Arn}/delivery/*"
+                  - !Sub "${S3Bucket.Arn}/sandbox/*"
+
+  # ---------------------------------------------------------------------------
+  # IAM — App Runner ECR Access Role
+  # ---------------------------------------------------------------------------
+  AppRunnerECRAccessRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Properties:
+      RoleName: apprunner-ecr-access-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+
+  # ---------------------------------------------------------------------------
+  # IAM — App Runner Instance Role
+  # ---------------------------------------------------------------------------
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Properties:
+      RoleName: apprunner-instance-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AppRunnerInstancePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3Access
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt S3Bucket.Arn
+                  - !Sub "${S3Bucket.Arn}/*"
+              - Sid: LambdaInvoke
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:band-songbook"
+              - Sid: CloudWatchLogsRead
+                Effect: Allow
+                Action:
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/band-songbook"
+              - Sid: SESSendEmail
+                Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+
+  # ---------------------------------------------------------------------------
+  # CloudFront OAC
+  # ---------------------------------------------------------------------------
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    DeletionPolicy: Retain
+    Properties:
+      OriginAccessControlConfig:
+        Name: zik-laurent-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ---------------------------------------------------------------------------
+  # App Runner
+  # ---------------------------------------------------------------------------
+  # CloudFormation creates the service shell only.
+  # Image, env vars, and runtime config are managed by the GitHub Actions deploy workflow.
+  ZikWebService:
+    Type: AWS::AppRunner::Service
+    DeletionPolicy: Retain
+    Properties:
+      ServiceName: zik-web
+      SourceConfiguration:
+        AutoDeploymentsEnabled: false
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerECRAccessRole.Arn
+        ImageRepository:
+          ImageIdentifier: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/zik-web:latest"
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: "8080"
+      InstanceConfiguration:
+        Cpu: "1024"
+        Memory: "2048"
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      HealthCheckConfiguration:
+        Protocol: TCP
+        Interval: 5
+        Timeout: 2
+        HealthyThreshold: 1
+        UnhealthyThreshold: 5
+      NetworkConfiguration:
+        IngressConfiguration:
+          IsPubliclyAccessible: true
+
+  # ---------------------------------------------------------------------------
+  # Route 53
+  # ---------------------------------------------------------------------------
+  DNSRecordA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z07554092VOHCSY042QTP
+      Name: move-the-line.org.
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ZikWebService.ServiceUrl
+        HostedZoneId: Z087117439MBKHYM69QS6  # App Runner hosted zone for eu-west-3
+
+  DNSRecordWWW:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z07554092VOHCSY042QTP
+      Name: www.move-the-line.org.
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt ZikWebService.ServiceUrl
+
+  # ---------------------------------------------------------------------------
+  # Lambda
+  # ---------------------------------------------------------------------------
+  BandSongbookFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: band-songbook
+      PackageType: Image
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/band-songbook-lambda:latest"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 2048
+      Timeout: 900
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          RUST_LOG: info
+
+  # ---------------------------------------------------------------------------
+  # CloudFront Distribution
+  # ---------------------------------------------------------------------------
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: zik-laurent S3 delivery
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        IPV6Enabled: true
+        PriceClass: PriceClass_All
+        Origins:
+          - Id: S3Origin
+            DomainName: !Sub "${S3Bucket}.s3.${AWS::Region}.amazonaws.com"
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: allow-all
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          DefaultTTL: 86400
+          ForwardedValues:
+            QueryString: false
+
+  # ---------------------------------------------------------------------------
+  # Not managed by CloudFormation
+  # ---------------------------------------------------------------------------
+  # App Runner custom domain association:
+  #   aws apprunner associate-custom-domain --service-arn <arn> --domain-name move-the-line.org
+  #   (no CloudFormation resource type for this — must be done manually after stack creation)
+  #
+  # CloudWatch Log Group:
+  #   /aws/lambda/band-songbook — created automatically by Lambda
+  # ---------------------------------------------------------------------------
+
+Outputs:
+  AppRunnerServiceArn:
+    Value: !GetAtt ZikWebService.ServiceArn
+  AppRunnerServiceUrl:
+    Value: !GetAtt ZikWebService.ServiceUrl
+  CloudFrontDomainName:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  CloudFrontDistributionId:
+    Value: !Ref CloudFrontDistribution
+  LambdaFunctionArn:
+    Value: !GetAtt BandSongbookFunction.Arn

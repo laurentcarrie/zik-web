@@ -47,7 +47,8 @@ export async function saveSongYml(id: string, content: string): Promise<void> {
     if (response.status === 401) {
       throw new Error('Unauthorized')
     }
-    throw new Error('Failed to save song YML')
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || 'Failed to save song YML')
   }
 }
 

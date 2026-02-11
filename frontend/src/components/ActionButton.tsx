@@ -10,12 +10,12 @@ interface ActionButtonProps {
 }
 
 const variantStyles = {
-  pdf: 'bg-[#dc2626] hover:bg-red-700',
-  deezer: 'bg-[#191414] hover:bg-gray-800',
-  'deezer-app': 'bg-[#ff6b35] hover:bg-orange-600',
-  spotify: 'bg-[#1DB954] hover:bg-green-600',
-  'spotify-app': 'bg-[#191414] hover:bg-gray-800',
-  edit: 'bg-[#6b7280] hover:bg-gray-600',
+  pdf: 'bg-[#dc2626]/70 hover:bg-[#dc2626]/90',
+  deezer: 'bg-[#191414]/70 hover:bg-[#191414]/90',
+  'deezer-app': 'bg-[#ff6b35]/70 hover:bg-[#ff6b35]/90',
+  spotify: 'bg-[#1DB954]/70 hover:bg-[#1DB954]/90',
+  'spotify-app': 'bg-[#191414]/70 hover:bg-[#191414]/90',
+  edit: 'bg-[#6b7280]/70 hover:bg-[#6b7280]/90',
 }
 
 function PdfIcon({ className }: { className?: string }) {
@@ -64,7 +64,7 @@ export default function ActionButton({ href, variant, target, children, disabled
       <div className="relative group w-full sm:w-auto">
         <span
           className="flex items-center gap-2 px-4 py-2 text-white no-underline rounded-lg text-sm font-medium
-                      h-[44px] justify-center bg-gray-400 cursor-not-allowed opacity-60"
+                      h-[44px] justify-center bg-gray-400/50 cursor-not-allowed"
         >
           {children}
         </span>

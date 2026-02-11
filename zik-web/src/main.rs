@@ -20,10 +20,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key,
-    get_song_pdf, get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url,
-    make_deezer_url, read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml,
-    write_to_s3,
+    SongItem, download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs,
+    get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, make_cloudfront_url,
+    make_deezer_app_url, make_deezer_url, read_from_s3, save_lyrics_by_key, save_lyrics_handler,
+    save_song_yml, write_tempo_html_to_s3, write_to_s3,
 };
 
 use std::sync::Arc;
@@ -112,6 +112,7 @@ async fn main() {
         .route("/s3/{*key}", post(api_write_to_s3))
         .route("/make", post(api_make))
         .route("/invoke-build", post(api_invoke_build))
+        .route("/world", post(api_world))
         .layer(middleware::from_fn(write_auth_middleware))
         .with_state(state.clone());
 
@@ -158,6 +159,9 @@ struct ApiSong {
     deezer_url: String,
     deezer_app_url: String,
     key: String,
+    tempo: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -172,23 +176,30 @@ struct ApiSongDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pdf_lyrics_url: Option<String>,
     key: String,
+    tempo: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tempo_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 async fn api_songs(State(state): State<AppState>) -> Response {
     match get_all_songs(&state.s3_client).await {
-        Ok(songs) => {
-            let api_songs: Vec<ApiSong> = songs
+        Ok(items) => {
+            let api_songs: Vec<ApiSong> = items
                 .into_iter()
-                .map(|(id, title, author, key, _deezer_url)| {
-                    let deezer_url = make_deezer_url(&title, &author);
-                    let deezer_app_url = make_deezer_app_url(&title, &author);
+                .map(|s| {
+                    let deezer_url = make_deezer_url(&s.title, &s.author);
+                    let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
                     ApiSong {
-                        id,
-                        title,
-                        author,
+                        id: s.id,
+                        title: s.title,
+                        author: s.author,
                         deezer_url,
                         deezer_app_url,
-                        key,
+                        key: s.key,
+                        tempo: s.tempo,
+                        error: s.error,
                     }
                 })
                 .collect();
@@ -209,16 +220,23 @@ async fn api_song(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiSongDetail>, StatusCode> {
-    let songs = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.s3_client)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let song = songs
+    let s = items
         .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let (id, title, author, key, _deezer_url) = song;
+    let SongItem {
+        id,
+        title,
+        author,
+        key,
+        tempo,
+        error,
+    } = s;
     let deezer_url = make_deezer_url(&title, &author);
     let deezer_app_url = make_deezer_app_url(&title, &author);
 
@@ -229,7 +247,7 @@ async fn api_song(
         tempo: 0,
         time_signature: None,
     };
-    let pdf_name = song_info.pdf_name_of_song();
+    let pdf_name = song_info.file_stem_of_song();
 
     // Check main PDF
     let pdf_key = format!("delivery/pdf/{pdf_name}.pdf");
@@ -259,6 +277,15 @@ async fn api_song(
         Err(_) => None,
     };
 
+    // Generate tempo HTML and upload to S3
+    let tempo_url = if error.is_none() && tempo > 0 {
+        write_tempo_html_to_s3(&state.s3_client, &author, &title, tempo)
+            .await
+            .ok()
+    } else {
+        None
+    };
+
     Ok(Json(ApiSongDetail {
         id,
         title,
@@ -268,6 +295,9 @@ async fn api_song(
         pdf_url,
         pdf_lyrics_url,
         key,
+        tempo,
+        tempo_url,
+        error,
     }))
 }
 
@@ -280,18 +310,16 @@ async fn api_song_yml(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiSongYml>, StatusCode> {
-    let songs = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.s3_client)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let song = songs
+    let s = items
         .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let (_id, _title, _author, key, _deezer_url) = song;
-
-    let content = get_song_yml(&state.s3_client, &key)
+    let content = get_song_yml(&state.s3_client, &s.key)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -312,21 +340,43 @@ async fn api_save_song_yml(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(body): Json<SaveYmlBody>,
-) -> Result<StatusCode, StatusCode> {
-    let songs = get_all_songs(&state.s3_client)
+) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    // Validate that the content is a valid Song structure
+    if let Err(e) = serde_yaml::from_str::<band_songbook::model::Song>(&body.content) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                error: format!("Invalid song YAML: {e}"),
+            }),
+        ));
+    }
+
+    let items = get_all_songs(&state.s3_client).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError {
+                error: "Failed to load songs".into(),
+            }),
+        )
+    })?;
+
+    let s = items.into_iter().find(|s| s.id == id).ok_or((
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            error: "Song not found".into(),
+        }),
+    ))?;
+
+    save_song_yml(&state.s3_client, &s.key, &body.content)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let song = songs
-        .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let (_id, _title, _author, key, _deezer_url) = song;
-
-    save_song_yml(&state.s3_client, &key, &body.content)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    error: "Failed to save".into(),
+                }),
+            )
+        })?;
 
     Ok(StatusCode::OK)
 }
@@ -340,18 +390,16 @@ async fn api_lyrics(
     State(state): State<AppState>,
     Path((id, section_id)): Path<(String, String)>,
 ) -> Result<Json<ApiLyrics>, StatusCode> {
-    let songs = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.s3_client)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let song = songs
+    let s = items
         .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let (_id, _title, _author, key, _deezer_url) = song;
-
-    let content = get_lyrics_by_key(&state.s3_client, &key, &section_id)
+    let content = get_lyrics_by_key(&state.s3_client, &s.key, &section_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -368,18 +416,16 @@ async fn api_save_lyrics(
     Path((id, section_id)): Path<(String, String)>,
     Json(body): Json<SaveLyricsBody>,
 ) -> Result<StatusCode, StatusCode> {
-    let songs = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.s3_client)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let song = songs
+    let s = items
         .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
+        .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let (_id, _title, _author, key, _deezer_url) = song;
-
-    save_lyrics_by_key(&state.s3_client, &key, &section_id, &body.content)
+    save_lyrics_by_key(&state.s3_client, &s.key, &section_id, &body.content)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -387,26 +433,21 @@ async fn api_save_lyrics(
 }
 
 async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let songs = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.s3_client).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
         }
     };
 
-    let song = match songs
-        .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
-    {
+    let s = match items.into_iter().find(|s| s.id == id) {
         Some(s) => s,
         None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
     };
 
-    let (_id, title, author, _key, _deezer_url) = song;
-
-    match get_song_pdf(&state.s3_client, &author, &title).await {
+    match get_song_pdf(&state.s3_client, &s.author, &s.title).await {
         Ok(pdf_bytes) => {
-            let filename = format!("{author} - {title}.pdf");
+            let filename = format!("{} - {}.pdf", s.author, s.title);
             (
                 StatusCode::OK,
                 [
@@ -434,31 +475,26 @@ async fn api_pdf_lyrics(
     Path(id): Path<String>,
     Query(query): Query<PdfLyricsQuery>,
 ) -> Response {
-    let songs = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.s3_client).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
         }
     };
 
-    let song = match songs
-        .into_iter()
-        .find(|(song_id, _, _, _, _)| song_id == &id)
-    {
+    let s = match items.into_iter().find(|s| s.id == id) {
         Some(s) => s,
         None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
     };
 
-    let (_id, title, author, _key, _deezer_url) = song;
-
     // Use same naming convention as regular PDF but in pdf folder
     let song_info = band_songbook::model::SongInfo {
-        title: title.clone(),
-        author: author.clone(),
+        title: s.title.clone(),
+        author: s.author.clone(),
         tempo: 0,
         time_signature: None,
     };
-    let pdf_name = song_info.pdf_name_of_song();
+    let pdf_name = song_info.file_stem_of_song();
     let folder = match query.columns.as_deref() {
         Some("2") => "pdf-lyrics-2-column",
         _ => "pdf-lyrics-1-column",
@@ -481,7 +517,7 @@ async fn api_pdf_lyrics(
                         .into_response();
                 }
             };
-            let filename = format!("{author} - {title} (Lyrics).pdf");
+            let filename = format!("{} - {} (Lyrics).pdf", s.author, s.title);
             (
                 StatusCode::OK,
                 [
@@ -1019,9 +1055,15 @@ async fn api_make(
     println!("api_make: srcdir={srcdir}");
     println!("api_make: sandbox={sandbox}");
 
-    let result =
-        band_songbook::make_all_with_storage(&srcdir, local_sandbox.path(), None, None, &sandbox, &[])
-            .await;
+    let result = band_songbook::make_all_with_storage(
+        &srcdir,
+        local_sandbox.path(),
+        None,
+        None,
+        &sandbox,
+        &[],
+    )
+    .await;
 
     // Try to read the make-report.yml from S3
     let report_key = "sandbox/make-report.yml";
@@ -1114,6 +1156,8 @@ async fn send_build_notification(ses_client: &SesClient, song_dir: &str) {
 #[derive(Deserialize)]
 struct InvokeBuildRequest {
     song_key: String,
+    author: String,
+    title: String,
 }
 
 async fn api_invoke_build(
@@ -1124,7 +1168,8 @@ async fn api_invoke_build(
 
     // song_key is like "songs/author/title/song.yml", extract the directory
     let song_dir = body.song_key.trim_end_matches("/song.yml");
-    let srcdir = format!("{}/{song_dir}", state.srcdir_prefix);
+    let pattern = format!("{}{}", body.author, body.title);
+    let srcdir = format!("{}/songs", state.srcdir_prefix);
     let delivery = state.delivery.clone();
     let settings = state.settings.clone();
     let all_songs = format!("{}/all-songs.yml", state.srcdir_prefix);
@@ -1134,6 +1179,8 @@ async fn api_invoke_build(
         "delivery": delivery,
         "settings": settings,
         "all_songs": all_songs,
+        "pattern": pattern,
+        "log_level": "info",
     });
     let payload_bytes = serde_json::to_vec(&payload).unwrap_or_default();
 
@@ -1173,6 +1220,84 @@ async fn api_invoke_build(
             }),
         )),
     }
+}
+
+#[derive(Serialize)]
+struct WorldResponse {
+    success: bool,
+    message: String,
+}
+
+async fn api_world(
+    State(state): State<AppState>,
+) -> Result<Json<WorldResponse>, (StatusCode, Json<WorldResponse>)> {
+    use band_songbook::storage::{StoragePath, download_to_local};
+
+    let srcdir = format!("{}/songs", state.srcdir_prefix);
+    let srcdir_path = StoragePath::parse(&srcdir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(WorldResponse {
+                success: false,
+                message: format!("Invalid srcdir: {e}"),
+            }),
+        )
+    })?;
+
+    // Download songs from S3 to a temp directory
+    let temp_dir = tempfile::tempdir().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(WorldResponse {
+                success: false,
+                message: format!("Failed to create temp directory: {e}"),
+            }),
+        )
+    })?;
+
+    download_to_local(&srcdir_path, temp_dir.path())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(WorldResponse {
+                    success: false,
+                    message: format!("Failed to download songs: {e}"),
+                }),
+            )
+        })?;
+
+    // Call world_of_srcdir on the local temp directory
+    let world = band_songbook::world_of_srcdir(temp_dir.path());
+
+    // Serialize to YAML
+    let yaml_content = serde_yaml::to_string(&world).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(WorldResponse {
+                success: false,
+                message: format!("Failed to serialize world: {e}"),
+            }),
+        )
+    })?;
+
+    // Write world.yml to S3
+    write_to_s3(&state.s3_client, "songs/world.yml", &yaml_content)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(WorldResponse {
+                    success: false,
+                    message: format!("Failed to write world.yml: {e}"),
+                }),
+            )
+        })?;
+
+    Ok(Json(WorldResponse {
+        success: true,
+        message: format!("world.yml written with {} songs", world.items.len()),
+    }))
 }
 
 #[derive(Deserialize)]

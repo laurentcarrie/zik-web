@@ -1,6 +1,6 @@
 [package]
 name = "zik-web"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2024"
 
 [dependencies]
@@ -19,6 +19,6 @@ serde_yaml = "0.9"
 urlencoding = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
 strudel-of-lilypond = "0.4.0"
-band-songbook = "0.0.12"
+band-songbook = "0.0.18"
 tempfile = "3"
 chrono = "0.4"

@@ -8,6 +8,19 @@ interface SongCardProps {
 }
 
 export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
+  if (song.error) {
+    return (
+      <li className="p-3 border-b border-gray-200 last:border-b-0 bg-red-50">
+        <Link
+          to={`/song/${song.id}`}
+          className="block no-underline hover:opacity-80 transition-opacity"
+        >
+          <span className="text-red-600 text-sm font-mono">{song.key}</span>
+        </Link>
+      </li>
+    )
+  }
+
   return (
     <li
       className={`p-3 border-b border-gray-200 last:border-b-0 ${

@@ -721,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "band-songbook"
-version = "0.0.12"
+version = "0.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bcc7b974fcfe86a8179777a910ec18ecef63587f8ad8a7b7a1cb5b4b9fcb2dc"
+checksum = "d1adc08666cb1d793723c4ed159403e193dc56e08faf42faba032ed1df5b80c2"
 dependencies = [
  "argh",
  "aws-config",
@@ -4192,9 +4192,9 @@ checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
 
 [[package]]
 name = "yamake"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d8ca3191361fa6807bc5a4b83496162407430574e976bb98fe17d412173c28a"
+checksum = "fd2485f9c4f82ffc48e40b9b8d3fa433b8fa506d64f7b51f294e71f5705de718"
 dependencies = [
  "argh",
  "chrono",
@@ -4328,7 +4328,7 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.16.0"
+version = "0.18.0"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudwatchlogs",
