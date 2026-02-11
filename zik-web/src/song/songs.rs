@@ -1,6 +1,6 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
-use band_songbook::model::SongInfo;
+use band_songbook::model::{SongInfo, World, WorldItem};
 use std::path::Path;
 use strudel_of_lilypond::sequencer::model::Pattern;
 use strudel_of_lilypond::{LilyPondParser, StrudelGenerator};
@@ -10,29 +10,73 @@ use uuid::Uuid;
 use super::{SongEntry, SongYml};
 
 pub const BUCKET: &str = "zik-laurent";
-pub const CLOUDFRONT_URL: &str = "https://d2n27e7te5g63n.cloudfront.net";
+pub const CLOUDFRONT_URL: &str = "https://dtuq2blkj3udo.cloudfront.net";
 const SONGS_PREFIX: &str = "songs/";
 const FONT_S3_KEY: &str = "static/skriva-3.woff";
 const FONT_LOCAL_PATH: &str = "static/skriva-3.woff";
 
+pub struct SongItem {
+    pub id: String,
+    pub title: String,
+    pub author: String,
+    pub key: String,
+    pub tempo: u16,
+    pub error: Option<String>,
+}
+
 pub async fn get_all_songs(
     client: &Client,
-) -> Result<Vec<(String, String, String, String, String)>, Box<dyn std::error::Error + Send + Sync>>
-{
+) -> Result<Vec<SongItem>, Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .get_object()
         .bucket(BUCKET)
-        .key("all-songs.yml")
+        .key("songs/world.yml")
         .send()
         .await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
-    let songs: Vec<SongEntry> = serde_yaml::from_slice(&bytes)?;
+    let world: World = serde_yaml::from_slice(&bytes)?;
 
-    Ok(songs
-        .into_iter()
-        .map(|s| (s.id, s.title, s.author, s.key, s.deezer_url))
-        .collect())
+    let mut items = Vec::new();
+
+    for (rel_path, item) in world.items {
+        let path_str = rel_path.display().to_string();
+        let dir = path_str.trim_end_matches("/song.yml");
+        let id = dir.replace('/', "--");
+        let key = format!("songs/{path_str}");
+
+        match item {
+            WorldItem::Song(song) => {
+                items.push(SongItem {
+                    id,
+                    title: song.info.title,
+                    author: song.info.author,
+                    key,
+                    tempo: song.info.tempo,
+                    error: None,
+                });
+            }
+            WorldItem::Error(msg) => {
+                // Derive title/author from path: "author_name/song_title/song.yml"
+                let parts: Vec<&str> = dir.split('/').collect();
+                let (author, title) = if parts.len() >= 2 {
+                    (parts[0].to_string(), parts[1].to_string())
+                } else {
+                    (dir.to_string(), dir.to_string())
+                };
+                items.push(SongItem {
+                    id,
+                    title,
+                    author,
+                    key,
+                    tempo: 0,
+                    error: Some(msg),
+                });
+            }
+        }
+    }
+
+    Ok(items)
 }
 
 pub async fn write_all_songs_to_s3(
@@ -172,6 +216,71 @@ pub fn make_cloudfront_url(key: &str) -> String {
     format!("{CLOUDFRONT_URL}/{key}")
 }
 
+pub fn generate_tempo_html(author: &str, title: &str, tempo: u16) -> String {
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>{title} - {author}</title>
+  <script src="https://unpkg.com/@strudel/embed@latest"></script>
+  <style>
+    html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; }}
+    strudel-repl {{ width: 100%; height: 100%; display: block; }}
+    strudel-repl iframe {{ width: 100%; height: 100%; border: none; }}
+  </style>
+</head>
+<body>
+  <strudel-repl>
+<!--
+
+// {author}
+// {title}
+
+const tempo = {tempo};
+
+$: stack(
+  sound("[bd sd bd sd]"),
+  sound("[hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5]"),
+)
+  .color('blue')
+  ._punchcard()
+  .cpm(tempo/4/1)
+-->
+  </strudel-repl>
+</body>
+</html>"#
+    )
+}
+
+pub async fn write_tempo_html_to_s3(
+    client: &Client,
+    author: &str,
+    title: &str,
+    tempo: u16,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let song_info = band_songbook::model::SongInfo {
+        title: title.to_string(),
+        author: author.to_string(),
+        tempo: 0,
+        time_signature: None,
+    };
+    let pdf_name = song_info.file_stem_of_song();
+    let key = format!("delivery/tempo/{pdf_name}.html");
+
+    let html = generate_tempo_html(author, title, tempo);
+    client
+        .put_object()
+        .bucket(BUCKET)
+        .key(&key)
+        .body(ByteStream::from(html.into_bytes()))
+        .content_type("text/html")
+        .send()
+        .await?;
+
+    Ok(make_cloudfront_url(&key))
+}
+
 pub async fn get_song_pdf(
     client: &Client,
     author: &str,
@@ -183,7 +292,7 @@ pub async fn get_song_pdf(
         tempo: 0,
         time_signature: None,
     };
-    let pdf_name = song_info.pdf_name_of_song();
+    let pdf_name = song_info.file_stem_of_song();
     let key = format!("delivery/pdf/{pdf_name}.pdf");
     let resp = client.get_object().bucket(BUCKET).key(&key).send().await?;
 

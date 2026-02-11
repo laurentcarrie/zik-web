@@ -60,7 +60,7 @@ export default function MasterPage() {
       if (error.message === 'Unauthorized') {
         setShowPasswordModal(true)
       } else {
-        alert('Failed to save')
+        alert(error.message)
       }
     },
   })

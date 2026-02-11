@@ -96,6 +96,8 @@ export default function SettingsPage() {
   const [lambdaTimestamp, setLambdaTimestamp] = useState<string>('')
   const [lambdaDuration, setLambdaDuration] = useState<number | null>(null)
   const [songs, setSongs] = useState<Array<{ id: string; key: string }>>([])
+  const [worldLoading, setWorldLoading] = useState(false)
+  const [worldMessage, setWorldMessage] = useState<string | null>(null)
   const [languagePref, setLanguagePref] = useState<'en' | 'fr' | 'browser'>(() => {
     const saved = getCookie('languagePref')
     return (saved as 'en' | 'fr' | 'browser') || 'browser'
@@ -311,6 +313,42 @@ export default function SettingsPage() {
       }
     } catch {
       setLogContent('Failed to load log file')
+    }
+  }
+
+  async function triggerWorld() {
+    if (!isAuthenticated) {
+      setPasswordAction('save')
+      setShowPasswordModal(true)
+      return
+    }
+    setWorldLoading(true)
+    setWorldMessage(null)
+    try {
+      const password = getStoredPassword()
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (password) {
+        headers['X-Write-Password'] = password
+      }
+      const res = await fetch(`${API_BASE}/api/world`, {
+        method: 'POST',
+        headers,
+      })
+      if (!res.ok) {
+        try {
+          const data = await res.json()
+          setWorldMessage(data.message || `Error ${res.status}`)
+        } catch {
+          setWorldMessage(`Error ${res.status}: ${res.statusText}`)
+        }
+        return
+      }
+      const data = await res.json()
+      setWorldMessage(data.message)
+    } catch (e) {
+      setWorldMessage(`Failed to generate world.yml: ${e}`)
+    } finally {
+      setWorldLoading(false)
     }
   }
 
@@ -532,7 +570,19 @@ export default function SettingsPage() {
           >
             {t('settings.makeReport')}
           </button>
+          <button
+            onClick={triggerWorld}
+            disabled={worldLoading || !isAuthenticated}
+            className="px-3 py-1.5 text-sm bg-[#8b5cf6] text-white rounded-lg hover:bg-[#7c3aed] disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {worldLoading ? '...' : 'Re-index'}
+          </button>
         </div>
+        {worldMessage && (
+          <div className="mt-2 px-2 text-sm text-gray-600">
+            {worldMessage}
+          </div>
+        )}
       </div>
 
       {showRenderingSettings && (

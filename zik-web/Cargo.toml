@@ -19,6 +19,6 @@ serde_yaml = "0.9"
 urlencoding = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
 strudel-of-lilypond = "0.4.0"
-band-songbook = "0.0.12"
+band-songbook = { path = "../../songbook-lambda/band-songbook" }
 tempfile = "3"
 chrono = "0.4"

@@ -1,8 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Infrastructure for zik-web (move-the-line.org).
-  Imported: S3, ECR (band-songbook-lambda), IAM roles, CloudFront OAC.
-  Not imported: ECR (zik-web), Lambda, CloudFront distribution, App Runner, Route 53.
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -22,15 +20,25 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Effect: Allow
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub "${S3Bucket.Arn}/*"
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
 
   # ---------------------------------------------------------------------------
   # ECR Repositories
   # ---------------------------------------------------------------------------
+  ZikWebECR:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: zik-web
+
   BandSongbookLambdaECR:
     Type: AWS::ECR::Repository
     DeletionPolicy: Retain
@@ -211,18 +219,57 @@ Resources:
         - !GetAtt ZikWebService.ServiceUrl
 
   # ---------------------------------------------------------------------------
-  # Resources to recreate via stack update
+  # Lambda
   # ---------------------------------------------------------------------------
-  # Lambda function (deleted):
-  #   band-songbook — Image from band-songbook-lambda ECR
-  #   Memory: 2048, Timeout: 900, EphemeralStorage: 10240
-  #   Env: RUST_LOG=info, Architecture: x86_64
-  #
-  # CloudFront Distribution (deleted):
-  #   Origin: zik-laurent S3 with OAC
-  #   DefaultRootObject: index.html, ViewerProtocolPolicy: allow-all
-  #   DefaultTTL: 86400, PriceClass: PriceClass_All, HTTP/2, IPv6
+  BandSongbookFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: band-songbook
+      PackageType: Image
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/band-songbook-lambda:latest"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 2048
+      Timeout: 900
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          RUST_LOG: info
+
   # ---------------------------------------------------------------------------
+  # CloudFront Distribution
+  # ---------------------------------------------------------------------------
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: zik-laurent S3 delivery
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        IPV6Enabled: true
+        PriceClass: PriceClass_All
+        Origins:
+          - Id: S3Origin
+            DomainName: !Sub "${S3Bucket}.s3.${AWS::Region}.amazonaws.com"
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: allow-all
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          DefaultTTL: 86400
+          ForwardedValues:
+            QueryString: false
 
   # ---------------------------------------------------------------------------
   # Not managed by CloudFormation
@@ -240,3 +287,9 @@ Outputs:
     Value: !GetAtt ZikWebService.ServiceArn
   AppRunnerServiceUrl:
     Value: !GetAtt ZikWebService.ServiceUrl
+  CloudFrontDomainName:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  CloudFrontDistributionId:
+    Value: !Ref CloudFrontDistribution
+  LambdaFunctionArn:
+    Value: !GetAtt BandSongbookFunction.Arn

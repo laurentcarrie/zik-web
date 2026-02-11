@@ -11,6 +11,11 @@
   },
   {
     "ResourceType": "AWS::ECR::Repository",
+    "LogicalResourceId": "ZikWebECR",
+    "ResourceIdentifier": { "RepositoryName": "zik-web" }
+  },
+  {
+    "ResourceType": "AWS::ECR::Repository",
     "LogicalResourceId": "BandSongbookLambdaECR",
     "ResourceIdentifier": { "RepositoryName": "band-songbook-lambda" }
   },
