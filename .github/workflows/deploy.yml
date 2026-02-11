@@ -8,7 +8,7 @@ on:
 env:
   AWS_REGION: eu-west-3
   ECR_REPOSITORY: zik-web
-  APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:eu-west-3:579871531410:service/zik-web/14f877f52f8c498fb93d108049fbc622
+  APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:eu-west-3:579871531410:service/zik-web/d4df4ef8f9e346b3aed3d8ecf0569980
 
 jobs:
   deploy:

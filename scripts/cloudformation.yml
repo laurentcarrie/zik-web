@@ -155,38 +155,88 @@ Resources:
         SigningProtocol: sigv4
 
   # ---------------------------------------------------------------------------
-  # Resources to add via stack update after import
+  # App Runner
   # ---------------------------------------------------------------------------
-  # ECR Repository zik-web (deleted, recreate via stack update)
-  #
-  # Lambda function (deleted, recreate via stack update):
+  # CloudFormation creates the service shell only.
+  # Image, env vars, and runtime config are managed by the GitHub Actions deploy workflow.
+  ZikWebService:
+    Type: AWS::AppRunner::Service
+    DeletionPolicy: Retain
+    Properties:
+      ServiceName: zik-web
+      SourceConfiguration:
+        AutoDeploymentsEnabled: false
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerECRAccessRole.Arn
+        ImageRepository:
+          ImageIdentifier: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/zik-web:latest"
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: "8080"
+      InstanceConfiguration:
+        Cpu: "1024"
+        Memory: "2048"
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      HealthCheckConfiguration:
+        Protocol: TCP
+        Interval: 5
+        Timeout: 2
+        HealthyThreshold: 1
+        UnhealthyThreshold: 5
+      NetworkConfiguration:
+        IngressConfiguration:
+          IsPubliclyAccessible: true
+
+  # ---------------------------------------------------------------------------
+  # Route 53
+  # ---------------------------------------------------------------------------
+  DNSRecordA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z07554092VOHCSY042QTP
+      Name: move-the-line.org.
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ZikWebService.ServiceUrl
+        HostedZoneId: Z087117439MBKHYM69QS6  # App Runner hosted zone for eu-west-3
+
+  DNSRecordWWW:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z07554092VOHCSY042QTP
+      Name: www.move-the-line.org.
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt ZikWebService.ServiceUrl
+
+  # ---------------------------------------------------------------------------
+  # Resources to recreate via stack update
+  # ---------------------------------------------------------------------------
+  # Lambda function (deleted):
   #   band-songbook — Image from band-songbook-lambda ECR
   #   Memory: 2048, Timeout: 900, EphemeralStorage: 10240
   #   Env: RUST_LOG=info, Architecture: x86_64
   #
-  # CloudFront Distribution (deleted, recreate via stack update):
+  # CloudFront Distribution (deleted):
   #   Origin: zik-laurent S3 with OAC
   #   DefaultRootObject: index.html, ViewerProtocolPolicy: allow-all
   #   DefaultTTL: 86400, PriceClass: PriceClass_All, HTTP/2, IPv6
-  #   Update S3BucketPolicy Condition with new distribution ARN after creation
   # ---------------------------------------------------------------------------
 
   # ---------------------------------------------------------------------------
   # Not managed by CloudFormation
   # ---------------------------------------------------------------------------
-  # App Runner (import not supported):
-  #   Service: zik-web
-  #   ARN: arn:aws:apprunner:eu-west-3:579871531410:service/zik-web/14f877f52f8c498fb93d108049fbc622
-  #   URL: 3gemxwpvem.eu-west-3.awsapprunner.com
-  #   Port: 8080, CPU: 1024, Memory: 2048
-  #   Env: WRITE_PASSWORD, NOTIFICATION_EMAIL, SENDER_EMAIL
-  #   Health check: TCP, interval 5s, timeout 2s, healthy 1, unhealthy 5
-  #
-  # Route 53 (import not supported):
-  #   Hosted zone: Z07554092VOHCSY042QTP (move-the-line.org)
-  #   A record: move-the-line.org -> App Runner (alias)
-  #   CNAME: www.move-the-line.org -> App Runner
+  # App Runner custom domain association:
+  #   aws apprunner associate-custom-domain --service-arn <arn> --domain-name move-the-line.org
+  #   (no CloudFormation resource type for this — must be done manually after stack creation)
   #
   # CloudWatch Log Group:
   #   /aws/lambda/band-songbook — created automatically by Lambda
   # ---------------------------------------------------------------------------
+
+Outputs:
+  AppRunnerServiceArn:
+    Value: !GetAtt ZikWebService.ServiceArn
+  AppRunnerServiceUrl:
+    Value: !GetAtt ZikWebService.ServiceUrl
