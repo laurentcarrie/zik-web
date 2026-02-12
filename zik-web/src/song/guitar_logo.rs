@@ -42,7 +42,7 @@ pub struct AnimationConfig {
 impl Default for AnimationConfig {
     fn default() -> Self {
         Self {
-            show_contour: Some(true),
+            show_contour: Some(false),
             speed: Some(3.0),
             show_trace: Some(true),
             trace_length: Some(400),
@@ -95,7 +95,7 @@ pub async fn write_guitar_embed_to_s3(
             thresholds: vec![(10, 1), (20, 5), (100, 10)],
             final_step: 100,
         },
-        show_contour: config.show_contour.unwrap_or(true),
+        show_contour: config.show_contour.unwrap_or(false),
         hide_point: false,
         hide_trace: !show_trace,
         trace_length: config.trace_length.unwrap_or(400),

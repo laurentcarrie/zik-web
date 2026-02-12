@@ -109,7 +109,7 @@ export default function SettingsPage() {
   const [animConfig, setAnimConfig] = useState(() => {
     const saved = getCookie('animationConfig')
     if (saved) return JSON.parse(saved)
-    return { show_contour: true, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
+    return { show_contour: false, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
   })
 
   useEffect(() => {
@@ -1114,7 +1114,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => {
-                  const defaults = { show_contour: true, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
+                  const defaults = { show_contour: false, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
                   setAnimConfig(defaults)
                   setCookie('animationConfig', JSON.stringify(defaults))
                 }}
