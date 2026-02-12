@@ -4337,7 +4337,7 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudwatchlogs",
