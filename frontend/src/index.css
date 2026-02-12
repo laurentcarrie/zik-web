@@ -81,6 +81,18 @@ body::before {
   transform-origin: center center;
 }
 
+@media (max-width: 768px) {
+  .guitar-background {
+    transform: scale(0.9) translateY(5%);
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .guitar-background {
+    transform: scale(1.2) translateY(10%);
+  }
+}
+
 #root {
   position: relative;
   z-index: 1;
