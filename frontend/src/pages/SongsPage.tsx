@@ -42,19 +42,32 @@ export default function SongsPage() {
   const [sortBy, setSortBy] = useState<SortBy>('title')
   const [searchQuery, setSearchQuery] = useState('')
   const [useFuzzy, setUseFuzzy] = useState(true)
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
 
   const { data: songs = [], isLoading, error } = useQuery({
     queryKey: ['songs'],
     queryFn: fetchSongs,
   })
 
+  const allTags = useMemo(() => {
+    const tags = new Set<string>()
+    songs.forEach(song => song.tags?.forEach(tag => tags.add(tag)))
+    return [...tags].sort()
+  }, [songs])
+
   const filteredAndSortedSongs = useMemo(() => {
     let filtered = songs
 
     if (searchQuery) {
       const matchFn = useFuzzy ? fuzzyMatch : exactMatch
-      filtered = songs.filter(song =>
+      filtered = filtered.filter(song =>
         matchFn(`${song.title} ${song.author}`, searchQuery)
+      )
+    }
+
+    if (selectedTags.size > 0) {
+      filtered = filtered.filter(song =>
+        song.tags?.some(tag => selectedTags.has(tag))
       )
     }
 
@@ -66,7 +79,7 @@ export default function SongsPage() {
       return a.title.toLowerCase().localeCompare(b.title.toLowerCase()) ||
              a.author.toLowerCase().localeCompare(b.author.toLowerCase())
     })
-  }, [songs, sortBy, searchQuery, useFuzzy])
+  }, [songs, sortBy, searchQuery, useFuzzy, selectedTags])
 
   if (error) {
     return (
@@ -147,6 +160,29 @@ export default function SongsPage() {
           </button>
           <span className={`text-sm ${useFuzzy ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Fuzzy</span>
         </label>
+
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {allTags.map(tag => (
+              <label key={tag} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedTags.has(tag)}
+                  onChange={() => {
+                    setSelectedTags(prev => {
+                      const next = new Set(prev)
+                      if (next.has(tag)) next.delete(tag)
+                      else next.add(tag)
+                      return next
+                    })
+                  }}
+                  className="w-3.5 h-3.5 accent-[#667eea]"
+                />
+                <span className="text-sm text-gray-600">{tag}</span>
+              </label>
+            ))}
+          </div>
+        )}
 
         <p className="text-gray-500 text-sm mb-4">
           {filteredAndSortedSongs.length} songs

@@ -721,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "band-songbook"
-version = "0.0.18"
+version = "0.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1adc08666cb1d793723c4ed159403e193dc56e08faf42faba032ed1df5b80c2"
+checksum = "dbe27790f995d77d700b9ef0d58372fefd609c48f046053c0ccad8cdef95d638"
 dependencies = [
  "argh",
  "aws-config",
@@ -1308,6 +1308,15 @@ dependencies = [
  "nu-ansi-term",
  "regex",
  "thiserror",
+]
+
+[[package]]
+name = "fluffy"
+version = "0.1.0"
+source = "git+https://github.com/laurentcarrie/fluffy-eureka.git#6a4b0ba83602d98e139d48a327600e2a7e4b55ca"
+dependencies = [
+ "serde",
+ "serde_yaml",
 ]
 
 [[package]]
@@ -4338,6 +4347,7 @@ dependencies = [
  "axum",
  "band-songbook",
  "chrono",
+ "fluffy",
  "serde",
  "serde_json",
  "serde_yaml",

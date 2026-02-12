@@ -2,8 +2,6 @@ use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 use band_songbook::model::{SongInfo, World, WorldItem};
 use std::path::Path;
-use strudel_of_lilypond::sequencer::model::Pattern;
-use strudel_of_lilypond::{LilyPondParser, StrudelGenerator};
 use tokio::fs;
 use uuid::Uuid;
 
@@ -21,6 +19,7 @@ pub struct SongItem {
     pub author: String,
     pub key: String,
     pub tempo: u16,
+    pub tags: Vec<String>,
     pub error: Option<String>,
 }
 
@@ -32,7 +31,14 @@ pub async fn get_all_songs(
         .bucket(BUCKET)
         .key("songs/world.yml")
         .send()
-        .await?;
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("NoSuchKey") {
+                format!("songs/world.yml not found in S3 bucket '{BUCKET}'. Run 'Re-index' from the Settings page to generate it.").into()
+            } else {
+                Box::new(e) as Box<dyn std::error::Error + Send + Sync>
+            }
+        })?;
 
     let bytes = resp.body.collect().await?.into_bytes();
     let world: World = serde_yaml::from_slice(&bytes)?;
@@ -53,6 +59,7 @@ pub async fn get_all_songs(
                     author: song.info.author,
                     key,
                     tempo: song.info.tempo,
+                    tags: song.info.tags,
                     error: None,
                 });
             }
@@ -70,6 +77,7 @@ pub async fn get_all_songs(
                     author,
                     key,
                     tempo: 0,
+                    tags: vec![],
                     error: Some(msg),
                 });
             }
@@ -214,71 +222,6 @@ pub fn make_cloudfront_url(key: &str) -> String {
     format!("{CLOUDFRONT_URL}/{key}")
 }
 
-pub fn generate_tempo_html(author: &str, title: &str, tempo: u16) -> String {
-    format!(
-        r#"<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>{title} - {author}</title>
-  <script src="https://unpkg.com/@strudel/embed@latest"></script>
-  <style>
-    html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; }}
-    strudel-repl {{ width: 100%; height: 100%; display: block; }}
-    strudel-repl iframe {{ width: 100%; height: 100%; border: none; }}
-  </style>
-</head>
-<body>
-  <strudel-repl>
-<!--
-
-// {author}
-// {title}
-
-const tempo = {tempo};
-
-$: stack(
-  sound("[bd sd bd sd]"),
-  sound("[hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5 hh@0.5]"),
-)
-  .color('blue')
-  ._punchcard()
-  .cpm(tempo/4/1)
--->
-  </strudel-repl>
-</body>
-</html>"#
-    )
-}
-
-pub async fn write_tempo_html_to_s3(
-    client: &Client,
-    author: &str,
-    title: &str,
-    tempo: u16,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let song_info = band_songbook::model::SongInfo {
-        title: title.to_string(),
-        author: author.to_string(),
-        tempo: 0,
-        time_signature: None,
-    };
-    let pdf_name = song_info.file_stem_of_song();
-    let key = format!("delivery/tempo/{pdf_name}.html");
-
-    let html = generate_tempo_html(author, title, tempo);
-    client
-        .put_object()
-        .bucket(BUCKET)
-        .key(&key)
-        .body(ByteStream::from(html.into_bytes()))
-        .content_type("text/html")
-        .send()
-        .await?;
-
-    Ok(make_cloudfront_url(&key))
-}
-
 pub async fn get_song_pdf(
     client: &Client,
     author: &str,
@@ -289,6 +232,7 @@ pub async fn get_song_pdf(
         author: author.to_string(),
         tempo: 0,
         time_signature: None,
+        tags: vec![],
     };
     let pdf_name = song_info.file_stem_of_song();
     let key = format!("delivery/pdf/{pdf_name}.pdf");
@@ -296,79 +240,6 @@ pub async fn get_song_pdf(
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(bytes.to_vec())
-}
-
-pub async fn get_lyrics(
-    client: &Client,
-    author: &str,
-    title: &str,
-    section_id: &str,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let key = format!("songs/{author}/{title}/lyrics/{section_id}.tex");
-    let resp = client.get_object().bucket(BUCKET).key(&key).send().await?;
-
-    let bytes = resp.body.collect().await?.into_bytes();
-    Ok(String::from_utf8(bytes.to_vec())?)
-}
-
-pub async fn get_lyrics_by_key(
-    client: &Client,
-    key: &str,
-    id: &str,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    // key is like "songs/author/title/song.yml", extract directory
-    let dir = key.rsplit_once('/').map(|(d, _)| d).unwrap_or(key);
-    let lyrics_key = format!("{dir}/lyrics/{id}.tex");
-    let resp = client
-        .get_object()
-        .bucket(BUCKET)
-        .key(&lyrics_key)
-        .send()
-        .await?;
-
-    let bytes = resp.body.collect().await?.into_bytes();
-    Ok(String::from_utf8(bytes.to_vec())?)
-}
-
-pub async fn save_lyrics(
-    client: &Client,
-    author: &str,
-    title: &str,
-    section_id: &str,
-    content: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let key = format!("songs/{author}/{title}/lyrics/{section_id}.tex");
-    client
-        .put_object()
-        .bucket(BUCKET)
-        .key(&key)
-        .body(ByteStream::from(content.as_bytes().to_vec()))
-        .content_type("text/plain")
-        .send()
-        .await?;
-
-    Ok(())
-}
-
-pub async fn save_lyrics_by_key(
-    client: &Client,
-    key: &str,
-    id: &str,
-    content: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // key is like "songs/author/title/song.yml", extract directory
-    let dir = key.rsplit_once('/').map(|(d, _)| d).unwrap_or(key);
-    let lyrics_key = format!("{dir}/lyrics/{id}.tex");
-    client
-        .put_object()
-        .bucket(BUCKET)
-        .key(&lyrics_key)
-        .body(ByteStream::from(content.as_bytes().to_vec()))
-        .content_type("text/plain")
-        .send()
-        .await?;
-
-    Ok(())
 }
 
 pub async fn write_to_s3(
@@ -395,44 +266,4 @@ pub async fn read_from_s3(
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(String::from_utf8(bytes.to_vec())?)
-}
-
-pub fn lilypond_to_html(
-    input: &str,
-    stem: &str,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let parser = LilyPondParser::new();
-    let result = parser.parse(input)?;
-    let html = StrudelGenerator::generate_html(&result.staves, &result.tempo, stem);
-    Ok(html)
-}
-
-pub fn drum_pattern_to_html(
-    yaml_content: &str,
-    name: &str,
-    tempo: u32,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let pattern: Pattern = serde_yaml::from_str(yaml_content)?;
-    let voices: Vec<String> = pattern
-        .voices
-        .iter()
-        .map(|v| format!("    \\new DrumVoice {{ {} }}", v.trim()))
-        .collect();
-    let lilypond = format!(
-        r#"\version "2.24.4"
-\score {{
-  <<
-    \tempo 4 = {tempo}
-    \new DrumStaff {{
-      <<
-{voices}
-      >>
-    }}
-  >>
-  \layout {{}}
-}}"#,
-        tempo = tempo,
-        voices = voices.join("\n"),
-    );
-    lilypond_to_html(&lilypond, name)
 }

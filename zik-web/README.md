@@ -7,6 +7,7 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
 - **Songs Page**: Browse all songs with search and sorting
   - Fuzzy search
   - Sort by title or author
+  - Filter by tags
   - Error songs highlighted in red
   - Mobile-friendly design
 - **Song Detail Page**: View song with action buttons
@@ -20,6 +21,11 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
   - Edit Lyrics: Lyrics text editor
   - Edit TeX: LaTeX editor
 - **Settings Page**: Music service preferences, Re-index songs
+  - Animation toggle and configuration (contour selection, speed, trace, harmonics)
+  - Language selection (English/French)
+- **Background Animation**: Fourier contour animation cycling through multiple shapes
+  - Configurable speed, trace, harmonics, interpolation points
+  - Contour reveal pause at end of each loop
 - **Master Page**: Song compilation workflow
 - **PDF Viewer**: View song PDFs directly from S3
 
@@ -59,6 +65,7 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 | `/api/pdf-lyrics/:id` | Lyrics PDF file |
 | `/api/invoke-build` | Trigger Lambda build (auth required) |
 | `/api/world` | Re-index songs to world.yml (auth required) |
+| `/api/guitar-embed/:index` | Generate Fourier animation embed HTML |
 | `/api/lambda-status` | Lambda build status |
 | `/version` | Current version |
 
@@ -71,9 +78,11 @@ zik-web/
     edit.rs      - Edit page handlers
     update.rs    - Update endpoint
     song/
-      mod.rs       - Song module exports
-      model.rs     - Song data structures
-      songs.rs     - S3 operations and song listing
+      mod.rs         - Song module exports
+      model.rs       - Song data structures
+      songs.rs       - S3 operations and song listing
+      guitar_logo.rs - Fourier animation embed generation
+      tempo.rs       - Tempo/strudel HTML generation
       edit_lyrics.rs - Lyrics editing handlers
 
 frontend/

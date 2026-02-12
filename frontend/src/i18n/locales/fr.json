@@ -50,7 +50,19 @@
     "writeAccessActive": "Accès en écriture actif",
     "renderingSettings": "Paramètres de rendu",
     "makeReport": "Rapport de compilation",
-    "enableEditBuildFirst": "Activer Édition/Compilation dans les Paramètres"
+    "enableEditBuildFirst": "Activer Édition/Compilation dans les Paramètres",
+    "animation": "Animation",
+    "uselessAnimation": "Animation inutile",
+    "showContour": "Afficher le contour",
+    "speed": "Vitesse",
+    "showTrace": "Afficher la trace",
+    "traceLength": "Longueur de la trace",
+    "applyNow": "Appliquer",
+    "showHarmonics": "Afficher les harmoniques",
+    "resetDefaults": "Valeurs par défaut",
+    "traceWidth": "Épaisseur de la trace",
+    "interpolation": "Points d'interpolation",
+    "contours": "Contours"
   },
   "home": {
     "songs": "Chansons",

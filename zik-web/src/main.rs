@@ -20,10 +20,11 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    SongItem, download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs,
-    get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, make_cloudfront_url,
-    make_deezer_app_url, make_deezer_url, read_from_s3, save_lyrics_by_key, save_lyrics_handler,
-    save_song_yml, write_tempo_html_to_s3, write_to_s3,
+    AnimationConfig, CONTOUR_COUNT, SongItem, contour_names, download_font_from_s3,
+    drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
+    get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url, make_deezer_url,
+    read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_guitar_embed_to_s3,
+    write_tempo_html_to_s3, write_to_s3,
 };
 
 use std::sync::Arc;
@@ -102,6 +103,7 @@ async fn main() {
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
         .route("/drum-pattern-to-html", post(api_drum_pattern_to_html))
+        .route("/guitar-embed/{index}", get(api_guitar_embed))
         .route("/auth/verify", post(verify_password))
         .with_state(state.clone());
 
@@ -160,6 +162,7 @@ struct ApiSong {
     deezer_app_url: String,
     key: String,
     tempo: u16,
+    tags: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
@@ -199,6 +202,7 @@ async fn api_songs(State(state): State<AppState>) -> Response {
                         deezer_app_url,
                         key: s.key,
                         tempo: s.tempo,
+                        tags: s.tags,
                         error: s.error,
                     }
                 })
@@ -235,6 +239,7 @@ async fn api_song(
         author,
         key,
         tempo,
+        tags: _,
         error,
     } = s;
     let deezer_url = make_deezer_url(&title, &author);
@@ -246,6 +251,7 @@ async fn api_song(
         author: author.clone(),
         tempo: 0,
         time_signature: None,
+        tags: vec![],
     };
     let pdf_name = song_info.file_stem_of_song();
 
@@ -493,6 +499,7 @@ async fn api_pdf_lyrics(
         author: s.author.clone(),
         tempo: 0,
         time_signature: None,
+        tags: vec![],
     };
     let pdf_name = song_info.file_stem_of_song();
     let folder = match query.columns.as_deref() {
@@ -976,6 +983,19 @@ async fn api_drum_pattern_to_html(
     let html = drum_pattern_to_html(&body.data, &body.name, tempo)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(LilypondToHtmlResponse { html }))
+}
+
+async fn api_guitar_embed(
+    State(state): State<AppState>,
+    Path(index): Path<usize>,
+    axum::extract::Query(config): axum::extract::Query<AnimationConfig>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let url = write_guitar_embed_to_s3(&state.s3_client, index, &config)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(
+        serde_json::json!({ "url": url, "count": CONTOUR_COUNT, "names": contour_names() }),
+    ))
 }
 
 async fn version() -> &'static str {
