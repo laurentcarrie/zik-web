@@ -98,6 +98,35 @@ export default function SettingsPage() {
   const [songs, setSongs] = useState<Array<{ id: string; key: string }>>([])
   const [worldLoading, setWorldLoading] = useState(false)
   const [worldMessage, setWorldMessage] = useState<string | null>(null)
+  const [showAnimation, setShowAnimation] = useState(false)
+  const [harmonics, setHarmonics] = useState<{ current: number; max: number } | null>(null)
+  const [contourNames, setContourNames] = useState<string[]>([])
+  const [enabledContours, setEnabledContours] = useState<number[]>(() => {
+    const saved = getCookie('enabledContours')
+    if (saved) return JSON.parse(saved)
+    return []  // empty means all enabled
+  })
+  const [animConfig, setAnimConfig] = useState(() => {
+    const saved = getCookie('animationConfig')
+    if (saved) return JSON.parse(saved)
+    return { show_contour: true, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
+  })
+
+  useEffect(() => {
+    const harmonicsHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      setHarmonics({ current: detail.harmonics, max: detail.maxHarmonics })
+    }
+    const namesHandler = (e: Event) => {
+      setContourNames((e as CustomEvent).detail)
+    }
+    window.addEventListener('harmonics-update', harmonicsHandler)
+    window.addEventListener('contour-names', namesHandler)
+    return () => {
+      window.removeEventListener('harmonics-update', harmonicsHandler)
+      window.removeEventListener('contour-names', namesHandler)
+    }
+  }, [])
   const [languagePref, setLanguagePref] = useState<'en' | 'fr' | 'browser'>(() => {
     const saved = getCookie('languagePref')
     return (saved as 'en' | 'fr' | 'browser') || 'browser'
@@ -475,6 +504,22 @@ export default function SettingsPage() {
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
+          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('settings.animation')}</h2>
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
+            <input
+              type="checkbox"
+              checked={document.cookie.match(/(^| )animationEnabled=([^;]+)/)?.[2] !== 'false'}
+              onChange={(e) => {
+                setCookie('animationEnabled', String(e.target.checked))
+                window.dispatchEvent(new Event('animation-toggled'))
+              }}
+              className="w-4 h-4 accent-pink-500"
+            />
+            <span className="text-gray-700 text-sm">{t('settings.animation')}</span>
+          </label>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
           <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('language.title')}</h2>
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-2">
             <label className="flex items-center gap-2 cursor-pointer py-1">
@@ -576,6 +621,12 @@ export default function SettingsPage() {
             className="px-3 py-1.5 text-sm bg-[#8b5cf6] text-white rounded-lg hover:bg-[#7c3aed] disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {worldLoading ? '...' : 'Re-index'}
+          </button>
+          <button
+            onClick={() => setShowAnimation(true)}
+            className="px-3 py-1.5 text-sm bg-pink-500 text-white rounded-lg hover:bg-pink-600"
+          >
+            {t('settings.uselessAnimation')}
           </button>
         </div>
         {worldMessage && (
@@ -867,6 +918,212 @@ export default function SettingsPage() {
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => setShowLogModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAnimation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-gray-800 text-xl font-bold">{t('settings.uselessAnimation')}</h2>
+              <button
+                onClick={() => setShowAnimation(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={animConfig.show_contour}
+                  onChange={() => {
+                    const next = { ...animConfig, show_contour: !animConfig.show_contour }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-4 h-4 accent-pink-500"
+                />
+                <span className="text-gray-700 text-sm">{t('settings.showContour')}</span>
+              </label>
+
+              <div>
+                <label className="text-gray-700 text-sm font-medium">
+                  {t('settings.speed')}: {animConfig.speed.toFixed(1)}
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={0.1}
+                  value={animConfig.speed}
+                  onChange={(e) => {
+                    const next = { ...animConfig, speed: Number(e.target.value) }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-full accent-pink-500"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={animConfig.show_trace}
+                  onChange={() => {
+                    const next = { ...animConfig, show_trace: !animConfig.show_trace }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-4 h-4 accent-pink-500"
+                />
+                <span className="text-gray-700 text-sm">{t('settings.showTrace')}</span>
+              </label>
+
+              <div>
+                <label className="text-gray-700 text-sm font-medium">
+                  {t('settings.traceLength')}: {animConfig.trace_length}
+                </label>
+                <input
+                  type="range"
+                  min={50}
+                  max={500}
+                  step={10}
+                  value={animConfig.trace_length}
+                  onChange={(e) => {
+                    const next = { ...animConfig, trace_length: Number(e.target.value) }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-full accent-pink-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-700 text-sm font-medium">
+                  {t('settings.traceWidth')}: {(animConfig.trace_width ?? 0.3).toFixed(1)}
+                </label>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={2}
+                  step={0.1}
+                  value={animConfig.trace_width ?? 0.3}
+                  onChange={(e) => {
+                    const next = { ...animConfig, trace_width: Number(e.target.value) }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-full accent-pink-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-700 text-sm font-medium">
+                  {t('settings.interpolation')}: {animConfig.interpolation ?? 1000}
+                </label>
+                <input
+                  type="range"
+                  min={100}
+                  max={5000}
+                  step={100}
+                  value={animConfig.interpolation ?? 1000}
+                  onChange={(e) => {
+                    const next = { ...animConfig, interpolation: Number(e.target.value) }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-full accent-pink-500"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={animConfig.show_nh ?? true}
+                  onChange={() => {
+                    const next = { ...animConfig, show_nh: !(animConfig.show_nh ?? true) }
+                    setAnimConfig(next)
+                    setCookie('animationConfig', JSON.stringify(next))
+                  }}
+                  className="w-4 h-4 accent-pink-500"
+                />
+                <span className="text-gray-700 text-sm">{t('settings.showHarmonics')}</span>
+              </label>
+              {harmonics && (
+                <span className="text-xs text-gray-500 font-mono">
+                  ({harmonics.current} / {harmonics.max})
+                </span>
+              )}
+            </div>
+            {contourNames.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <h3 className="text-gray-700 text-sm font-semibold mb-2">{t('settings.contours')}</h3>
+                <div className="space-y-1">
+                  {contourNames.map((name, idx) => {
+                    const allEnabled = enabledContours.length === 0
+                    const isEnabled = allEnabled || enabledContours.includes(idx)
+                    return (
+                      <label key={idx} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-gray-100">
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => {
+                            let next: number[]
+                            if (allEnabled) {
+                              // First click: enable all except this one
+                              next = contourNames.map((_, i) => i).filter(i => i !== idx)
+                            } else if (isEnabled) {
+                              next = enabledContours.filter(i => i !== idx)
+                            } else {
+                              next = [...enabledContours, idx].sort()
+                            }
+                            // If all are enabled, reset to empty (meaning all)
+                            if (next.length === contourNames.length) next = []
+                            setEnabledContours(next)
+                            setCookie('enabledContours', JSON.stringify(next))
+                          }}
+                          className="w-4 h-4 accent-pink-500"
+                        />
+                        <span className="text-gray-700 text-sm">{name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={(e) => {
+                  window.dispatchEvent(new Event('reload-animation'))
+                  const btn = e.currentTarget
+                  btn.classList.add('scale-95', 'opacity-70')
+                  setTimeout(() => btn.classList.remove('scale-95', 'opacity-70'), 200)
+                }}
+                className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 active:scale-95 active:opacity-70 transition-all duration-150"
+              >
+                {t('settings.applyNow')}
+              </button>
+              <button
+                onClick={() => {
+                  const defaults = { show_contour: true, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
+                  setAnimConfig(defaults)
+                  setCookie('animationConfig', JSON.stringify(defaults))
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                {t('settings.resetDefaults')}
+              </button>
+              <button
+                onClick={() => setShowAnimation(false)}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
               >
                 Close

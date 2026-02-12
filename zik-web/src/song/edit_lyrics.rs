@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use super::songs::{get_lyrics, save_lyrics};
+use super::lyrics::{get_lyrics, save_lyrics};
 use crate::AppState;
 
 #[derive(Deserialize)]

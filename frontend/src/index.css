@@ -26,6 +26,19 @@ body {
   position: relative;
 }
 
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: inherit;
+  filter: brightness(1.2);
+  pointer-events: none;
+  z-index: -1;
+}
+
 body::before {
   content: 'Move The Line';
   position: fixed;
@@ -54,6 +67,22 @@ body::before {
   100% { transform: rotate(360deg); -webkit-text-stroke-color: rgba(37, 99, 235, 0.25); color: rgba(37, 99, 235, 0.08); }
 }
 
+.guitar-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.4;
+  transform: scale(1.5) translateY(15%);
+  transform-origin: center center;
+}
+
 #root {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
 }

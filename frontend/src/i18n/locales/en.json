@@ -50,7 +50,19 @@
     "writeAccessActive": "Write access is active",
     "renderingSettings": "Rendering Settings",
     "makeReport": "Make Report",
-    "enableEditBuildFirst": "Enable Edit/Build in Settings first"
+    "enableEditBuildFirst": "Enable Edit/Build in Settings first",
+    "animation": "Animation",
+    "uselessAnimation": "Useless animation",
+    "showContour": "Show contour",
+    "speed": "Speed",
+    "showTrace": "Show trace",
+    "traceLength": "Trace length",
+    "applyNow": "Apply now",
+    "showHarmonics": "Show harmonics",
+    "resetDefaults": "Reset to defaults",
+    "traceWidth": "Trace width",
+    "interpolation": "Interpolation points",
+    "contours": "Contours"
   },
   "home": {
     "songs": "Songs",

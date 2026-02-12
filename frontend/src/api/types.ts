@@ -6,6 +6,7 @@ export interface Song {
   deezer_app_url: string
   key: string
   tempo: number
+  tags: string[]
   error?: string
 }
 
