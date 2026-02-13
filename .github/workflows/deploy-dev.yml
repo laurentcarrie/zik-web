@@ -52,10 +52,8 @@ jobs:
           if [ "$SERVICE_ARN" = "None" ] || [ -z "$SERVICE_ARN" ]; then
             echo "Creating new dev App Runner service..."
 
-            ECR_ACCESS_ROLE=$(aws iam list-roles \
-              --query "Roles[?contains(RoleName,'AppRunnerECRAccess')].Arn | [0]" --output text)
-            INSTANCE_ROLE=$(aws iam list-roles \
-              --query "Roles[?contains(RoleName,'AppRunnerInstanceRole')].Arn | [0]" --output text)
+            ECR_ACCESS_ROLE="arn:aws:iam::579871531410:role/apprunner-ecr-access-role"
+            INSTANCE_ROLE="arn:aws:iam::579871531410:role/apprunner-instance-role"
 
             SERVICE_ARN=$(aws apprunner create-service \
               --service-name "${APP_RUNNER_SERVICE_NAME}" \
