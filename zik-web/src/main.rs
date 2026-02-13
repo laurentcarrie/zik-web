@@ -544,21 +544,22 @@ async fn api_pdf_lyrics(
     }
 }
 
-const PRESS_BOOK_PHOTOS_PREFIX: &str = "press-book/truskell-2025-06-06/photos/";
-const PRESS_BOOK_VIDEOS_PREFIX: &str = "press-book/truskell-2025-06-06/videos/";
+const PRESS_BOOK_PHOTOS_PATH: &str = "press-book/truskell-2025-06-06/photos/";
+const PRESS_BOOK_VIDEOS_PATH: &str = "press-book/truskell-2025-06-06/videos/";
 
 async fn api_press_book_photos(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
     let mut photos = Vec::new();
     let mut continuation_token: Option<String> = None;
+    let prefix = song::s3_key(PRESS_BOOK_PHOTOS_PATH);
 
     loop {
         let mut request = state
             .s3_client
             .list_objects_v2()
             .bucket(song::BUCKET.as_str())
-            .prefix(PRESS_BOOK_PHOTOS_PREFIX);
+            .prefix(&prefix);
 
         if let Some(token) = continuation_token {
             request = request.continuation_token(token);
@@ -597,7 +598,8 @@ async fn api_press_book_photos(
 
 async fn api_press_book_photo(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book photos folder
-    if !key.starts_with(PRESS_BOOK_PHOTOS_PREFIX) {
+    let photos_prefix = song::s3_key(PRESS_BOOK_PHOTOS_PATH);
+    if !key.starts_with(&photos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
@@ -637,12 +639,14 @@ async fn api_press_book_videos(
     let mut videos = Vec::new();
     let mut continuation_token: Option<String> = None;
 
+    let prefix = song::s3_key(PRESS_BOOK_VIDEOS_PATH);
+
     loop {
         let mut request = state
             .s3_client
             .list_objects_v2()
             .bucket(song::BUCKET.as_str())
-            .prefix(PRESS_BOOK_VIDEOS_PREFIX);
+            .prefix(&prefix);
 
         if let Some(token) = continuation_token {
             request = request.continuation_token(token);
@@ -680,7 +684,8 @@ async fn api_press_book_videos(
 
 async fn api_press_book_video(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book videos folder
-    if !key.starts_with(PRESS_BOOK_VIDEOS_PREFIX) {
+    let videos_prefix = song::s3_key(PRESS_BOOK_VIDEOS_PATH);
+    if !key.starts_with(&videos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
