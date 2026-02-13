@@ -1,0 +1,156 @@
+name: Deploy Dev to AWS App Runner
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-west-3
+  ECR_REPOSITORY: zik-web
+  APP_RUNNER_SERVICE_NAME: zik-web-dev
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: dev-${{ github.sha }}
+        run: |
+          docker build -f Dockerfile.production \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
+
+      - name: Find or create dev App Runner service
+        id: find-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: dev-${{ github.sha }}
+        run: |
+          SERVICE_ARN=$(aws apprunner list-services \
+            --query "ServiceSummaryList[?ServiceName=='${APP_RUNNER_SERVICE_NAME}'].ServiceArn | [0]" \
+            --output text)
+
+          if [ "$SERVICE_ARN" = "None" ] || [ -z "$SERVICE_ARN" ]; then
+            echo "Creating new dev App Runner service..."
+
+            ECR_ACCESS_ROLE=$(aws iam list-roles \
+              --query "Roles[?contains(RoleName,'AppRunnerECRAccess')].Arn | [0]" --output text)
+            INSTANCE_ROLE=$(aws iam list-roles \
+              --query "Roles[?contains(RoleName,'AppRunnerInstanceRole')].Arn | [0]" --output text)
+
+            SERVICE_ARN=$(aws apprunner create-service \
+              --service-name "${APP_RUNNER_SERVICE_NAME}" \
+              --source-configuration "{
+                \"AuthenticationConfiguration\": {
+                  \"AccessRoleArn\": \"${ECR_ACCESS_ROLE}\"
+                },
+                \"ImageRepository\": {
+                  \"ImageIdentifier\": \"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\",
+                  \"ImageRepositoryType\": \"ECR\",
+                  \"ImageConfiguration\": {
+                    \"Port\": \"8080\",
+                    \"RuntimeEnvironmentVariables\": {
+                      \"WRITE_PASSWORD\": \"${{ secrets.WRITE_PASSWORD }}\",
+                      \"NOTIFICATION_EMAIL\": \"${{ secrets.NOTIFICATION_EMAIL }}\",
+                      \"SENDER_EMAIL\": \"${{ secrets.SENDER_EMAIL }}\"
+                    }
+                  }
+                },
+                \"AutoDeploymentsEnabled\": false
+              }" \
+              --instance-configuration "{
+                \"Cpu\": \"1024\",
+                \"Memory\": \"2048\",
+                \"InstanceRoleArn\": \"${INSTANCE_ROLE}\"
+              }" \
+              --health-check-configuration "{
+                \"Protocol\": \"TCP\",
+                \"Interval\": 5,
+                \"Timeout\": 2,
+                \"HealthyThreshold\": 1,
+                \"UnhealthyThreshold\": 5
+              }" \
+              --query 'Service.ServiceArn' --output text)
+
+            echo "Created service: ${SERVICE_ARN}"
+          fi
+
+          echo "service_arn=${SERVICE_ARN}" >> "$GITHUB_OUTPUT"
+
+      - name: Update App Runner service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: dev-${{ github.sha }}
+          SERVICE_ARN: ${{ steps.find-service.outputs.service_arn }}
+        run: |
+          aws apprunner update-service \
+            --service-arn $SERVICE_ARN \
+            --source-configuration "{
+              \"ImageRepository\": {
+                \"ImageIdentifier\": \"$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG\",
+                \"ImageRepositoryType\": \"ECR\",
+                \"ImageConfiguration\": {
+                  \"Port\": \"8080\",
+                  \"RuntimeEnvironmentVariables\": {
+                    \"WRITE_PASSWORD\": \"${{ secrets.WRITE_PASSWORD }}\",
+                    \"NOTIFICATION_EMAIL\": \"${{ secrets.NOTIFICATION_EMAIL }}\",
+                    \"SENDER_EMAIL\": \"${{ secrets.SENDER_EMAIL }}\"
+                  }
+                }
+              },
+              \"AutoDeploymentsEnabled\": false
+            }"
+
+      - name: Wait for deployment
+        env:
+          SERVICE_ARN: ${{ steps.find-service.outputs.service_arn }}
+        run: |
+          echo "Waiting for App Runner deployment to start..."
+          for i in {1..10}; do
+            STATUS=$(aws apprunner describe-service --service-arn $SERVICE_ARN --query 'Service.Status' --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "OPERATION_IN_PROGRESS" ]; then
+              echo "Deployment started!"
+              break
+            fi
+            sleep 5
+          done
+
+          echo "Waiting for deployment to complete..."
+          for i in {1..60}; do
+            STATUS=$(aws apprunner describe-service --service-arn $SERVICE_ARN --query 'Service.Status' --output text)
+            SERVICE_URL=$(aws apprunner describe-service --service-arn $SERVICE_ARN --query 'Service.ServiceUrl' --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo ""
+              echo "Deployment successful!"
+              echo "Dev URL: https://${SERVICE_URL}"
+              exit 0
+            fi
+            if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ] || [ "$STATUS" = "UPDATE_FAILED" ]; then
+              echo "Deployment failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Deployment timed out"
+          exit 1
