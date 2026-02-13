@@ -31,6 +31,9 @@ COPY --from=rust-builder /app/target/release/zik-web /usr/local/bin/zik-web
 # Copy static assets
 COPY zik-web/static ./static
 
+# Install fonts for circles-sketch text rendering
+RUN mkdir -p /usr/local/share/fonts && cp static/*.ttf /usr/local/share/fonts/ && fc-cache -f
+
 # Copy React build output
 COPY --from=frontend-builder /app/frontend/dist ./dist
 
