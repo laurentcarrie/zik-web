@@ -115,7 +115,9 @@ jobs:
                   \"RuntimeEnvironmentVariables\": {
                     \"WRITE_PASSWORD\": \"${{ secrets.WRITE_PASSWORD }}\",
                     \"NOTIFICATION_EMAIL\": \"${{ secrets.NOTIFICATION_EMAIL }}\",
-                    \"SENDER_EMAIL\": \"${{ secrets.SENDER_EMAIL }}\"
+                    \"SENDER_EMAIL\": \"${{ secrets.SENDER_EMAIL }}\",
+                    \"BUCKET\": \"${{ secrets.BUCKET }}\",
+                    \"BUCKET_ROOT\": \"dev\"
                   }
                 }
               },

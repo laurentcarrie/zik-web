@@ -1,7 +1,7 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 
-use super::songs::{BUCKET, make_cloudfront_url};
+use super::songs::{BUCKET, make_cloudfront_url, s3_key};
 
 pub fn generate_tempo_html(author: &str, title: &str, tempo: u16) -> String {
     format!(
@@ -54,12 +54,12 @@ pub async fn write_tempo_html_to_s3(
         tags: vec![],
     };
     let pdf_name = song_info.file_stem_of_song();
-    let key = format!("delivery/tempo/{pdf_name}.html");
+    let key = s3_key(&format!("delivery/tempo/{pdf_name}.html"));
 
     let html = generate_tempo_html(author, title, tempo);
     client
         .put_object()
-        .bucket(BUCKET)
+        .bucket(BUCKET.as_str())
         .key(&key)
         .body(ByteStream::from(html.into_bytes()))
         .content_type("text/html")

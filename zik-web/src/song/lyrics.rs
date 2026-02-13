@@ -1,7 +1,7 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 
-use super::songs::BUCKET;
+use super::songs::{BUCKET, s3_key};
 
 pub async fn get_lyrics(
     client: &Client,
@@ -9,8 +9,8 @@ pub async fn get_lyrics(
     title: &str,
     section_id: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let key = format!("songs/{author}/{title}/lyrics/{section_id}.tex");
-    let resp = client.get_object().bucket(BUCKET).key(&key).send().await?;
+    let key = s3_key(&format!("songs/{author}/{title}/lyrics/{section_id}.tex"));
+    let resp = client.get_object().bucket(BUCKET.as_str()).key(&key).send().await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(String::from_utf8(bytes.to_vec())?)
@@ -26,7 +26,7 @@ pub async fn get_lyrics_by_key(
     let lyrics_key = format!("{dir}/lyrics/{id}.tex");
     let resp = client
         .get_object()
-        .bucket(BUCKET)
+        .bucket(BUCKET.as_str())
         .key(&lyrics_key)
         .send()
         .await?;
@@ -42,10 +42,10 @@ pub async fn save_lyrics(
     section_id: &str,
     content: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let key = format!("songs/{author}/{title}/lyrics/{section_id}.tex");
+    let key = s3_key(&format!("songs/{author}/{title}/lyrics/{section_id}.tex"));
     client
         .put_object()
-        .bucket(BUCKET)
+        .bucket(BUCKET.as_str())
         .key(&key)
         .body(ByteStream::from(content.as_bytes().to_vec()))
         .content_type("text/plain")
@@ -66,7 +66,7 @@ pub async fn save_lyrics_by_key(
     let lyrics_key = format!("{dir}/lyrics/{id}.tex");
     client
         .put_object()
-        .bucket(BUCKET)
+        .bucket(BUCKET.as_str())
         .key(&lyrics_key)
         .body(ByteStream::from(content.as_bytes().to_vec()))
         .content_type("text/plain")

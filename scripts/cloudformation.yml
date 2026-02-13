@@ -1,6 +1,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Infrastructure for zik-web (move-the-line.org).
+  Infrastructure for zik-web.
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket for song storage and delivery
+  DomainName:
+    Type: String
+    Description: Domain name for the site 
+  HostedZoneId:
+    Type: String
+    Description: Route 53 hosted zone ID for the domain
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -10,7 +21,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: zik-laurent
+      BucketName: !Ref S3BucketName
 
   S3BucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -52,7 +63,6 @@ Resources:
     Type: AWS::IAM::Role
     DeletionPolicy: Retain
     Properties:
-      RoleName: cargo-lambda-role-71626fb1-b25c-4726-88fc-cf2f0162918c
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -157,7 +167,7 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       OriginAccessControlConfig:
-        Name: zik-laurent-oac
+        Name: !Sub "${S3BucketName}-oac"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -181,6 +191,11 @@ Resources:
           ImageRepositoryType: ECR
           ImageConfiguration:
             Port: "8080"
+            RuntimeEnvironmentVariables:
+              - Name: BUCKET
+                Value: !Ref S3BucketName
+              - Name: BUCKET_ROOT
+                Value: prod
       InstanceConfiguration:
         Cpu: "1024"
         Memory: "2048"
@@ -201,8 +216,8 @@ Resources:
   DNSRecordA:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneId: Z07554092VOHCSY042QTP
-      Name: move-the-line.org.
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${DomainName}."
       Type: A
       AliasTarget:
         DNSName: !GetAtt ZikWebService.ServiceUrl
@@ -211,8 +226,8 @@ Resources:
   DNSRecordWWW:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneId: Z07554092VOHCSY042QTP
-      Name: www.move-the-line.org.
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "www.${DomainName}."
       Type: CNAME
       TTL: 300
       ResourceRecords:
@@ -246,7 +261,7 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        Comment: zik-laurent S3 delivery
+        Comment: S3 delivery
         DefaultRootObject: index.html
         HttpVersion: http2
         IPV6Enabled: true
@@ -275,7 +290,7 @@ Resources:
   # Not managed by CloudFormation
   # ---------------------------------------------------------------------------
   # App Runner custom domain association:
-  #   aws apprunner associate-custom-domain --service-arn <arn> --domain-name move-the-line.org
+  #   aws apprunner associate-custom-domain --service-arn <arn> --domain-name <domain>
   #   (no CloudFormation resource type for this — must be done manually after stack creation)
   #
   # CloudWatch Log Group:

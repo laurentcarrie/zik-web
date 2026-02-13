@@ -1,0 +1,9 @@
+[
+  {
+    "ResourceType": "AWS::AppRunner::Service",
+    "LogicalResourceId": "ZikWebDevService",
+    "ResourceIdentifier": {
+      "ServiceArn": "arn:aws:apprunner:eu-west-3:579871531410:service/zik-web-dev/472c422ae49046438d7ca01c16d94f9b"
+    }
+  }
+]

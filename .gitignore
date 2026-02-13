@@ -28,3 +28,4 @@ static/
 
 # local scripts
 scripts/rebuild-pdfs-in-s3.sh
+scripts/private-*

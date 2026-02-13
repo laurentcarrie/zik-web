@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 
-use super::songs::{BUCKET, make_cloudfront_url};
+use super::songs::{BUCKET, make_cloudfront_url, s3_key};
 
 const CONTOUR_KEYS: &[&str] = &[
     "static/move-the-line.yml",
@@ -65,10 +65,11 @@ pub async fn write_guitar_embed_to_s3(
         )
     })?;
 
+    let prefixed_key = s3_key(contour_key);
     let resp = client
         .get_object()
-        .bucket(BUCKET)
-        .key(*contour_key)
+        .bucket(BUCKET.as_str())
+        .key(&prefixed_key)
         .send()
         .await?;
 
@@ -141,10 +142,10 @@ pub async fn write_guitar_embed_to_s3(
     let mut hasher = DefaultHasher::new();
     html.hash(&mut hasher);
     let hash = hasher.finish();
-    let key = format!("delivery/guitar-embed-{index}-{hash:x}.html");
+    let key = s3_key(&format!("delivery/guitar-embed-{index}-{hash:x}.html"));
     client
         .put_object()
-        .bucket(BUCKET)
+        .bucket(BUCKET.as_str())
         .key(&key)
         .body(ByteStream::from(html.into_bytes()))
         .content_type("text/html")
