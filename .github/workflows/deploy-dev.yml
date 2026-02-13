@@ -90,11 +90,15 @@ jobs:
               --query 'Service.ServiceArn' --output text)
 
             echo "Created service: ${SERVICE_ARN}"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "created=false" >> "$GITHUB_OUTPUT"
           fi
 
           echo "service_arn=${SERVICE_ARN}" >> "$GITHUB_OUTPUT"
 
       - name: Update App Runner service
+        if: steps.find-service.outputs.created == 'false'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: dev-${{ github.sha }}
