@@ -8,8 +8,14 @@ use circles_sketch::model::EmbedOptions;
 use super::songs::{BUCKET, make_cloudfront_url, s3_key};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TextAnimation {
+    pub text: String,
+    pub font: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AnimationEnum {
-    Text(String),
+    Text(TextAnimation),
     SvgPath(String),
 }
 
@@ -25,37 +31,19 @@ pub struct Animations {
     pub items: Vec<AnimationItem>,
 }
 
-pub async fn load_animations(
-    client: &Client,
-) -> Result<Animations, Box<dyn std::error::Error + Send + Sync>> {
-    let key = s3_key("static/animations.yml");
-    let resp = client
-        .get_object()
-        .bucket(BUCKET.as_str())
-        .key(&key)
-        .send()
-        .await?;
+const ANIMATIONS_PATH: &str = "static/animations.yml";
 
-    let bytes = resp.body.collect().await?.into_bytes();
-    let yaml = String::from_utf8(bytes.to_vec())?;
+pub fn load_animations() -> Result<Animations, Box<dyn std::error::Error + Send + Sync>> {
+    let yaml = std::fs::read_to_string(ANIMATIONS_PATH)?;
     let animations: Animations = serde_yaml::from_str(&yaml)?;
     Ok(animations)
 }
 
-pub async fn save_animations(
-    client: &Client,
+pub fn save_animations(
     animations: &Animations,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let key = s3_key("static/animations.yml");
     let yaml = serde_yaml::to_string(animations)?;
-    client
-        .put_object()
-        .bucket(BUCKET.as_str())
-        .key(&key)
-        .body(ByteStream::from(yaml.into_bytes()))
-        .content_type("text/yaml")
-        .send()
-        .await?;
+    std::fs::write(ANIMATIONS_PATH, yaml)?;
     Ok(())
 }
 
@@ -67,8 +55,8 @@ fn contour_of_animation_enum(
             let points = circles_sketch::svg::points_of_svg_path(path);
             Ok((path.clone(), points))
         }
-        AnimationEnum::Text(text) => {
-            let svg_path = circles_sketch::text::svg_path_of_text(text, "Arial");
+        AnimationEnum::Text(t) => {
+            let svg_path = circles_sketch::text::svg_path_of_text(&t.text, &t.font);
             let points = circles_sketch::svg::points_of_svg_path(&svg_path);
             Ok((svg_path, points))
         }

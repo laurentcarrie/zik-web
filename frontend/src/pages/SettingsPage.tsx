@@ -55,7 +55,12 @@ interface EmbedOptions {
   trace_colors: string[]
 }
 
-type AnimationEnum = { Text: string } | { SvgPath: string }
+interface AnimationText {
+  text: string
+  font: string
+}
+
+type AnimationEnum = { Text: AnimationText } | { SvgPath: string }
 
 interface AnimationItem {
   name: string
@@ -578,30 +583,30 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6">
-      <div className="max-w-2xl mx-auto bg-white/95 rounded-xl p-4 md:p-6 shadow-2xl">
+    <div className="min-h-screen p-4 md:p-6 bg-black/70">
+      <div className="max-w-2xl mx-auto bg-gray-900/95 rounded-xl p-4 md:p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-2">
           <button
             onClick={() => navigate(-1)}
-            className="text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-sm"
+            className="text-[#8b9cf7] hover:underline bg-transparent border-none cursor-pointer text-sm"
           >
             &larr; {t('nav.back')}
           </button>
-          <span className="text-gray-400 text-xs">{t('settings.version')} {version}</span>
+          <span className="text-gray-500 text-xs">{t('settings.version')} {version}</span>
         </div>
 
-        <h1 className="text-gray-800 text-xl font-bold mb-4">{t('settings.title')}</h1>
+        <h1 className="text-gray-100 text-xl font-bold mb-4">{t('settings.title')}</h1>
 
         <div className="space-y-1">
-          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('settings.pdfButtons')}</h2>
-          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
+          <h2 className="text-gray-300 text-sm font-semibold mb-1">{t('settings.pdfButtons')}</h2>
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-800">
             <input
               type="checkbox"
               checked={settings.pdfEnabled ?? true}
               onChange={() => handleCheckboxChange('pdfEnabled')}
               className="w-4 h-4 accent-[#dc2626]"
             />
-            <span className="text-gray-700 text-sm">{t('settings.pdfChordSheet')}</span>
+            <span className="text-gray-300 text-sm">{t('settings.pdfChordSheet')}</span>
           </label>
           <div className="flex items-center gap-2 px-2 py-1.5">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -616,7 +621,7 @@ export default function SettingsPage() {
                 }}
                 className="w-4 h-4 accent-[#dc2626]"
               />
-              <span className="text-gray-700 text-sm">{t('settings.lyricsPdf')}</span>
+              <span className="text-gray-300 text-sm">{t('settings.lyricsPdf')}</span>
             </label>
             {(settings.lyricsMode ?? '1-column') !== 'none' && (
               <select
@@ -626,7 +631,7 @@ export default function SettingsPage() {
                   setSettings(newSettings)
                   setCookie('serviceSettings', JSON.stringify(newSettings))
                 }}
-                className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+                className="px-2 py-1 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
               >
                 <option value="1-column">{t('settings.lyrics1Column')}</option>
                 <option value="2-columns">{t('settings.lyrics2Columns')}</option>
@@ -635,9 +640,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
-          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('settings.animation')}</h2>
-          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
+        <div className="mt-4 pt-3 border-t border-gray-700 space-y-1">
+          <h2 className="text-gray-300 text-sm font-semibold mb-1">{t('settings.animation')}</h2>
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-800">
             <input
               type="checkbox"
               checked={document.cookie.match(/(^| )animationEnabled=([^;]+)/)?.[2] !== 'false'}
@@ -647,12 +652,12 @@ export default function SettingsPage() {
               }}
               className="w-4 h-4 accent-pink-500"
             />
-            <span className="text-gray-700 text-sm">{t('settings.animation')}</span>
+            <span className="text-gray-300 text-sm">{t('settings.animation')}</span>
           </label>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
-          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('language.title')}</h2>
+        <div className="mt-4 pt-3 border-t border-gray-700 space-y-1">
+          <h2 className="text-gray-300 text-sm font-semibold mb-1">{t('language.title')}</h2>
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-2">
             <label className="flex items-center gap-2 cursor-pointer py-1">
               <input
@@ -662,7 +667,7 @@ export default function SettingsPage() {
                 onChange={() => handleLanguageChange('en')}
                 className="w-4 h-4 accent-[#667eea]"
               />
-              <span className="text-gray-700 text-sm">{t('language.english')}</span>
+              <span className="text-gray-300 text-sm">{t('language.english')}</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer py-1">
               <input
@@ -672,7 +677,7 @@ export default function SettingsPage() {
                 onChange={() => handleLanguageChange('fr')}
                 className="w-4 h-4 accent-[#667eea]"
               />
-              <span className="text-gray-700 text-sm">{t('language.french')}</span>
+              <span className="text-gray-300 text-sm">{t('language.french')}</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer py-1">
               <input
@@ -682,18 +687,18 @@ export default function SettingsPage() {
                 onChange={() => handleLanguageChange('browser')}
                 className="w-4 h-4 accent-[#667eea]"
               />
-              <span className="text-gray-700 text-sm">{t('language.browserPreference')}</span>
+              <span className="text-gray-300 text-sm">{t('language.browserPreference')}</span>
             </label>
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-gray-200">
+        <div className="mt-4 pt-3 border-t border-gray-700">
           <div className="flex items-center gap-3 px-2">
-            <h2 className="text-gray-700 text-sm font-semibold">{t('settings.musicServices')}</h2>
+            <h2 className="text-gray-300 text-sm font-semibold">{t('settings.musicServices')}</h2>
             <select
               value={settings.musicService}
               onChange={(e) => handleMusicServiceChange(e.target.value as MusicService)}
-              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#667eea]"
+              className="flex-1 px-2 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#667eea]"
             >
               <option value="deezerWeb">{t('settings.deezerWeb')}</option>
               <option value="deezerApp">{t('settings.deezerApp')}</option>
@@ -703,9 +708,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-gray-200">
-          <h2 className="text-gray-700 text-sm font-semibold mb-1">{t('settings.editBuild')}</h2>
-          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-100">
+        <div className="mt-4 pt-3 border-t border-gray-700">
+          <h2 className="text-gray-300 text-sm font-semibold mb-1">{t('settings.editBuild')}</h2>
+          <label className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-800">
             <input
               type="checkbox"
               checked={isAuthenticated}
@@ -719,16 +724,16 @@ export default function SettingsPage() {
               }}
               className="w-4 h-4 accent-[#667eea]"
             />
-            <span className="text-gray-700 text-sm">
+            <span className="text-gray-300 text-sm">
               {isAuthenticated ? t('settings.editBuildEnabled') : t('settings.enterPassword')}
             </span>
           </label>
           {isAuthenticated && (
-            <p className="text-green-600 text-xs ml-6">{t('settings.writeAccessActive')}</p>
+            <p className="text-green-400 text-xs ml-6">{t('settings.writeAccessActive')}</p>
           )}
         </div>
 
-        <div className="mt-4 pt-3 border-t border-gray-200 flex gap-2">
+        <div className="mt-4 pt-3 border-t border-gray-700 flex gap-2">
           <button
             onClick={openRenderingSettings}
             className="px-3 py-1.5 text-sm bg-[#667eea] text-white rounded-lg hover:bg-[#5a67d8]"
@@ -762,7 +767,7 @@ export default function SettingsPage() {
           </button>
         </div>
         {worldMessage && (
-          <div className="mt-2 px-2 text-sm text-gray-600">
+          <div className="mt-2 px-2 text-sm text-gray-400">
             {worldMessage}
           </div>
         )}
@@ -1079,7 +1084,7 @@ export default function SettingsPage() {
               const anim = animations.items[selectedAnimIndex]
               const opts = anim.embed_options
               const itemType = 'Text' in anim.item ? 'Text' : 'SvgPath'
-              const itemValue = 'Text' in anim.item ? anim.item.Text : anim.item.SvgPath
+              const itemValue = 'Text' in anim.item ? `${anim.item.Text.text} (${anim.item.Text.font})` : anim.item.SvgPath
               return (
                 <div className="space-y-4">
                   {animations.items.length > 1 && (
@@ -1099,7 +1104,13 @@ export default function SettingsPage() {
 
                   <div className="p-3 bg-gray-100 rounded-lg">
                     <span className="text-gray-500 text-xs uppercase">{itemType}</span>
-                    <p className="text-gray-800 text-sm font-mono mt-1 break-all">{itemValue}</p>
+                    {'Text' in anim.item ? (
+                      <p className="text-gray-800 text-lg mt-1" style={{ fontFamily: anim.item.Text.font }}>
+                        {anim.item.Text.text}
+                      </p>
+                    ) : (
+                      <p className="text-gray-800 text-sm font-mono mt-1 break-all">{itemValue}</p>
+                    )}
                   </div>
 
                   <div>

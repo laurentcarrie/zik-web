@@ -15,29 +15,8 @@ const EditDrumsGlobalPage = lazy(() => import('./pages/EditDrumsGlobalPage'))
 const MasterPage = lazy(() => import('./pages/MasterPage'))
 const UpdatePage = lazy(() => import('./pages/UpdatePage'))
 
-function getEnabledContours(): number[] | null {
-  try {
-    const match = document.cookie.match(/(^| )enabledContours=([^;]+)/)
-    if (match) return JSON.parse(decodeURIComponent(match[2]))
-  } catch {}
-  return null // null means all enabled
-}
-
-function getNextEnabledIndex(currentIndex: number, count: number): number {
-  const enabled = getEnabledContours()
-  if (!enabled || enabled.length === 0) {
-    return (currentIndex + 1) % count
-  }
-  const currentPos = enabled.indexOf(currentIndex)
-  if (currentPos === -1) {
-    return enabled[0]
-  }
-  return enabled[(currentPos + 1) % enabled.length]
-}
-
-function getFirstEnabledIndex(): number {
-  const enabled = getEnabledContours()
-  return (enabled && enabled.length > 0) ? enabled[0] : 0
+function getNextIndex(currentIndex: number, count: number): number {
+  return (currentIndex + 1) % count
 }
 
 function isAnimationEnabled(): boolean {
@@ -70,13 +49,14 @@ function App() {
   }, [])
 
   useEffect(() => {
-    loadEmbed(getFirstEnabledIndex())
+    loadEmbed(0)
   }, [loadEmbed])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'guitar-animation-complete') {
-        indexRef.current = getNextEnabledIndex(indexRef.current, countRef.current)
+        const next = getNextIndex(indexRef.current, countRef.current)
+        indexRef.current = next
         loadEmbed(indexRef.current)
       }
       if (e.data?.type === 'guitar-harmonics') {

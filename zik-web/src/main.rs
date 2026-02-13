@@ -998,8 +998,7 @@ async fn api_guitar_embed(
     State(state): State<AppState>,
     Path(index): Path<usize>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let animations = load_animations(&state.s3_client)
-        .await
+    let animations = load_animations()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
     let count = animations.items.len();
@@ -1011,11 +1010,8 @@ async fn api_guitar_embed(
     ))
 }
 
-async fn api_get_animations(
-    State(state): State<AppState>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let animations = load_animations(&state.s3_client)
-        .await
+async fn api_get_animations() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let animations = load_animations()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let value = serde_json::to_value(&animations)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1023,11 +1019,9 @@ async fn api_get_animations(
 }
 
 async fn api_save_animations(
-    State(state): State<AppState>,
     Json(animations): Json<Animations>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    save_animations(&state.s3_client, &animations)
-        .await
+    save_animations(&animations)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
 }
