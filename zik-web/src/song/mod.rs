@@ -1,5 +1,5 @@
 pub mod edit_lyrics;
-pub mod guitar_logo;
+pub mod circles_animation;
 pub mod lilypond;
 pub mod lyrics;
 pub mod model;
@@ -7,7 +7,9 @@ pub mod songs;
 pub mod tempo;
 
 pub use edit_lyrics::{edit_lyrics, save_lyrics_handler};
-pub use guitar_logo::{AnimationConfig, CONTOUR_COUNT, contour_names, write_guitar_embed_to_s3};
+pub use circles_animation::{
+    Animations, load_animations, save_animations, write_animation_embed_to_s3,
+};
 pub use lilypond::{drum_pattern_to_html, lilypond_to_html};
 pub use lyrics::{get_lyrics_by_key, save_lyrics_by_key};
 pub use model::{SongEntry, SongYml};

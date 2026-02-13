@@ -23,26 +23,6 @@ function getEnabledContours(): number[] | null {
   return null // null means all enabled
 }
 
-function getAnimationConfig(): string {
-  try {
-    const match = document.cookie.match(/(^| )animationConfig=([^;]+)/)
-    if (match) {
-      const config = JSON.parse(decodeURIComponent(match[2]))
-      const params = new URLSearchParams()
-      if (config.show_contour !== undefined) params.set('show_contour', String(config.show_contour))
-      if (config.speed !== undefined) params.set('speed', String(config.speed))
-      if (config.show_trace !== undefined) params.set('show_trace', String(config.show_trace))
-      if (config.trace_length !== undefined) params.set('trace_length', String(config.trace_length))
-      if (config.show_nh !== undefined) params.set('show_nh', String(config.show_nh))
-      if (config.trace_width !== undefined) params.set('trace_width', String(config.trace_width))
-      if (config.interpolation !== undefined) params.set('interpolation', String(config.interpolation))
-      const qs = params.toString()
-      return qs ? `?${qs}` : ''
-    }
-  } catch {}
-  return ''
-}
-
 function getNextEnabledIndex(currentIndex: number, count: number): number {
   const enabled = getEnabledContours()
   if (!enabled || enabled.length === 0) {
@@ -76,8 +56,7 @@ function App() {
   const namesRef = useRef<string[]>([])
 
   const loadEmbed = useCallback((index: number) => {
-    const qs = getAnimationConfig()
-    fetch(`/api/guitar-embed/${index}${qs}`)
+    fetch(`/api/guitar-embed/${index}`)
       .then(r => r.json())
       .then(data => {
         setGuitarUrl(data.url + '?t=' + Date.now())

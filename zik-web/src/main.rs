@@ -20,10 +20,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    AnimationConfig, CONTOUR_COUNT, SongItem, contour_names, download_font_from_s3,
-    drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
-    get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url, make_deezer_url,
-    read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_guitar_embed_to_s3,
+    Animations, SongItem, download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs,
+    get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, load_animations,
+    make_cloudfront_url, make_deezer_app_url, make_deezer_url, read_from_s3, save_animations,
+    save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_animation_embed_to_s3,
     write_tempo_html_to_s3, write_to_s3,
 };
 
@@ -106,12 +106,14 @@ async fn main() {
         .route("/lilypond-to-html", post(api_lilypond_to_html))
         .route("/drum-pattern-to-html", post(api_drum_pattern_to_html))
         .route("/guitar-embed/{index}", get(api_guitar_embed))
+        .route("/animations", get(api_get_animations))
         .route("/auth/verify", post(verify_password))
         .with_state(state.clone());
 
     // Protected API routes (write operations) - require auth
     let protected_api_routes = Router::new()
         .route("/song/{id}/yml", post(api_save_song_yml))
+        .route("/animations", post(api_save_animations))
         .route("/song/{id}/lyrics/{section_id}", post(api_save_lyrics))
         .route("/s3/{*key}", post(api_write_to_s3))
         .route("/make", post(api_make))
@@ -995,14 +997,39 @@ async fn api_drum_pattern_to_html(
 async fn api_guitar_embed(
     State(state): State<AppState>,
     Path(index): Path<usize>,
-    axum::extract::Query(config): axum::extract::Query<AnimationConfig>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let url = write_guitar_embed_to_s3(&state.s3_client, index, &config)
+    let animations = load_animations(&state.s3_client)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
+    let count = animations.items.len();
+    let url = write_animation_embed_to_s3(&state.s3_client, &animations, index)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(
-        serde_json::json!({ "url": url, "count": CONTOUR_COUNT, "names": contour_names() }),
+        serde_json::json!({ "url": url, "count": count, "names": names }),
     ))
+}
+
+async fn api_get_animations(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let animations = load_animations(&state.s3_client)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let value = serde_json::to_value(&animations)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(value))
+}
+
+async fn api_save_animations(
+    State(state): State<AppState>,
+    Json(animations): Json<Animations>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    save_animations(&state.s3_client, &animations)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::OK)
 }
 
 async fn version() -> &'static str {

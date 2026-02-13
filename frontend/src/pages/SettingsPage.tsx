@@ -23,6 +23,50 @@ interface ServiceSettings {
   lyricsEnabled?: boolean // deprecated, for migration
 }
 
+interface ThresholdStep {
+  start: number
+  step: number
+}
+
+interface HarmonicSteps {
+  thresholds: ThresholdStep[]
+  max_harmonic: number
+}
+
+interface OnceEvery {
+  modulo: number
+  remainders: number[]
+}
+
+type WhenToShow = 'Always' | 'Never' | { OnceEvery: OnceEvery }
+
+interface EmbedOptions {
+  speed: number
+  steps: HarmonicSteps
+  show_contour: WhenToShow
+  show_point: boolean
+  show_trace: WhenToShow
+  trace_length: number
+  opacity: number
+  show_nh: boolean
+  trace_width: number
+  contour_width: number
+  show_fourier_circles: WhenToShow
+  trace_colors: string[]
+}
+
+type AnimationEnum = { Text: string } | { SvgPath: string }
+
+interface AnimationItem {
+  name: string
+  item: AnimationEnum
+  embed_options: EmbedOptions
+}
+
+interface Animations {
+  items: AnimationItem[]
+}
+
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
   return match ? decodeURIComponent(match[2]) : null
@@ -35,6 +79,51 @@ function isMobileDevice(): boolean {
 function setCookie(name: string, value: string, days: number = 365) {
   const expires = new Date(Date.now() + days * 864e5).toUTCString()
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`
+}
+
+function whenToShowType(v: WhenToShow): string {
+  if (v === 'Always') return 'Always'
+  if (v === 'Never') return 'Never'
+  return 'OnceEvery'
+}
+
+function WhenToShowSelect({ label, value, onChange }: { label: string; value: WhenToShow; onChange: (v: WhenToShow) => void }) {
+  const type = whenToShowType(value)
+  const onceEvery = typeof value === 'object' ? value.OnceEvery : { modulo: 2, remainders: [1] }
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <span className="text-gray-700 text-sm font-medium">{label}:</span>
+        <select value={type}
+          onChange={(e) => {
+            const t = e.target.value
+            if (t === 'Always') onChange('Always')
+            else if (t === 'Never') onChange('Never')
+            else onChange({ OnceEvery: onceEvery })
+          }}
+          className="px-2 py-1 text-sm border border-gray-300 rounded bg-white">
+          <option value="Always">Always</option>
+          <option value="Never">Never</option>
+          <option value="OnceEvery">Once Every</option>
+        </select>
+      </div>
+      {type === 'OnceEvery' && (
+        <div className="flex items-center gap-2 mt-1 ml-4">
+          <span className="text-gray-500 text-xs">modulo</span>
+          <input type="number" value={onceEvery.modulo} min={1}
+            onChange={(e) => onChange({ OnceEvery: { ...onceEvery, modulo: Number(e.target.value) } })}
+            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded" />
+          <span className="text-gray-500 text-xs">remainders</span>
+          <input type="text" value={onceEvery.remainders.join(',')}
+            onChange={(e) => {
+              const nums = e.target.value.split(',').map(Number).filter(n => !isNaN(n))
+              onChange({ OnceEvery: { ...onceEvery, remainders: nums } })
+            }}
+            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded" />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function SettingsPage() {
@@ -99,34 +188,15 @@ export default function SettingsPage() {
   const [worldLoading, setWorldLoading] = useState(false)
   const [worldMessage, setWorldMessage] = useState<string | null>(null)
   const [showAnimation, setShowAnimation] = useState(false)
-  const [harmonics, setHarmonics] = useState<{ current: number; max: number } | null>(null)
-  const [contourNames, setContourNames] = useState<string[]>([])
+  const [animations, setAnimations] = useState<Animations | null>(null)
+  const [selectedAnimIndex, setSelectedAnimIndex] = useState(0)
+  const [animationsLoading, setAnimationsLoading] = useState(false)
+  const [animationsSaving, setAnimationsSaving] = useState(false)
   const [enabledContours, setEnabledContours] = useState<number[]>(() => {
     const saved = getCookie('enabledContours')
     if (saved) return JSON.parse(saved)
     return []  // empty means all enabled
   })
-  const [animConfig, setAnimConfig] = useState(() => {
-    const saved = getCookie('animationConfig')
-    if (saved) return JSON.parse(saved)
-    return { show_contour: false, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
-  })
-
-  useEffect(() => {
-    const harmonicsHandler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      setHarmonics({ current: detail.harmonics, max: detail.maxHarmonics })
-    }
-    const namesHandler = (e: Event) => {
-      setContourNames((e as CustomEvent).detail)
-    }
-    window.addEventListener('harmonics-update', harmonicsHandler)
-    window.addEventListener('contour-names', namesHandler)
-    return () => {
-      window.removeEventListener('harmonics-update', harmonicsHandler)
-      window.removeEventListener('contour-names', namesHandler)
-    }
-  }, [])
   const [languagePref, setLanguagePref] = useState<'en' | 'fr' | 'browser'>(() => {
     const saved = getCookie('languagePref')
     return (saved as 'en' | 'fr' | 'browser') || 'browser'
@@ -414,6 +484,68 @@ export default function SettingsPage() {
     }
   }
 
+  async function loadAnimations() {
+    setAnimationsLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/animations`)
+      if (res.ok) {
+        const data: Animations = await res.json()
+        setAnimations(data)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setAnimationsLoading(false)
+    }
+  }
+
+  async function openAnimationSettings() {
+    setShowAnimation(true)
+    if (!animations) {
+      await loadAnimations()
+    }
+  }
+
+  async function saveAnimations() {
+    if (!animations || !isAuthenticated) return
+    setAnimationsSaving(true)
+    try {
+      const password = getStoredPassword()
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (password) {
+        headers['X-Write-Password'] = password
+      }
+      const res = await fetch(`${API_BASE}/api/animations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(animations),
+      })
+      if (res.ok) {
+        alert('Animations saved!')
+      } else if (res.status === 401) {
+        setPasswordAction('save')
+        setShowPasswordModal(true)
+      } else {
+        alert('Failed to save animations')
+      }
+    } catch {
+      alert('Failed to save animations')
+    } finally {
+      setAnimationsSaving(false)
+    }
+  }
+
+  function updateEmbedOption<K extends keyof EmbedOptions>(key: K, value: EmbedOptions[K]) {
+    if (!animations) return
+    const updated = { ...animations }
+    updated.items = [...updated.items]
+    updated.items[selectedAnimIndex] = {
+      ...updated.items[selectedAnimIndex],
+      embed_options: { ...updated.items[selectedAnimIndex].embed_options, [key]: value },
+    }
+    setAnimations(updated)
+  }
+
   function handlePasswordSuccess() {
     setShowPasswordModal(false)
     if (passwordAction === 'save') {
@@ -623,7 +755,7 @@ export default function SettingsPage() {
             {worldLoading ? '...' : 'Re-index'}
           </button>
           <button
-            onClick={() => setShowAnimation(true)}
+            onClick={openAnimationSettings}
             className="px-3 py-1.5 text-sm bg-pink-500 text-white rounded-lg hover:bg-pink-600"
           >
             {t('settings.uselessAnimation')}
@@ -929,7 +1061,7 @@ export default function SettingsPage() {
 
       {showAnimation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-gray-800 text-xl font-bold">{t('settings.uselessAnimation')}</h2>
               <button
@@ -939,188 +1071,195 @@ export default function SettingsPage() {
                 &times;
               </button>
             </div>
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={animConfig.show_contour}
-                  onChange={() => {
-                    const next = { ...animConfig, show_contour: !animConfig.show_contour }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-4 h-4 accent-pink-500"
-                />
-                <span className="text-gray-700 text-sm">{t('settings.showContour')}</span>
-              </label>
+            {animationsLoading ? (
+              <p className="text-gray-500">Loading...</p>
+            ) : !animations || animations.items.length === 0 ? (
+              <p className="text-gray-500 italic">No animations found</p>
+            ) : (() => {
+              const anim = animations.items[selectedAnimIndex]
+              const opts = anim.embed_options
+              const itemType = 'Text' in anim.item ? 'Text' : 'SvgPath'
+              const itemValue = 'Text' in anim.item ? anim.item.Text : anim.item.SvgPath
+              return (
+                <div className="space-y-4">
+                  {animations.items.length > 1 && (
+                    <div>
+                      <label className="text-gray-700 text-sm font-medium">Animation</label>
+                      <select
+                        value={selectedAnimIndex}
+                        onChange={(e) => setSelectedAnimIndex(Number(e.target.value))}
+                        className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white"
+                      >
+                        {animations.items.map((a, i) => (
+                          <option key={i} value={i}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-              <div>
-                <label className="text-gray-700 text-sm font-medium">
-                  {t('settings.speed')}: {animConfig.speed.toFixed(1)}
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  step={0.1}
-                  value={animConfig.speed}
-                  onChange={(e) => {
-                    const next = { ...animConfig, speed: Number(e.target.value) }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-full accent-pink-500"
-                />
-              </div>
+                  <div className="p-3 bg-gray-100 rounded-lg">
+                    <span className="text-gray-500 text-xs uppercase">{itemType}</span>
+                    <p className="text-gray-800 text-sm font-mono mt-1 break-all">{itemValue}</p>
+                  </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={animConfig.show_trace}
-                  onChange={() => {
-                    const next = { ...animConfig, show_trace: !animConfig.show_trace }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-4 h-4 accent-pink-500"
-                />
-                <span className="text-gray-700 text-sm">{t('settings.showTrace')}</span>
-              </label>
+                  <div>
+                    <label className="text-gray-700 text-sm font-medium">
+                      Speed: {opts.speed.toFixed(1)}
+                    </label>
+                    <input type="range" min={0.5} max={10} step={0.1} value={opts.speed}
+                      onChange={(e) => updateEmbedOption('speed', Number(e.target.value))}
+                      className="w-full accent-pink-500" />
+                  </div>
 
-              <div>
-                <label className="text-gray-700 text-sm font-medium">
-                  {t('settings.traceLength')}: {animConfig.trace_length}
-                </label>
-                <input
-                  type="range"
-                  min={50}
-                  max={500}
-                  step={10}
-                  value={animConfig.trace_length}
-                  onChange={(e) => {
-                    const next = { ...animConfig, trace_length: Number(e.target.value) }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-full accent-pink-500"
-                />
-              </div>
+                  <div>
+                    <label className="text-gray-700 text-sm font-medium">
+                      Opacity: {opts.opacity.toFixed(2)}
+                    </label>
+                    <input type="range" min={0} max={1} step={0.01} value={opts.opacity}
+                      onChange={(e) => updateEmbedOption('opacity', Number(e.target.value))}
+                      className="w-full accent-pink-500" />
+                  </div>
 
-              <div>
-                <label className="text-gray-700 text-sm font-medium">
-                  {t('settings.traceWidth')}: {(animConfig.trace_width ?? 0.3).toFixed(1)}
-                </label>
-                <input
-                  type="range"
-                  min={0.1}
-                  max={2}
-                  step={0.1}
-                  value={animConfig.trace_width ?? 0.3}
-                  onChange={(e) => {
-                    const next = { ...animConfig, trace_width: Number(e.target.value) }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-full accent-pink-500"
-                />
-              </div>
+                  <div>
+                    <label className="text-gray-700 text-sm font-medium">
+                      Trace Length: {opts.trace_length}
+                    </label>
+                    <input type="range" min={10} max={1000} step={10} value={opts.trace_length}
+                      onChange={(e) => updateEmbedOption('trace_length', Number(e.target.value))}
+                      className="w-full accent-pink-500" />
+                  </div>
 
-              <div>
-                <label className="text-gray-700 text-sm font-medium">
-                  {t('settings.interpolation')}: {animConfig.interpolation ?? 1000}
-                </label>
-                <input
-                  type="range"
-                  min={100}
-                  max={5000}
-                  step={100}
-                  value={animConfig.interpolation ?? 1000}
-                  onChange={(e) => {
-                    const next = { ...animConfig, interpolation: Number(e.target.value) }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-full accent-pink-500"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={animConfig.show_nh ?? true}
-                  onChange={() => {
-                    const next = { ...animConfig, show_nh: !(animConfig.show_nh ?? true) }
-                    setAnimConfig(next)
-                    setCookie('animationConfig', JSON.stringify(next))
-                  }}
-                  className="w-4 h-4 accent-pink-500"
-                />
-                <span className="text-gray-700 text-sm">{t('settings.showHarmonics')}</span>
-              </label>
-              {harmonics && (
-                <span className="text-xs text-gray-500 font-mono">
-                  ({harmonics.current} / {harmonics.max})
-                </span>
-              )}
-            </div>
-            {contourNames.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-gray-200">
-                <h3 className="text-gray-700 text-sm font-semibold mb-2">{t('settings.contours')}</h3>
-                <div className="space-y-1">
-                  {contourNames.map((name, idx) => {
-                    const allEnabled = enabledContours.length === 0
-                    const isEnabled = allEnabled || enabledContours.includes(idx)
-                    return (
-                      <label key={idx} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-gray-100">
-                        <input
-                          type="checkbox"
-                          checked={isEnabled}
-                          onChange={() => {
-                            let next: number[]
-                            if (allEnabled) {
-                              // First click: enable all except this one
-                              next = contourNames.map((_, i) => i).filter(i => i !== idx)
-                            } else if (isEnabled) {
-                              next = enabledContours.filter(i => i !== idx)
-                            } else {
-                              next = [...enabledContours, idx].sort()
-                            }
-                            // If all are enabled, reset to empty (meaning all)
-                            if (next.length === contourNames.length) next = []
-                            setEnabledContours(next)
-                            setCookie('enabledContours', JSON.stringify(next))
-                          }}
-                          className="w-4 h-4 accent-pink-500"
-                        />
-                        <span className="text-gray-700 text-sm">{name}</span>
-                      </label>
-                    )
-                  })}
+                  <div>
+                    <label className="text-gray-700 text-sm font-medium">
+                      Trace Width: {opts.trace_width.toFixed(1)}
+                    </label>
+                    <input type="range" min={0.1} max={5} step={0.1} value={opts.trace_width}
+                      onChange={(e) => updateEmbedOption('trace_width', Number(e.target.value))}
+                      className="w-full accent-pink-500" />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-700 text-sm font-medium">
+                      Contour Width: {opts.contour_width.toFixed(1)}
+                    </label>
+                    <input type="range" min={0.1} max={5} step={0.1} value={opts.contour_width}
+                      onChange={(e) => updateEmbedOption('contour_width', Number(e.target.value))}
+                      className="w-full accent-pink-500" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={opts.show_point}
+                        onChange={() => updateEmbedOption('show_point', !opts.show_point)}
+                        className="w-4 h-4 accent-pink-500" />
+                      <span className="text-gray-700 text-sm">Show Point</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={opts.show_nh}
+                        onChange={() => updateEmbedOption('show_nh', !opts.show_nh)}
+                        className="w-4 h-4 accent-pink-500" />
+                      <span className="text-gray-700 text-sm">Show Harmonics Counter</span>
+                    </label>
+                  </div>
+
+                  <WhenToShowSelect label="Show Contour" value={opts.show_contour}
+                    onChange={(v) => updateEmbedOption('show_contour', v)} />
+                  <WhenToShowSelect label="Show Trace" value={opts.show_trace}
+                    onChange={(v) => updateEmbedOption('show_trace', v)} />
+                  <WhenToShowSelect label="Show Fourier Circles" value={opts.show_fourier_circles}
+                    onChange={(v) => updateEmbedOption('show_fourier_circles', v)} />
+
+                  <div className="pt-3 border-t border-gray-200">
+                    <h3 className="text-gray-700 text-sm font-semibold mb-2">Harmonic Steps</h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-gray-600 text-sm">Max:</span>
+                      <input type="number" value={opts.steps.max_harmonic} min={1}
+                        onChange={(e) => updateEmbedOption('steps', { ...opts.steps, max_harmonic: Number(e.target.value) })}
+                        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded" />
+                    </div>
+                    <div className="space-y-1">
+                      {opts.steps.thresholds.map((th, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-gray-500 text-xs w-10">from</span>
+                          <input type="number" value={th.start} min={0}
+                            onChange={(e) => {
+                              const newThresholds = [...opts.steps.thresholds]
+                              newThresholds[i] = { ...newThresholds[i], start: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                            }}
+                            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded" />
+                          <span className="text-gray-500 text-xs">step</span>
+                          <input type="number" value={th.step} min={1}
+                            onChange={(e) => {
+                              const newThresholds = [...opts.steps.thresholds]
+                              newThresholds[i] = { ...newThresholds[i], step: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                            }}
+                            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded" />
+                          <button onClick={() => {
+                            const newThresholds = opts.steps.thresholds.filter((_, j) => j !== i)
+                            updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                          }} className="text-red-400 hover:text-red-600 text-sm">&times;</button>
+                        </div>
+                      ))}
+                      <button onClick={() => {
+                        const last = opts.steps.thresholds[opts.steps.thresholds.length - 1]
+                        const newThreshold = { start: last ? last.start + 10 : 0, step: 1 }
+                        updateEmbedOption('steps', { ...opts.steps, thresholds: [...opts.steps.thresholds, newThreshold] })
+                      }} className="text-pink-500 hover:text-pink-700 text-sm">+ Add threshold</button>
+                    </div>
+                  </div>
+
+                  {animations.items.length > 1 && (
+                    <div className="pt-3 border-t border-gray-200">
+                      <h3 className="text-gray-700 text-sm font-semibold mb-2">Enabled Animations</h3>
+                      <div className="space-y-1">
+                        {animations.items.map((a, idx) => {
+                          const allEnabled = enabledContours.length === 0
+                          const isEnabled = allEnabled || enabledContours.includes(idx)
+                          return (
+                            <label key={idx} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-gray-100">
+                              <input type="checkbox" checked={isEnabled}
+                                onChange={() => {
+                                  let next: number[]
+                                  if (allEnabled) {
+                                    next = animations.items.map((_, i) => i).filter(i => i !== idx)
+                                  } else if (isEnabled) {
+                                    next = enabledContours.filter(i => i !== idx)
+                                  } else {
+                                    next = [...enabledContours, idx].sort()
+                                  }
+                                  if (next.length === animations.items.length) next = []
+                                  setEnabledContours(next)
+                                  setCookie('enabledContours', JSON.stringify(next))
+                                }}
+                                className="w-4 h-4 accent-pink-500" />
+                              <span className="text-gray-700 text-sm">{a.name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
             <div className="flex gap-3 mt-6">
               <button
-                onClick={(e) => {
+                onClick={async () => {
+                  await saveAnimations()
                   window.dispatchEvent(new Event('reload-animation'))
-                  const btn = e.currentTarget
-                  btn.classList.add('scale-95', 'opacity-70')
-                  setTimeout(() => btn.classList.remove('scale-95', 'opacity-70'), 200)
                 }}
-                className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 active:scale-95 active:opacity-70 transition-all duration-150"
+                disabled={animationsSaving || !isAuthenticated}
+                className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 disabled:bg-gray-400"
               >
-                {t('settings.applyNow')}
+                {animationsSaving ? 'Saving...' : 'Save & Apply'}
               </button>
               <button
-                onClick={() => {
-                  const defaults = { show_contour: false, speed: 3, show_trace: true, trace_length: 400, show_nh: true, trace_width: 0.3, interpolation: 1000 }
-                  setAnimConfig(defaults)
-                  setCookie('animationConfig', JSON.stringify(defaults))
-                }}
+                onClick={loadAnimations}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
-                {t('settings.resetDefaults')}
+                Reload
               </button>
               <button
                 onClick={() => setShowAnimation(false)}
