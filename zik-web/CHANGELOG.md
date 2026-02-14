@@ -14,6 +14,9 @@
 - Enabled animations filter (cookie-based, per-user)
 - Animation settings dark theme matching rest of UI
 - Save & Apply button prompts for password and shows "Saved!" feedback
+- Guitar SVG animation (Potrace-traced, merged single path)
+- Dark theme for all dialogs (Rendering Settings, Drum Patterns, Build Report, Log Modal)
+- Dark theme for Song Detail and Songs pages
 
 ### Changed
 - `circles-sketch` dependency switched from local path to crates.io v0.2.2
@@ -25,6 +28,12 @@
 - `band-songbook` dependency updated to v0.0.19
 - Animation settings dialog uses dark theme
 - Responsive animation on mobile and tablet
+- Deezer/Spotify button colors adjusted for dark backgrounds
+- Build status shows only elapsed time while running, full details when idle
+- Removed S3 font download (font served from static/)
+
+### Removed
+- MTL animation entry
 
 ### Fixed
 - Docker fontconfig installation for font rendering in containers

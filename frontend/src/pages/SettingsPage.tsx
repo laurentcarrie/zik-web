@@ -41,6 +41,7 @@ interface OnceEvery {
 type WhenToShow = 'Always' | 'Never' | { OnceEvery: OnceEvery }
 
 interface EmbedOptions {
+  num_points: number
   speed: number
   steps: HarmonicSteps
   show_contour: WhenToShow
@@ -789,12 +790,12 @@ export default function SettingsPage() {
 
       {showRenderingSettings && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-800 text-xl font-bold">Rendering Settings</h2>
+              <h2 className="text-gray-200 text-xl font-bold">Rendering Settings</h2>
               <button
                 onClick={() => setShowRenderingSettings(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
@@ -805,10 +806,10 @@ export default function SettingsPage() {
               extensions={[yamlLang()]}
               theme={oneDark}
               height="400px"
-              className="rounded-lg overflow-hidden border border-gray-300"
+              className="rounded-lg overflow-hidden border border-gray-600"
             />
             {!isYamlValid && yamlErrorMessage && (
-              <div className="mt-2 p-3 bg-red-100 text-red-700 rounded-lg text-sm font-mono">
+              <div className="mt-2 p-3 bg-red-900/50 text-red-300 rounded-lg text-sm font-mono">
                 {yamlErrorMessage}
               </div>
             )}
@@ -820,18 +821,18 @@ export default function SettingsPage() {
               >
                 {settingsYmlSaving ? 'Saving...' : 'Save'}
               </button>
-              <span className={`text-sm px-3 py-1 rounded ${isYamlValid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              <span className={`text-sm px-3 py-1 rounded ${isYamlValid ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
                 {isYamlValid ? 'Valid YAML' : 'Invalid YAML'}
               </span>
               <button
                 onClick={loadSettingsYml}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
                 Reload
               </button>
               <button
                 onClick={() => setShowRenderingSettings(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>
@@ -842,18 +843,18 @@ export default function SettingsPage() {
 
       {showSequences && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-800 text-xl font-bold">Drum Patterns</h2>
+              <h2 className="text-gray-200 text-xl font-bold">Drum Patterns</h2>
               <button
                 onClick={() => setShowSequences(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
             </div>
             <div className="flex items-center gap-3 mb-4">
-              <label className="text-gray-700 text-sm font-medium whitespace-nowrap">Tempo: {patternTempo}</label>
+              <label className="text-gray-300 text-sm font-medium whitespace-nowrap">Tempo: {patternTempo}</label>
               <input
                 type="range"
                 min={40}
@@ -864,9 +865,9 @@ export default function SettingsPage() {
               />
             </div>
             {patternsLoading ? (
-              <p className="text-gray-500">Loading...</p>
+              <p className="text-gray-400">Loading...</p>
             ) : patternNames.length === 0 ? (
-              <p className="text-gray-500 italic">No patterns found</p>
+              <p className="text-gray-400 italic">No patterns found</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {patternNames.map((name) => (
@@ -899,13 +900,13 @@ export default function SettingsPage() {
             <div className="flex gap-3 mt-4">
               <button
                 onClick={loadPatterns}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
                 Reload
               </button>
               <button
                 onClick={() => setShowSequences(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>
@@ -916,24 +917,30 @@ export default function SettingsPage() {
 
       {showMakeReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="flex items-center gap-3">
-                  <h2 className="text-gray-800 text-xl font-bold">Build Failed Nodes</h2>
+                  <h2 className="text-gray-200 text-xl font-bold">Build Failed Nodes</h2>
                   {lambdaRunning !== null && (
                     <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
                       lambdaRunning
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-600'
+                        ? 'bg-green-900/50 text-green-300'
+                        : 'bg-gray-700 text-gray-400'
                     }`}>
                       <span className={`w-2 h-2 rounded-full ${
                         lambdaRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
                       }`}></span>
                       {lambdaRunning ? t('song.buildRunning') : t('song.idle')}
-                      {lambdaTimestamp && (
+                      {lambdaRunning ? (
+                        lambdaDuration !== null && (
+                          <span className="ml-1 opacity-75">
+                            ({formatDuration(lambdaDuration)})
+                          </span>
+                        )
+                      ) : lambdaTimestamp && (
                         <span className="ml-1 opacity-75">
-                          ({lambdaRunning ? t('song.started') : t('song.lastRun')}: {lambdaTimestamp}
+                          ({t('song.lastRun')}: {lambdaTimestamp}
                           {lambdaDuration !== null && `, ${formatDuration(lambdaDuration)}`})
                         </span>
                       )}
@@ -941,33 +948,33 @@ export default function SettingsPage() {
                   )}
                 </div>
                 {makeReportTimestamp && (
-                  <p className="text-gray-500 text-sm mt-1">
+                  <p className="text-gray-400 text-sm mt-1">
                     Last updated: {makeReportTimestamp}
                   </p>
                 )}
               </div>
               <button
                 onClick={() => setShowMakeReport(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
             </div>
             {makeReportLoading ? (
               <div className="flex items-center justify-center h-64">
-                <p className="text-gray-500">Loading...</p>
+                <p className="text-gray-400">Loading...</p>
               </div>
             ) : failedNodes.length === 0 ? (
               <div className="flex items-center justify-center h-32">
-                <p className="text-green-600 font-medium">No failed builds!</p>
+                <p className="text-green-400 font-medium">No failed builds!</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-auto">
                 {failedNodes.map((node, index) => {
                   const songId = findSongIdByPathbuf(node.pathbuf)
                   return (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                      <span className="flex-1 font-mono text-sm text-gray-800 truncate" title={node.pathbuf}>
+                    <div key={index} className="flex items-center gap-3 p-3 bg-red-900/30 rounded-lg border border-red-800">
+                      <span className="flex-1 font-mono text-sm text-gray-200 truncate" title={node.pathbuf}>
                         {node.pathbuf}
                       </span>
                       {songId && (
@@ -998,7 +1005,7 @@ export default function SettingsPage() {
             <div className="flex gap-3 mt-4">
               <button
                 onClick={openMakeReport}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
                 Reload
               </button>
@@ -1010,7 +1017,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => setShowMakeReport(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>
@@ -1021,12 +1028,12 @@ export default function SettingsPage() {
 
       {showRawMakeReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-800 text-xl font-bold">make-report.yml</h2>
+              <h2 className="text-gray-200 text-xl font-bold">make-report.yml</h2>
               <button
                 onClick={() => setShowRawMakeReport(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
@@ -1037,12 +1044,12 @@ export default function SettingsPage() {
               theme={oneDark}
               height="500px"
               readOnly
-              className="rounded-lg overflow-hidden border border-gray-300"
+              className="rounded-lg overflow-hidden border border-gray-600"
             />
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => setShowRawMakeReport(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>
@@ -1053,12 +1060,12 @@ export default function SettingsPage() {
 
       {showLogModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-800 text-xl font-bold">{logModalTitle}</h2>
+              <h2 className="text-gray-200 text-xl font-bold">{logModalTitle}</h2>
               <button
                 onClick={() => setShowLogModal(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
@@ -1069,7 +1076,7 @@ export default function SettingsPage() {
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => setShowLogModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>
@@ -1126,6 +1133,15 @@ export default function SettingsPage() {
                     ) : (
                       <p className="text-gray-200 text-sm font-mono mt-1 break-all">{itemValue}</p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 text-sm font-medium">
+                      Points: {opts.num_points}
+                    </label>
+                    <input type="range" min={500} max={10000} step={500} value={opts.num_points}
+                      onChange={(e) => updateEmbedOption('num_points', Number(e.target.value))}
+                      className="w-full accent-pink-500" />
                   </div>
 
                   <div>

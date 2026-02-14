@@ -10,18 +10,18 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
   - Filter by tags
   - Error songs highlighted in red
   - Mobile-friendly design
-- **Song Detail Page**: View song with action buttons
+- **Song Detail Page**: View song with action buttons (dark theme)
   - PDF and lyrics PDF viewer
   - Tempo button (Strudel REPL with drum pattern)
   - Deezer / Spotify links (Web and App)
-  - Build trigger with live Lambda status
+  - Build trigger with live Lambda status (elapsed time while running)
 - **Edit Pages**: Multiple editors with syntax highlighting
   - Edit YML: YAML editor with validation (validates Song structure on save)
   - Edit Lilypond: .ly file editor
   - Edit Lyrics: Lyrics text editor
   - Edit TeX: LaTeX editor
-- **Settings Page**: Music service preferences, Re-index songs
-  - Animation toggle and configuration (contour selection, speed, trace, harmonics)
+- **Settings Page**: Music service preferences, Re-index songs (dark theme dialogs)
+  - Animation toggle and configuration (contour selection, speed, trace, harmonics, points)
   - Language selection (English/French)
 - **Background Animation**: Fourier epicycle animation cycling through multiple shapes
   - Text animations (any TTF font) and SVG path animations

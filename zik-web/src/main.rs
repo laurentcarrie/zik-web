@@ -20,11 +20,11 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    Animations, SongItem, drum_pattern_to_html, edit_lyrics, get_all_songs,
-    get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, load_animations,
-    make_cloudfront_url, make_deezer_app_url, make_deezer_url, read_from_s3, save_animations,
-    save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_animation_embed_to_s3,
-    write_tempo_html_to_s3, write_to_s3,
+    Animations, SongItem, drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key,
+    get_song_pdf, get_song_yml, lilypond_to_html, load_animations, make_cloudfront_url,
+    make_deezer_app_url, make_deezer_url, read_from_s3, save_animations, save_lyrics_by_key,
+    save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_tempo_html_to_s3,
+    write_to_s3,
 };
 
 use std::sync::Arc;

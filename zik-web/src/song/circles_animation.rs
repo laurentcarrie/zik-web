@@ -55,9 +55,7 @@ pub fn save_animations(
     Ok(())
 }
 
-fn contour_of_animation_enum(
-    animation: &AnimationEnum,
-) -> AnimResult<(String, Vec<(f64, f64)>)> {
+fn contour_of_animation_enum(animation: &AnimationEnum) -> AnimResult<(String, Vec<(f64, f64)>)> {
     match animation {
         AnimationEnum::SvgPath(svg) => {
             let svg_content = std::fs::read_to_string(format!("static/{}", svg.path))?;
