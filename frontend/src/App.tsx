@@ -30,14 +30,22 @@ function isAnimationEnabled(): boolean {
 function App() {
   const [animEnabled, setAnimEnabled] = useState(isAnimationEnabled)
   const [guitarUrl, setGuitarUrl] = useState<string | null>(null)
+  const [animError, setAnimError] = useState<string | null>(null)
   const indexRef = useRef(0)
   const countRef = useRef(1)
   const namesRef = useRef<string[]>([])
 
   const loadEmbed = useCallback((index: number) => {
     fetch(`/api/guitar-embed/${index}`)
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) {
+          const text = await r.text()
+          throw new Error(text || `HTTP ${r.status}`)
+        }
+        return r.json()
+      })
       .then(data => {
+        setAnimError(null)
         setGuitarUrl(data.url + '?t=' + Date.now())
         countRef.current = data.count
         if (data.names) {
@@ -45,7 +53,7 @@ function App() {
           window.dispatchEvent(new CustomEvent('contour-names', { detail: data.names }))
         }
       })
-      .catch(() => {})
+      .catch(e => setAnimError(e.message))
   }, [])
 
   useEffect(() => {
@@ -83,6 +91,16 @@ function App() {
 
   return (
     <>
+      {animError && (
+        <div style={{
+          position: 'fixed', top: 10, left: '50%', transform: 'translateX(-50%)',
+          background: '#d32f2f', color: 'white', padding: '8px 16px',
+          borderRadius: 6, zIndex: 9999, fontSize: 14, maxWidth: '80vw',
+          wordBreak: 'break-word'
+        }}>
+          Animation error: {animError}
+        </div>
+      )}
       {animEnabled && guitarUrl && (
         <iframe
           key={guitarUrl}

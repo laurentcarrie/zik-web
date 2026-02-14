@@ -26,17 +26,17 @@ items:
       trace_colors:
         - "white"
         - "red"
-  - name: truskell
-    item: !Text
-      text: "Truskell"
-      font: "AkayaTelivigala-Regular"
+  - name: band
+    item: !SvgPath
+      path: band.svg
+      flip_y: true
     embed_options:
       speed: 3.0
       steps:
         thresholds:
           - start: 10
             step: 100
-        max_harmonic: 1000  
+        max_harmonic: 1000
       show_contour: !OnceEvery
         modulo: 3
         remainders: [1]

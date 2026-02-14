@@ -107,6 +107,7 @@ async fn main() {
         .route("/drum-pattern-to-html", post(api_drum_pattern_to_html))
         .route("/guitar-embed/{index}", get(api_guitar_embed))
         .route("/animations", get(api_get_animations))
+        .route("/config", get(api_config))
         .route("/auth/verify", post(verify_password))
         .with_state(state.clone());
 
@@ -1016,6 +1017,11 @@ async fn api_get_animations() -> Result<Json<serde_json::Value>, (StatusCode, St
     let value = serde_json::to_value(&animations)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(value))
+}
+
+async fn api_config() -> Json<serde_json::Value> {
+    let favicon = std::env::var("FAVICON").ok();
+    Json(serde_json::json!({ "favicon": favicon }))
 }
 
 async fn api_save_animations(

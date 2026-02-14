@@ -864,9 +864,7 @@ dependencies = [
 
 [[package]]
 name = "circles-sketch"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcf87952c2f2c75b026cec9ddcf0d5575293d73001dcceddb1fbb1d2832142e"
+version = "0.2.1"
 dependencies = [
  "clap",
  "font-kit",

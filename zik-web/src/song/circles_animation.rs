@@ -14,9 +14,15 @@ pub struct TextAnimation {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SvgPath {
+    pub path: String,
+    pub flip_y: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AnimationEnum {
     Text(TextAnimation),
-    SvgPath(String),
+    SvgPath(SvgPath),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -51,9 +57,20 @@ fn contour_of_animation_enum(
     animation: &AnimationEnum,
 ) -> Result<(String, Vec<(f64, f64)>), Box<dyn std::error::Error + Send + Sync>> {
     match animation {
-        AnimationEnum::SvgPath(path) => {
-            let points = circles_sketch::svg::points_of_svg_path(path);
-            Ok((path.clone(), points))
+        AnimationEnum::SvgPath(svg) => {
+            let svg_content = std::fs::read_to_string(format!("static/{}", svg.path))?;
+            let path_data = svg_content
+                .split("d=\"")
+                .nth(1)
+                .and_then(|s| s.split('"').next())
+                .ok_or_else(|| format!("no path d attribute found in {}", svg.path))?;
+            let mut points = circles_sketch::svg::points_of_svg_path(path_data);
+            if svg.flip_y {
+                for (_, y) in &mut points {
+                    *y = -*y;
+                }
+            }
+            Ok((path_data.to_string(), points))
         }
         AnimationEnum::Text(t) => {
             let svg_path = circles_sketch::text::svg_path_of_text(&t.text, &t.font);
