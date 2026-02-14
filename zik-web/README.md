@@ -10,22 +10,24 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
   - Filter by tags
   - Error songs highlighted in red
   - Mobile-friendly design
-- **Song Detail Page**: View song with action buttons
+- **Song Detail Page**: View song with action buttons (dark theme)
   - PDF and lyrics PDF viewer
   - Tempo button (Strudel REPL with drum pattern)
   - Deezer / Spotify links (Web and App)
-  - Build trigger with live Lambda status
+  - Build trigger with live Lambda status (elapsed time while running)
 - **Edit Pages**: Multiple editors with syntax highlighting
   - Edit YML: YAML editor with validation (validates Song structure on save)
   - Edit Lilypond: .ly file editor
   - Edit Lyrics: Lyrics text editor
   - Edit TeX: LaTeX editor
-- **Settings Page**: Music service preferences, Re-index songs
-  - Animation toggle and configuration (contour selection, speed, trace, harmonics)
+- **Settings Page**: Music service preferences, Re-index songs (dark theme dialogs)
+  - Animation toggle and configuration (contour selection, speed, trace, harmonics, points)
   - Language selection (English/French)
-- **Background Animation**: Fourier contour animation cycling through multiple shapes
+- **Background Animation**: Fourier epicycle animation cycling through multiple shapes
+  - Text animations (any TTF font) and SVG path animations
   - Configurable speed, trace, harmonics, interpolation points
-  - Contour reveal pause at end of each loop
+  - Per-user animation selection via cookies
+  - Animation settings with dark theme UI
 - **Master Page**: Song compilation workflow
 - **PDF Viewer**: View song PDFs directly from S3
 
@@ -42,7 +44,7 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
 ### Backend
 ```bash
 cd zik-web
-AWS_PROFILE=zik-laurent cargo run
+BUCKET=zik-laurent BUCKET_ROOT=dev AWS_PROFILE=zik-laurent WRITE_PASSWORD=xxx cargo run
 ```
 Server runs at http://localhost:8080
 
@@ -66,6 +68,8 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 | `/api/invoke-build` | Trigger Lambda build (auth required) |
 | `/api/world` | Re-index songs to world.yml (auth required) |
 | `/api/guitar-embed/:index` | Generate Fourier animation embed HTML |
+| `/api/animations` | GET/POST animation configuration |
+| `/api/config` | Runtime config (favicon) |
 | `/api/lambda-status` | Lambda build status |
 | `/version` | Current version |
 
@@ -81,7 +85,7 @@ zik-web/
       mod.rs         - Song module exports
       model.rs       - Song data structures
       songs.rs       - S3 operations and song listing
-      guitar_logo.rs - Fourier animation embed generation
+      circles_animation.rs - Fourier animation embed generation
       tempo.rs       - Tempo/strudel HTML generation
       edit_lyrics.rs - Lyrics editing handlers
 
@@ -103,4 +107,14 @@ frontend/
 Build and deploy with the production Dockerfile:
 ```bash
 docker build -f Dockerfile.production -t zik-web .
+```
+
+### Dev deployment
+```bash
+gh workflow run deploy-dev.yml --ref work
+```
+
+### Production deployment
+```bash
+gh workflow run deploy.yml --ref main
 ```

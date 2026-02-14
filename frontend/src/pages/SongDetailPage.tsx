@@ -326,8 +326,8 @@ export default function SongDetailPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-gray-500">Loading...</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -336,8 +336,8 @@ export default function SongDetailPage() {
   if (error || !song) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-red-600">Song not found</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-red-400">Song not found</p>
           <Link
             to="/songs"
             className="inline-block mt-4 text-[#667eea] hover:underline"
@@ -351,11 +351,11 @@ export default function SongDetailPage() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-3xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+      <div className="max-w-3xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <Link
             to="/songs"
-            className="text-[#667eea] no-underline hover:underline"
+            className="text-[#8b9cf7] no-underline hover:underline"
           >
             &larr; {t('nav.backToSongs')}
           </Link>
@@ -363,7 +363,7 @@ export default function SongDetailPage() {
             <button
               onClick={() => prevSong && navigate(`/song/${prevSong.id}`)}
               disabled={!prevSong}
-              className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1 text-sm text-gray-200 rounded-lg border border-gray-600 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               title={prevSong ? `${prevSong.author} - ${prevSong.title}` : undefined}
             >
               &larr; {t('nav.prev')}
@@ -371,7 +371,7 @@ export default function SongDetailPage() {
             <button
               onClick={() => nextSong && navigate(`/song/${nextSong.id}`)}
               disabled={!nextSong}
-              className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1 text-sm text-gray-200 rounded-lg border border-gray-600 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               title={nextSong ? `${nextSong.author} - ${nextSong.title}` : undefined}
             >
               {t('nav.next')} &rarr;
@@ -379,7 +379,7 @@ export default function SongDetailPage() {
           </div>
           <Link
             to="/settings"
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-gray-400 hover:text-gray-200 transition-colors"
             title="Settings"
           >
             <GearIcon className="w-5 h-5" />
@@ -394,9 +394,9 @@ export default function SongDetailPage() {
         </p>
 
         {song.error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 text-sm font-semibold mb-1">Parse error</p>
-            <p className="text-red-600 text-xs font-mono whitespace-pre-wrap">{song.error}</p>
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg">
+            <p className="text-red-300 text-sm font-semibold mb-1">Parse error</p>
+            <p className="text-red-400 text-xs font-mono whitespace-pre-wrap">{song.error}</p>
           </div>
         )}
 
@@ -404,16 +404,22 @@ export default function SongDetailPage() {
           <div className="mb-4">
             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
               lambdaRunning
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-600'
+                ? 'bg-green-900/50 text-green-300'
+                : 'bg-gray-700 text-gray-400'
             }`}>
               <span className={`w-2 h-2 rounded-full ${
                 lambdaRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
               }`}></span>
               {lambdaRunning ? t('song.buildRunning') : t('song.idle')}
-              {lambdaTimestamp && (
+              {lambdaRunning ? (
+                lambdaDuration !== null && (
+                  <span className="ml-1 opacity-75">
+                    ({formatDuration(lambdaDuration)})
+                  </span>
+                )
+              ) : lambdaTimestamp && (
                 <span className="ml-1 opacity-75">
-                  ({lambdaRunning ? t('song.started') : t('song.lastRun')}: {lambdaTimestamp}
+                  ({t('song.lastRun')}: {lambdaTimestamp}
                   {lambdaDuration !== null && `, ${formatDuration(lambdaDuration)}`})
                 </span>
               )}
@@ -422,10 +428,10 @@ export default function SongDetailPage() {
         )}
 
         {buildError && (
-          <div className="mb-6 p-4 bg-red-50 rounded-lg border border-red-200">
+          <div className="mb-6 p-4 bg-red-900/30 rounded-lg border border-red-800">
             <div className="flex items-center gap-3">
-              <span className="text-red-600 font-medium">{t('song.buildFailed')}</span>
-              <span className="font-mono text-sm text-gray-600">{buildError.pathbuf}</span>
+              <span className="text-red-300 font-medium">{t('song.buildFailed')}</span>
+              <span className="font-mono text-sm text-gray-400">{buildError.pathbuf}</span>
               <button
                 onClick={() => openLogFile(buildError.pathbuf, 'stdout')}
                 className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -554,7 +560,7 @@ export default function SongDetailPage() {
         </div>
 
         {buildMessage && (
-          <div className={`mt-4 p-3 rounded-lg ${buildMessage.includes('succeeded') ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+          <div className={`mt-4 p-3 rounded-lg ${buildMessage.includes('succeeded') ? 'bg-green-900/50 text-green-300' : 'bg-yellow-900/50 text-yellow-300'}`}>
             {buildMessage}
           </div>
         )}
@@ -562,12 +568,12 @@ export default function SongDetailPage() {
 
       {showLogModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-800 text-xl font-bold">{logModalTitle}</h2>
+              <h2 className="text-gray-200 text-xl font-bold">{logModalTitle}</h2>
               <button
                 onClick={() => { setShowLogModal(false); setLogSearchQuery('') }}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
@@ -589,7 +595,7 @@ export default function SongDetailPage() {
                       setCurrentMatchIndex(nextIndex)
                     }
                   }}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 border border-gray-600 bg-gray-800 text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
                 {logSearchQuery && (() => {
@@ -598,14 +604,14 @@ export default function SongDetailPage() {
                     <>
                       <button
                         onClick={() => setCurrentMatchIndex((currentMatchIndex - 1 + matches.length) % matches.length)}
-                        className="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                        className="px-3 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
                         title="Previous match (Shift+Enter)"
                       >
                         &uarr;
                       </button>
                       <button
                         onClick={() => setCurrentMatchIndex((currentMatchIndex + 1) % matches.length)}
-                        className="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                        className="px-3 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
                         title="Next match (Enter)"
                       >
                         &darr;
@@ -615,7 +621,7 @@ export default function SongDetailPage() {
                 })()}
               </div>
               {logSearchQuery && (
-                <span className="text-sm text-gray-500 mt-1 block">
+                <span className="text-sm text-gray-400 mt-1 block">
                   {(() => {
                     const matches = logContent.match(new RegExp(logSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []
                     return matches.length > 0 ? `${currentMatchIndex + 1} of ${matches.length} matches` : 'No matches'
@@ -651,7 +657,7 @@ export default function SongDetailPage() {
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => { setShowLogModal(false); setLogSearchQuery(''); setCurrentMatchIndex(0) }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>

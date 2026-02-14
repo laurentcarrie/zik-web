@@ -23,8 +23,6 @@ pnpm-debug.log*
 # Local Netlify folder
 .netlify
 
-# runtime cache (downloaded from S3)
-static/
-
 # local scripts
 scripts/rebuild-pdfs-in-s3.sh
+scripts/private-*

@@ -13,7 +13,8 @@ export default function SearchInput({ value, onChange, placeholder = 'Search...'
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base
+        className="w-full px-4 py-3 border border-gray-600 rounded-lg text-base
+                   bg-gray-800 text-gray-100 placeholder-gray-500
                    focus:outline-none focus:border-[--color-link]
                    transition-colors"
       />

@@ -11,10 +11,10 @@ interface ActionButtonProps {
 
 const variantStyles = {
   pdf: 'bg-[#dc2626]/70 hover:bg-[#dc2626]/90',
-  deezer: 'bg-[#191414]/70 hover:bg-[#191414]/90',
-  'deezer-app': 'bg-[#ff6b35]/70 hover:bg-[#ff6b35]/90',
-  spotify: 'bg-[#1DB954]/70 hover:bg-[#1DB954]/90',
-  'spotify-app': 'bg-[#191414]/70 hover:bg-[#191414]/90',
+  deezer: 'bg-[#7b2bc9]/70 hover:bg-[#7b2bc9]/90',
+  'deezer-app': 'bg-[#d45a20]/70 hover:bg-[#d45a20]/90',
+  spotify: 'bg-[#158c3a]/70 hover:bg-[#158c3a]/90',
+  'spotify-app': 'bg-[#158c3a]/70 hover:bg-[#158c3a]/90',
   edit: 'bg-[#6b7280]/70 hover:bg-[#6b7280]/90',
 }
 

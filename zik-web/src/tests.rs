@@ -1,6 +1,64 @@
-use super::song::{get_all_songs, make_deezer_url, write_all_songs_to_s3};
+use super::song::{BUCKET, get_all_songs, make_deezer_url, s3_key, write_all_songs_to_s3};
 use super::*;
 use aws_config::Region;
+use aws_sdk_s3::primitives::ByteStream;
+
+const TEST_WORLD_YML: &str = r#"items:
+- - Alannah Myles/Black Velvet/song.yml
+  - !Song
+    files:
+      lilypond: []
+      tex: []
+      wav: []
+    info:
+      title: Black Velvet
+      author: Alannah Myles
+      tempo: 92
+      tags: []
+    meta:
+      date: null
+      digest: null
+    structure: []
+- - Test Artist/Test Song/song.yml
+  - !Song
+    files:
+      lilypond: []
+      tex: []
+      wav: []
+    info:
+      title: Test Song
+      author: Test Artist
+      tempo: 120
+      tags:
+        - rock
+    meta:
+      date: null
+      digest: null
+    structure: []
+"#;
+
+async fn setup_test_data(client: &Client) {
+    let key = s3_key("songs/world.yml");
+    client
+        .put_object()
+        .bucket(BUCKET.as_str())
+        .key(&key)
+        .body(ByteStream::from(TEST_WORLD_YML.as_bytes().to_vec()))
+        .content_type("text/yaml")
+        .send()
+        .await
+        .expect("Failed to upload test world.yml");
+}
+
+async fn teardown_test_data(client: &Client) {
+    let key = s3_key("songs/world.yml");
+    let _ = client
+        .delete_object()
+        .bucket(BUCKET.as_str())
+        .key(&key)
+        .send()
+        .await;
+}
 
 #[tokio::test]
 async fn test_get_all_songs() {
@@ -10,21 +68,21 @@ async fn test_get_all_songs() {
         .await;
     let client = Client::new(&config);
 
-    let songs = get_all_songs(&client).await.expect("Failed to get songs");
+    setup_test_data(&client).await;
 
-    // Print all songs for debugging
+    let result = get_all_songs(&client).await;
+
+    teardown_test_data(&client).await;
+
+    let songs = result.expect("Failed to get songs");
+
     println!("Found {} songs:", songs.len());
     for s in &songs {
         println!("  - {} by {}", s.title, s.author);
     }
 
-    // Check we got some songs
-    if songs.is_empty() {
-        println!("WARNING: No songs found in all-songs.yml - S3 bucket may need data restored");
-        return;
-    }
+    assert_eq!(songs.len(), 2, "Should have exactly 2 test songs");
 
-    // Check that Black Velvet by Alannah Myles is in the list
     let has_black_velvet = songs
         .iter()
         .any(|s| s.title == "Black Velvet" && s.author == "Alannah Myles");
@@ -32,6 +90,11 @@ async fn test_get_all_songs() {
         has_black_velvet,
         "Should contain Black Velvet by Alannah Myles"
     );
+
+    let has_test_song = songs
+        .iter()
+        .any(|s| s.title == "Test Song" && s.author == "Test Artist");
+    assert!(has_test_song, "Should contain Test Song by Test Artist");
 }
 
 #[tokio::test]

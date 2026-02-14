@@ -10,12 +10,12 @@ interface SongCardProps {
 export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
   if (song.error) {
     return (
-      <li className="p-3 border-b border-gray-200 last:border-b-0 bg-red-50">
+      <li className="p-3 border-b border-gray-700 last:border-b-0 bg-red-950/50">
         <Link
           to={`/song/${song.id}`}
           className="block no-underline hover:opacity-80 transition-opacity"
         >
-          <span className="text-red-600 text-sm font-mono">{song.key}</span>
+          <span className="text-red-400 text-sm font-mono">{song.key}</span>
         </Link>
       </li>
     )
@@ -23,8 +23,8 @@ export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
 
   return (
     <li
-      className={`p-3 border-b border-gray-200 last:border-b-0 ${
-        isOdd ? 'bg-green-100' : 'bg-purple-100'
+      className={`p-3 border-b border-gray-700 last:border-b-0 ${
+        isOdd ? 'bg-green-950/40' : 'bg-purple-950/40'
       }`}
     >
       <Link
@@ -36,7 +36,7 @@ export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
             <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#ea580c] break-words">
               {song.author}
             </span>
-            <span className="text-gray-400 text-sm sm:mx-2 hidden sm:inline">performs</span>
+            <span className="text-gray-500 text-sm sm:mx-2 hidden sm:inline">performs</span>
             <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#2563eb] break-words">
               {song.title}
             </span>
@@ -46,7 +46,7 @@ export default function SongCard({ song, sortBy, isOdd }: SongCardProps) {
             <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#2563eb] break-words">
               {song.title}
             </span>
-            <span className="text-gray-400 text-sm sm:mx-2 hidden sm:inline">by</span>
+            <span className="text-gray-500 text-sm sm:mx-2 hidden sm:inline">by</span>
             <span className="font-[Fontskrivan] font-black text-base sm:text-lg text-[#ea580c] break-words">
               {song.author}
             </span>

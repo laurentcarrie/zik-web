@@ -84,9 +84,9 @@ export default function SongsPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl max-w-lg">
-          <h2 className="text-red-600 text-xl font-bold mb-2">Failed to load songs</h2>
-          <p className="text-gray-600 text-sm break-words">
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl max-w-lg">
+          <h2 className="text-red-400 text-xl font-bold mb-2">Failed to load songs</h2>
+          <p className="text-gray-400 text-sm break-words">
             {error instanceof Error ? error.message : 'Unknown error'}
           </p>
         </div>
@@ -95,25 +95,25 @@ export default function SongsPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-3xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+    <div className="min-h-screen p-4 md:p-8 bg-black/70">
+      <div className="max-w-3xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <Link
             to="/"
-            className="text-[#667eea] no-underline hover:underline"
+            className="text-[#8b9cf7] no-underline hover:underline"
           >
             &larr; {t('nav.back')}
           </Link>
           <Link
             to="/settings"
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-300 transition-colors"
             title={t('settings.title')}
           >
             <GearIcon className="w-5 h-5" />
           </Link>
         </div>
 
-        <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">{t('songs.title')}</h1>
+        <h1 className="text-gray-100 text-2xl md:text-3xl font-bold mb-6">{t('songs.title')}</h1>
 
         <div className="flex flex-wrap gap-2 mb-4">
           <button
@@ -121,7 +121,7 @@ export default function SongsPage() {
             className={`px-3 py-2 rounded-lg text-sm transition-colors ${
               sortBy === 'title'
                 ? 'bg-[#667eea] text-white'
-                : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
             }`}
           >
             {t('songs.sortByTitle')}
@@ -131,7 +131,7 @@ export default function SongsPage() {
             className={`px-3 py-2 rounded-lg text-sm transition-colors ${
               sortBy === 'author'
                 ? 'bg-[#667eea] text-white'
-                : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
             }`}
           >
             {t('songs.sortByAuthor')}
@@ -145,11 +145,11 @@ export default function SongsPage() {
         />
 
         <label className="flex items-center gap-2 mb-4 cursor-pointer">
-          <span className={`text-sm ${!useFuzzy ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Exact</span>
+          <span className={`text-sm ${!useFuzzy ? 'text-gray-200 font-medium' : 'text-gray-500'}`}>Exact</span>
           <button
             onClick={() => setUseFuzzy(!useFuzzy)}
             className={`relative w-10 h-6 rounded-full transition-colors ${
-              useFuzzy ? 'bg-[#667eea]' : 'bg-gray-300'
+              useFuzzy ? 'bg-[#667eea]' : 'bg-gray-600'
             }`}
           >
             <span
@@ -158,7 +158,7 @@ export default function SongsPage() {
               }`}
             />
           </button>
-          <span className={`text-sm ${useFuzzy ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Fuzzy</span>
+          <span className={`text-sm ${useFuzzy ? 'text-gray-200 font-medium' : 'text-gray-500'}`}>Fuzzy</span>
         </label>
 
         {allTags.length > 0 && (
@@ -178,18 +178,18 @@ export default function SongsPage() {
                   }}
                   className="w-3.5 h-3.5 accent-[#667eea]"
                 />
-                <span className="text-sm text-gray-600">{tag}</span>
+                <span className="text-sm text-gray-400">{tag}</span>
               </label>
             ))}
           </div>
         )}
 
-        <p className="text-gray-500 text-sm mb-4">
+        <p className="text-gray-400 text-sm mb-4">
           {filteredAndSortedSongs.length} songs
         </p>
 
         {isLoading ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
+          <div className="text-center py-8 text-gray-400">Loading...</div>
         ) : (
           <ul className="list-none">
             {filteredAndSortedSongs.map((song, index) => (

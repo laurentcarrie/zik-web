@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Dev App Runner service for zik-web. Reuses existing S3, ECR, IAM roles,
+  Lambda, and CloudFront from the production stack. No Route 53 records.
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket for song storage and delivery
+  AppRunnerECRAccessRoleArn:
+    Type: String
+    Description: ARN of the App Runner ECR access role
+  AppRunnerInstanceRoleArn:
+    Type: String
+    Description: ARN of the App Runner instance role
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # App Runner (dev)
+  # ---------------------------------------------------------------------------
+  ZikWebDevService:
+    Type: AWS::AppRunner::Service
+    DeletionPolicy: Retain
+    Properties:
+      ServiceName: zik-web-dev
+      SourceConfiguration:
+        AutoDeploymentsEnabled: false
+        AuthenticationConfiguration:
+          AccessRoleArn: !Ref AppRunnerECRAccessRoleArn
+        ImageRepository:
+          ImageIdentifier: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/zik-web:dev-latest"
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: "8080"
+            RuntimeEnvironmentVariables:
+              - Name: BUCKET
+                Value: !Ref S3BucketName
+              - Name: BUCKET_ROOT
+                Value: dev
+      InstanceConfiguration:
+        Cpu: "1024"
+        Memory: "2048"
+        InstanceRoleArn: !Ref AppRunnerInstanceRoleArn
+      HealthCheckConfiguration:
+        Protocol: TCP
+        Interval: 5
+        Timeout: 2
+        HealthyThreshold: 1
+        UnhealthyThreshold: 5
+      NetworkConfiguration:
+        IngressConfiguration:
+          IsPubliclyAccessible: true
+
+Outputs:
+  DevServiceArn:
+    Value: !GetAtt ZikWebDevService.ServiceArn
+  DevServiceUrl:
+    Value: !GetAtt ZikWebDevService.ServiceUrl

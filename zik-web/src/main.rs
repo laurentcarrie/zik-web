@@ -20,11 +20,11 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    AnimationConfig, CONTOUR_COUNT, SongItem, contour_names, download_font_from_s3,
-    drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key, get_song_pdf,
-    get_song_yml, lilypond_to_html, make_cloudfront_url, make_deezer_app_url, make_deezer_url,
-    read_from_s3, save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_guitar_embed_to_s3,
-    write_tempo_html_to_s3, write_to_s3,
+    Animations, SongItem, drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key,
+    get_song_pdf, get_song_yml, lilypond_to_html, load_animations, make_cloudfront_url,
+    make_deezer_app_url, make_deezer_url, read_from_s3, save_animations, save_lyrics_by_key,
+    save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_tempo_html_to_s3,
+    write_to_s3,
 };
 
 use std::sync::Arc;
@@ -38,11 +38,11 @@ pub struct AppState {
     ses_client: SesClient,
     /// Timestamp when last build was triggered (for immediate status feedback)
     build_triggered_at: Arc<Mutex<Option<std::time::Instant>>>,
-    /// S3 URL prefix for song sources, e.g. "s3://zik-laurent"
+    /// S3 URL prefix for song sources, e.g. "s3://bucket-name"
     srcdir_prefix: String,
-    /// S3 URL for delivery output, e.g. "s3://zik-laurent/delivery"
+    /// S3 URL for delivery output, e.g. "s3://bucket-name/delivery"
     delivery: String,
-    /// S3 URL for settings file, e.g. "s3://zik-laurent/songs/settings.yml"
+    /// S3 URL for settings file, e.g. "s3://bucket-name/songs/settings.yml"
     settings: String,
 }
 
@@ -57,17 +57,14 @@ async fn main() {
     let lambda_client = LambdaClient::new(&config);
     let ses_client = SesClient::new(&config);
 
-    // Download font from S3 to static directory
-    if let Err(e) = download_font_from_s3(&s3_client).await {
-        eprintln!("Warning: Failed to download font from S3: {e}");
-    }
-
+    let bucket = &*song::BUCKET;
+    let root = &*song::BUCKET_ROOT;
     let srcdir_prefix =
-        std::env::var("SRCDIR_PREFIX").unwrap_or_else(|_| "s3://zik-laurent".to_string());
+        std::env::var("SRCDIR_PREFIX").unwrap_or_else(|_| format!("s3://{bucket}/{root}"));
     let delivery =
-        std::env::var("DELIVERY").unwrap_or_else(|_| "s3://zik-laurent/delivery".to_string());
+        std::env::var("DELIVERY").unwrap_or_else(|_| format!("s3://{bucket}/{root}/delivery"));
     let settings = std::env::var("SETTINGS")
-        .unwrap_or_else(|_| "s3://zik-laurent/songs/settings.yml".to_string());
+        .unwrap_or_else(|_| format!("s3://{bucket}/{root}/songs/settings.yml"));
 
     let state = AppState {
         s3_client,
@@ -104,12 +101,15 @@ async fn main() {
         .route("/lilypond-to-html", post(api_lilypond_to_html))
         .route("/drum-pattern-to-html", post(api_drum_pattern_to_html))
         .route("/guitar-embed/{index}", get(api_guitar_embed))
+        .route("/animations", get(api_get_animations))
+        .route("/config", get(api_config))
         .route("/auth/verify", post(verify_password))
         .with_state(state.clone());
 
     // Protected API routes (write operations) - require auth
     let protected_api_routes = Router::new()
         .route("/song/{id}/yml", post(api_save_song_yml))
+        .route("/animations", post(api_save_animations))
         .route("/song/{id}/lyrics/{section_id}", post(api_save_lyrics))
         .route("/s3/{*key}", post(api_write_to_s3))
         .route("/make", post(api_make))
@@ -256,11 +256,11 @@ async fn api_song(
     let pdf_name = song_info.file_stem_of_song();
 
     // Check main PDF
-    let pdf_key = format!("delivery/pdf/{pdf_name}.pdf");
+    let pdf_key = song::s3_key(&format!("delivery/pdf/{pdf_name}.pdf"));
     let pdf_url = match state
         .s3_client
         .head_object()
-        .bucket("zik-laurent")
+        .bucket(song::BUCKET.as_str())
         .key(&pdf_key)
         .send()
         .await
@@ -270,11 +270,13 @@ async fn api_song(
     };
 
     // Check lyrics PDF
-    let lyrics_key = format!("delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf");
+    let lyrics_key = song::s3_key(&format!(
+        "delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf"
+    ));
     let pdf_lyrics_url = match state
         .s3_client
         .head_object()
-        .bucket("zik-laurent")
+        .bucket(song::BUCKET.as_str())
         .key(&lyrics_key)
         .send()
         .await
@@ -506,12 +508,12 @@ async fn api_pdf_lyrics(
         Some("2") => "pdf-lyrics-2-column",
         _ => "pdf-lyrics-1-column",
     };
-    let key = format!("delivery/{folder}/{pdf_name}-lyrics.pdf");
+    let key = song::s3_key(&format!("delivery/{folder}/{pdf_name}-lyrics.pdf"));
 
     match state
         .s3_client
         .get_object()
-        .bucket("zik-laurent")
+        .bucket(song::BUCKET.as_str())
         .key(&key)
         .send()
         .await
@@ -542,21 +544,22 @@ async fn api_pdf_lyrics(
     }
 }
 
-const PRESS_BOOK_PHOTOS_PREFIX: &str = "press-book/truskell-2025-06-06/photos/";
-const PRESS_BOOK_VIDEOS_PREFIX: &str = "press-book/truskell-2025-06-06/videos/";
+const PRESS_BOOK_PHOTOS_PATH: &str = "press-book/truskell-2025-06-06/photos/";
+const PRESS_BOOK_VIDEOS_PATH: &str = "press-book/truskell-2025-06-06/videos/";
 
 async fn api_press_book_photos(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
     let mut photos = Vec::new();
     let mut continuation_token: Option<String> = None;
+    let prefix = song::s3_key(PRESS_BOOK_PHOTOS_PATH);
 
     loop {
         let mut request = state
             .s3_client
             .list_objects_v2()
-            .bucket(song::BUCKET)
-            .prefix(PRESS_BOOK_PHOTOS_PREFIX);
+            .bucket(song::BUCKET.as_str())
+            .prefix(&prefix);
 
         if let Some(token) = continuation_token {
             request = request.continuation_token(token);
@@ -595,14 +598,15 @@ async fn api_press_book_photos(
 
 async fn api_press_book_photo(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book photos folder
-    if !key.starts_with(PRESS_BOOK_PHOTOS_PREFIX) {
+    let photos_prefix = song::s3_key(PRESS_BOOK_PHOTOS_PATH);
+    if !key.starts_with(&photos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
     match state
         .s3_client
         .get_object()
-        .bucket(song::BUCKET)
+        .bucket(song::BUCKET.as_str())
         .key(&key)
         .send()
         .await
@@ -635,12 +639,14 @@ async fn api_press_book_videos(
     let mut videos = Vec::new();
     let mut continuation_token: Option<String> = None;
 
+    let prefix = song::s3_key(PRESS_BOOK_VIDEOS_PATH);
+
     loop {
         let mut request = state
             .s3_client
             .list_objects_v2()
-            .bucket(song::BUCKET)
-            .prefix(PRESS_BOOK_VIDEOS_PREFIX);
+            .bucket(song::BUCKET.as_str())
+            .prefix(&prefix);
 
         if let Some(token) = continuation_token {
             request = request.continuation_token(token);
@@ -678,14 +684,15 @@ async fn api_press_book_videos(
 
 async fn api_press_book_video(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book videos folder
-    if !key.starts_with(PRESS_BOOK_VIDEOS_PREFIX) {
+    let videos_prefix = song::s3_key(PRESS_BOOK_VIDEOS_PATH);
+    if !key.starts_with(&videos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
     match state
         .s3_client
         .get_object()
-        .bucket(song::BUCKET)
+        .bucket(song::BUCKET.as_str())
         .key(&key)
         .send()
         .await
@@ -759,12 +766,12 @@ async fn api_read_from_s3(
 async fn api_make_report(
     State(state): State<AppState>,
 ) -> Result<Json<MakeReportResponse>, StatusCode> {
-    let key = "sandbox/make-report.yml";
+    let key = song::s3_key("sandbox/make-report.yml");
     let resp = state
         .s3_client
         .get_object()
-        .bucket(song::BUCKET)
-        .key(key)
+        .bucket(song::BUCKET.as_str())
+        .key(&key)
         .send()
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -988,14 +995,37 @@ async fn api_drum_pattern_to_html(
 async fn api_guitar_embed(
     State(state): State<AppState>,
     Path(index): Path<usize>,
-    axum::extract::Query(config): axum::extract::Query<AnimationConfig>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let url = write_guitar_embed_to_s3(&state.s3_client, index, &config)
+    let animations =
+        load_animations().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
+    let count = animations.items.len();
+    let url = write_animation_embed_to_s3(&state.s3_client, &animations, index)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(
-        serde_json::json!({ "url": url, "count": CONTOUR_COUNT, "names": contour_names() }),
+        serde_json::json!({ "url": url, "count": count, "names": names }),
     ))
+}
+
+async fn api_get_animations() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let animations =
+        load_animations().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let value = serde_json::to_value(&animations)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(value))
+}
+
+async fn api_config() -> Json<serde_json::Value> {
+    let favicon = std::env::var("FAVICON").ok();
+    Json(serde_json::json!({ "favicon": favicon }))
+}
+
+async fn api_save_animations(
+    Json(animations): Json<Animations>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    save_animations(&animations).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::OK)
 }
 
 async fn version() -> &'static str {
@@ -1057,8 +1087,8 @@ async fn api_make(
     let dir = req.path.trim_end_matches("/song.yml");
 
     // Build S3 URLs for srcdir and sandbox
-    let srcdir = format!("s3://{}/{}", song::BUCKET, dir);
-    let sandbox = format!("s3://{}/sandbox", song::BUCKET);
+    let srcdir = format!("s3://{}/{}", &*song::BUCKET, dir);
+    let sandbox = format!("s3://{}/{}/sandbox", &*song::BUCKET, &*song::BUCKET_ROOT);
 
     // Create a temporary local sandbox directory
     let local_sandbox = tempfile::tempdir().map_err(|e| {
@@ -1086,8 +1116,8 @@ async fn api_make(
     .await;
 
     // Try to read the make-report.yml from S3
-    let report_key = "sandbox/make-report.yml";
-    let report = read_from_s3(&state.s3_client, report_key).await.ok();
+    let report_key = song::s3_key("sandbox/make-report.yml");
+    let report = read_from_s3(&state.s3_client, &report_key).await.ok();
 
     match result {
         Ok((success, _graph)) => {
@@ -1302,17 +1332,21 @@ async fn api_world(
     })?;
 
     // Write world.yml to S3
-    write_to_s3(&state.s3_client, "songs/world.yml", &yaml_content)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(WorldResponse {
-                    success: false,
-                    message: format!("Failed to write world.yml: {e}"),
-                }),
-            )
-        })?;
+    write_to_s3(
+        &state.s3_client,
+        &song::s3_key("songs/world.yml"),
+        &yaml_content,
+    )
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(WorldResponse {
+                success: false,
+                message: format!("Failed to write world.yml: {e}"),
+            }),
+        )
+    })?;
 
     Ok(Json(WorldResponse {
         success: true,
