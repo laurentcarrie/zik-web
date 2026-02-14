@@ -1,9 +1,7 @@
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 use band_songbook::model::{SongInfo, World, WorldItem};
-use std::path::Path;
 use std::sync::LazyLock;
-use tokio::fs;
 use uuid::Uuid;
 
 use super::{SongEntry, SongYml};
@@ -18,8 +16,6 @@ pub const CLOUDFRONT_URL: &str = "https://dtuq2blkj3udo.cloudfront.net";
 pub fn s3_key(key: &str) -> String {
     format!("{}/{}", &*BUCKET_ROOT, key)
 }
-const FONT_LOCAL_PATH: &str = "static/skriva-3.woff";
-
 pub struct SongItem {
     pub id: String,
     pub title: String,
@@ -167,30 +163,6 @@ pub async fn write_all_songs_to_s3(
         .send()
         .await?;
 
-    Ok(())
-}
-
-pub async fn download_font_from_s3(
-    client: &Client,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let local_path = Path::new(FONT_LOCAL_PATH);
-
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = local_path.parent() {
-        fs::create_dir_all(parent).await?;
-    }
-
-    let resp = client
-        .get_object()
-        .bucket(BUCKET.as_str())
-        .key(s3_key("static/skriva-3.woff"))
-        .send()
-        .await?;
-
-    let bytes = resp.body.collect().await?.into_bytes();
-    fs::write(local_path, bytes).await?;
-
-    println!("Downloaded {FONT_LOCAL_PATH} from S3");
     Ok(())
 }
 

@@ -20,7 +20,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    Animations, SongItem, download_font_from_s3, drum_pattern_to_html, edit_lyrics, get_all_songs,
+    Animations, SongItem, drum_pattern_to_html, edit_lyrics, get_all_songs,
     get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, load_animations,
     make_cloudfront_url, make_deezer_app_url, make_deezer_url, read_from_s3, save_animations,
     save_lyrics_by_key, save_lyrics_handler, save_song_yml, write_animation_embed_to_s3,
@@ -56,11 +56,6 @@ async fn main() {
     let logs_client = CloudWatchLogsClient::new(&config);
     let lambda_client = LambdaClient::new(&config);
     let ses_client = SesClient::new(&config);
-
-    // Download font from S3 to static directory
-    if let Err(e) = download_font_from_s3(&s3_client).await {
-        eprintln!("Warning: Failed to download font from S3: {e}");
-    }
 
     let bucket = &*song::BUCKET;
     let root = &*song::BUCKET_ROOT;

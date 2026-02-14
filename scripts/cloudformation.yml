@@ -83,6 +83,8 @@ Resources:
                   - s3:ListBucket
                 Resource:
                   - !Sub "${S3Bucket.Arn}/songs/*"
+                  - !Sub "${S3Bucket.Arn}/dev/songs/*"
+                  - !Sub "${S3Bucket.Arn}/prod/songs/*"
                   - !GetAtt S3Bucket.Arn
               - Effect: Allow
                 Action:
@@ -92,6 +94,10 @@ Resources:
                 Resource:
                   - !Sub "${S3Bucket.Arn}/delivery/*"
                   - !Sub "${S3Bucket.Arn}/sandbox/*"
+                  - !Sub "${S3Bucket.Arn}/dev/delivery/*"
+                  - !Sub "${S3Bucket.Arn}/dev/sandbox/*"
+                  - !Sub "${S3Bucket.Arn}/prod/delivery/*"
+                  - !Sub "${S3Bucket.Arn}/prod/sandbox/*"
 
   # ---------------------------------------------------------------------------
   # IAM — App Runner ECR Access Role
