@@ -8,16 +8,16 @@ items:
     speed: 3.0
     steps:
       thresholds:
-      - start: 10
+      - start: 0
         step: 100
-      max_harmonic: 1000
+      max_harmonic: 5000
     show_contour: Never
     show_point: true
     show_trace: Always
     trace_length: 830.0
     opacity: 1.0
     show_nh: true
-    trace_width: 1.7
+    trace_width: 0.4
     contour_width: 0.3
     show_fourier_circles: !OnceEvery
       modulo: 2
@@ -89,17 +89,20 @@ items:
     path: guitar.svg
     flip_y: true
   embed_options:
-    num_points: 3000
+    num_points: 7000
     speed: 3.0
     steps:
       thresholds:
+      - start: 1
+        step: 1
       - start: 10
+        step: 10
+      - start: 100
         step: 100
-      max_harmonic: 1000
-    show_contour: !OnceEvery
-      modulo: 5
-      remainders:
-      - 1
+      - start: 500
+        step: 500
+      max_harmonic: 8000
+    show_contour: Never
     show_point: true
     show_trace: Always
     trace_length: 0.3
@@ -114,3 +117,4 @@ items:
     trace_colors:
     - white
     - red
+    - cyan
