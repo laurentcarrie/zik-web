@@ -7,6 +7,8 @@ use circles_sketch::model::EmbedOptions;
 
 use super::songs::{BUCKET, make_cloudfront_url, s3_key};
 
+type AnimResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TextAnimation {
     pub text: String,
@@ -55,7 +57,7 @@ pub fn save_animations(
 
 fn contour_of_animation_enum(
     animation: &AnimationEnum,
-) -> Result<(String, Vec<(f64, f64)>), Box<dyn std::error::Error + Send + Sync>> {
+) -> AnimResult<(String, Vec<(f64, f64)>)> {
     match animation {
         AnimationEnum::SvgPath(svg) => {
             let svg_content = std::fs::read_to_string(format!("static/{}", svg.path))?;

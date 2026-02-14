@@ -36,7 +36,7 @@ pub async fn get_all_songs(
     let resp = client
         .get_object()
         .bucket(BUCKET.as_str())
-        .key(&s3_key("songs/world.yml"))
+        .key(s3_key("songs/world.yml"))
         .send()
         .await
         .map_err(|e| {
@@ -161,7 +161,7 @@ pub async fn write_all_songs_to_s3(
     client
         .put_object()
         .bucket(BUCKET.as_str())
-        .key(&s3_key("all-songs.yml"))
+        .key(s3_key("all-songs.yml"))
         .body(ByteStream::from(yaml.into_bytes()))
         .content_type("text/yaml")
         .send()
@@ -183,7 +183,7 @@ pub async fn download_font_from_s3(
     let resp = client
         .get_object()
         .bucket(BUCKET.as_str())
-        .key(&s3_key("static/skriva-3.woff"))
+        .key(s3_key("static/skriva-3.woff"))
         .send()
         .await?;
 
