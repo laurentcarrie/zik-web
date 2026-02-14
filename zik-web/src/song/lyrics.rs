@@ -10,7 +10,12 @@ pub async fn get_lyrics(
     section_id: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let key = s3_key(&format!("songs/{author}/{title}/lyrics/{section_id}.tex"));
-    let resp = client.get_object().bucket(BUCKET.as_str()).key(&key).send().await?;
+    let resp = client
+        .get_object()
+        .bucket(BUCKET.as_str())
+        .key(&key)
+        .send()
+        .await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(String::from_utf8(bytes.to_vec())?)

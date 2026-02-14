@@ -275,7 +275,9 @@ async fn api_song(
     };
 
     // Check lyrics PDF
-    let lyrics_key = song::s3_key(&format!("delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf"));
+    let lyrics_key = song::s3_key(&format!(
+        "delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf"
+    ));
     let pdf_lyrics_url = match state
         .s3_client
         .head_object()
@@ -999,8 +1001,8 @@ async fn api_guitar_embed(
     State(state): State<AppState>,
     Path(index): Path<usize>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let animations = load_animations()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let animations =
+        load_animations().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
     let count = animations.items.len();
     let url = write_animation_embed_to_s3(&state.s3_client, &animations, index)
@@ -1012,8 +1014,8 @@ async fn api_guitar_embed(
 }
 
 async fn api_get_animations() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let animations = load_animations()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let animations =
+        load_animations().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let value = serde_json::to_value(&animations)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(value))
@@ -1027,8 +1029,7 @@ async fn api_config() -> Json<serde_json::Value> {
 async fn api_save_animations(
     Json(animations): Json<Animations>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    save_animations(&animations)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    save_animations(&animations).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
 }
 
@@ -1336,17 +1337,21 @@ async fn api_world(
     })?;
 
     // Write world.yml to S3
-    write_to_s3(&state.s3_client, &song::s3_key("songs/world.yml"), &yaml_content)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(WorldResponse {
-                    success: false,
-                    message: format!("Failed to write world.yml: {e}"),
-                }),
-            )
-        })?;
+    write_to_s3(
+        &state.s3_client,
+        &song::s3_key("songs/world.yml"),
+        &yaml_content,
+    )
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(WorldResponse {
+                success: false,
+                message: format!("Failed to write world.yml: {e}"),
+            }),
+        )
+    })?;
 
     Ok(Json(WorldResponse {
         success: true,

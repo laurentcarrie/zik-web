@@ -8,12 +8,10 @@ use uuid::Uuid;
 
 use super::{SongEntry, SongYml};
 
-pub static BUCKET: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("BUCKET").expect("BUCKET env var must be set")
-});
-pub static BUCKET_ROOT: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("BUCKET_ROOT").expect("BUCKET_ROOT env var must be set")
-});
+pub static BUCKET: LazyLock<String> =
+    LazyLock::new(|| std::env::var("BUCKET").expect("BUCKET env var must be set"));
+pub static BUCKET_ROOT: LazyLock<String> =
+    LazyLock::new(|| std::env::var("BUCKET_ROOT").expect("BUCKET_ROOT env var must be set"));
 pub const CLOUDFRONT_URL: &str = "https://dtuq2blkj3udo.cloudfront.net";
 
 /// Prefix an S3 key with the BUCKET_ROOT, e.g. "songs/world.yml" -> "prod/songs/world.yml"
@@ -105,7 +103,10 @@ pub async fn write_all_songs_to_s3(
 
     loop {
         let songs_prefix = s3_key("songs/");
-        let mut request = client.list_objects_v2().bucket(BUCKET.as_str()).prefix(&songs_prefix);
+        let mut request = client
+            .list_objects_v2()
+            .bucket(BUCKET.as_str())
+            .prefix(&songs_prefix);
 
         if let Some(token) = continuation_token {
             request = request.continuation_token(token);
@@ -119,7 +120,13 @@ pub async fn write_all_songs_to_s3(
             {
                 println!("found song");
 
-                match client.get_object().bucket(BUCKET.as_str()).key(key).send().await {
+                match client
+                    .get_object()
+                    .bucket(BUCKET.as_str())
+                    .key(key)
+                    .send()
+                    .await
+                {
                     Ok(resp) => {
                         let bytes = resp.body.collect().await?.into_bytes();
                         if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
@@ -191,7 +198,12 @@ pub async fn get_song_yml(
     client: &Client,
     key: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let resp = client.get_object().bucket(BUCKET.as_str()).key(key).send().await?;
+    let resp = client
+        .get_object()
+        .bucket(BUCKET.as_str())
+        .key(key)
+        .send()
+        .await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(String::from_utf8(bytes.to_vec())?)
@@ -246,7 +258,12 @@ pub async fn get_song_pdf(
     };
     let pdf_name = song_info.file_stem_of_song();
     let key = s3_key(&format!("delivery/pdf/{pdf_name}.pdf"));
-    let resp = client.get_object().bucket(BUCKET.as_str()).key(&key).send().await?;
+    let resp = client
+        .get_object()
+        .bucket(BUCKET.as_str())
+        .key(&key)
+        .send()
+        .await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(bytes.to_vec())
@@ -272,7 +289,12 @@ pub async fn read_from_s3(
     client: &Client,
     key: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let resp = client.get_object().bucket(BUCKET.as_str()).key(key).send().await?;
+    let resp = client
+        .get_object()
+        .bucket(BUCKET.as_str())
+        .key(key)
+        .send()
+        .await?;
 
     let bytes = resp.body.collect().await?.into_bytes();
     Ok(String::from_utf8(bytes.to_vec())?)
