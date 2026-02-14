@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.21.0] - 2026-02-14
+
+### Added
+- Dev deployment workflow with separate App Runner service
+- Dev favicon (red-bordered) configurable via `FAVICON` env var
+- `/api/config` endpoint for runtime configuration (favicon)
+- Animation error banner in UI instead of silent failures
+- SvgPath animation support: read SVG files from disk with `flip_y` option
+- MTL SVG animation (Potrace-traced image)
+- Zapfino font animation entry
+- `num_points` configuration in `embed_options` for animations
+- Enabled animations filter (cookie-based, per-user)
+- Animation settings dark theme matching rest of UI
+- Save & Apply button prompts for password and shows "Saved!" feedback
+
+### Changed
+- `circles-sketch` dependency switched from local path to crates.io v0.2.2
+- `.cargo/config.toml` patch for local development override
+- S3 keys prefixed with `BUCKET_ROOT` env var for environment isolation
+- Animation loop: hide Fourier circles and clear trace at end, 1s pause
+- Lazy-load routes for better initial page load
+- `SvgPath` type changed from string to struct with `path` and `flip_y` fields
+- `band-songbook` dependency updated to v0.0.19
+- Animation settings dialog uses dark theme
+- Responsive animation on mobile and tablet
+
+### Fixed
+- Docker fontconfig installation for font rendering in containers
+- Missing `BUCKET` env var in App Runner update step causing silent rollbacks
+- Clippy warnings: needless borrows, type complexity
+- Animation dialog crash when switching between SvgPath animations
+
 ## [0.18.0] - 2026-02-11
 
 ### Added
