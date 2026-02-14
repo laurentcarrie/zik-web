@@ -15,8 +15,23 @@ const EditDrumsGlobalPage = lazy(() => import('./pages/EditDrumsGlobalPage'))
 const MasterPage = lazy(() => import('./pages/MasterPage'))
 const UpdatePage = lazy(() => import('./pages/UpdatePage'))
 
+function getEnabledContours(): number[] {
+  try {
+    const match = document.cookie.match(/(^| )enabledContours=([^;]+)/)
+    if (match) {
+      const parsed = JSON.parse(decodeURIComponent(match[2]))
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch {}
+  return [] // empty means all enabled
+}
+
 function getNextIndex(currentIndex: number, count: number): number {
-  return (currentIndex + 1) % count
+  const enabled = getEnabledContours()
+  if (enabled.length === 0) return (currentIndex + 1) % count
+  const currentPos = enabled.indexOf(currentIndex)
+  const nextPos = (currentPos + 1) % enabled.length
+  return enabled[nextPos]
 }
 
 function isAnimationEnabled(): boolean {
@@ -57,7 +72,10 @@ function App() {
   }, [])
 
   useEffect(() => {
-    loadEmbed(0)
+    const enabled = getEnabledContours()
+    const startIndex = enabled.length > 0 ? enabled[0] : 0
+    indexRef.current = startIndex
+    loadEmbed(startIndex)
   }, [loadEmbed])
 
   useEffect(() => {

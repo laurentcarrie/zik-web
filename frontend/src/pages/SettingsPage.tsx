@@ -60,7 +60,12 @@ interface AnimationText {
   font: string
 }
 
-type AnimationEnum = { Text: AnimationText } | { SvgPath: string }
+interface SvgPathItem {
+  path: string
+  flip_y: boolean
+}
+
+type AnimationEnum = { Text: AnimationText } | { SvgPath: SvgPathItem }
 
 interface AnimationItem {
   name: string
@@ -98,7 +103,7 @@ function WhenToShowSelect({ label, value, onChange }: { label: string; value: Wh
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="text-gray-700 text-sm font-medium">{label}:</span>
+        <span className="text-gray-300 text-sm font-medium">{label}:</span>
         <select value={type}
           onChange={(e) => {
             const t = e.target.value
@@ -106,7 +111,7 @@ function WhenToShowSelect({ label, value, onChange }: { label: string; value: Wh
             else if (t === 'Never') onChange('Never')
             else onChange({ OnceEvery: onceEvery })
           }}
-          className="px-2 py-1 text-sm border border-gray-300 rounded bg-white">
+          className="px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200">
           <option value="Always">Always</option>
           <option value="Never">Never</option>
           <option value="OnceEvery">Once Every</option>
@@ -114,17 +119,17 @@ function WhenToShowSelect({ label, value, onChange }: { label: string; value: Wh
       </div>
       {type === 'OnceEvery' && (
         <div className="flex items-center gap-2 mt-1 ml-4">
-          <span className="text-gray-500 text-xs">modulo</span>
+          <span className="text-gray-400 text-xs">modulo</span>
           <input type="number" value={onceEvery.modulo} min={1}
             onChange={(e) => onChange({ OnceEvery: { ...onceEvery, modulo: Number(e.target.value) } })}
-            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded" />
-          <span className="text-gray-500 text-xs">remainders</span>
+            className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
+          <span className="text-gray-400 text-xs">remainders</span>
           <input type="text" value={onceEvery.remainders.join(',')}
             onChange={(e) => {
               const nums = e.target.value.split(',').map(Number).filter(n => !isNaN(n))
               onChange({ OnceEvery: { ...onceEvery, remainders: nums } })
             }}
-            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded" />
+            className="w-20 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
         </div>
       )}
     </div>
@@ -168,7 +173,7 @@ export default function SettingsPage() {
   const [settingsYmlLoaded, setSettingsYmlLoaded] = useState(false)
   const [settingsYmlSaving, setSettingsYmlSaving] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [passwordAction, setPasswordAction] = useState<'save' | 'enable'>('save')
+  const [passwordAction, setPasswordAction] = useState<'save' | 'enable' | 'saveAnimations'>('save')
   const [showRenderingSettings, setShowRenderingSettings] = useState(false)
   const [showSequences, setShowSequences] = useState(false)
   const [patternNames, setPatternNames] = useState<string[]>([])
@@ -197,6 +202,7 @@ export default function SettingsPage() {
   const [selectedAnimIndex, setSelectedAnimIndex] = useState(0)
   const [animationsLoading, setAnimationsLoading] = useState(false)
   const [animationsSaving, setAnimationsSaving] = useState(false)
+  const [animationsSaved, setAnimationsSaved] = useState(false)
   const [enabledContours, setEnabledContours] = useState<number[]>(() => {
     const saved = getCookie('enabledContours')
     if (saved) return JSON.parse(saved)
@@ -512,7 +518,12 @@ export default function SettingsPage() {
   }
 
   async function saveAnimations() {
-    if (!animations || !isAuthenticated) return
+    if (!animations) return
+    if (!isAuthenticated) {
+      setPasswordAction('saveAnimations')
+      setShowPasswordModal(true)
+      return
+    }
     setAnimationsSaving(true)
     try {
       const password = getStoredPassword()
@@ -526,7 +537,8 @@ export default function SettingsPage() {
         body: JSON.stringify(animations),
       })
       if (res.ok) {
-        alert('Animations saved!')
+        setAnimationsSaved(true)
+        setTimeout(() => setAnimationsSaved(false), 2000)
       } else if (res.status === 401) {
         setPasswordAction('save')
         setShowPasswordModal(true)
@@ -555,6 +567,8 @@ export default function SettingsPage() {
     setShowPasswordModal(false)
     if (passwordAction === 'save') {
       saveSettingsYml()
+    } else if (passwordAction === 'saveAnimations') {
+      saveAnimations()
     }
     // For 'enable' action, the isAuthenticated state is automatically updated by the auth context
   }
@@ -1066,12 +1080,12 @@ export default function SettingsPage() {
 
       {showAnimation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-800 text-xl font-bold">{t('settings.uselessAnimation')}</h2>
+              <h2 className="text-gray-100 text-xl font-bold">{t('settings.uselessAnimation')}</h2>
               <button
                 onClick={() => setShowAnimation(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
               >
                 &times;
               </button>
@@ -1081,19 +1095,20 @@ export default function SettingsPage() {
             ) : !animations || animations.items.length === 0 ? (
               <p className="text-gray-500 italic">No animations found</p>
             ) : (() => {
-              const anim = animations.items[selectedAnimIndex]
+              const safeIndex = selectedAnimIndex < animations.items.length ? selectedAnimIndex : 0
+              const anim = animations.items[safeIndex]
               const opts = anim.embed_options
               const itemType = 'Text' in anim.item ? 'Text' : 'SvgPath'
-              const itemValue = 'Text' in anim.item ? `${anim.item.Text.text} (${anim.item.Text.font})` : anim.item.SvgPath
+              const itemValue = 'Text' in anim.item ? `${anim.item.Text.text} (${anim.item.Text.font})` : ('SvgPath' in anim.item ? anim.item.SvgPath.path : '')
               return (
                 <div className="space-y-4">
                   {animations.items.length > 1 && (
                     <div>
-                      <label className="text-gray-700 text-sm font-medium">Animation</label>
+                      <label className="text-gray-300 text-sm font-medium">Animation</label>
                       <select
                         value={selectedAnimIndex}
                         onChange={(e) => setSelectedAnimIndex(Number(e.target.value))}
-                        className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white"
+                        className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200"
                       >
                         {animations.items.map((a, i) => (
                           <option key={i} value={i}>{a.name}</option>
@@ -1102,19 +1117,19 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <div className="p-3 bg-gray-100 rounded-lg">
-                    <span className="text-gray-500 text-xs uppercase">{itemType}</span>
+                  <div className="p-3 bg-gray-800 rounded-lg">
+                    <span className="text-gray-400 text-xs uppercase">{itemType}</span>
                     {'Text' in anim.item ? (
-                      <p className="text-gray-800 text-lg mt-1" style={{ fontFamily: anim.item.Text.font }}>
+                      <p className="text-gray-200 text-lg mt-1" style={{ fontFamily: anim.item.Text.font }}>
                         {anim.item.Text.text}
                       </p>
                     ) : (
-                      <p className="text-gray-800 text-sm font-mono mt-1 break-all">{itemValue}</p>
+                      <p className="text-gray-200 text-sm font-mono mt-1 break-all">{itemValue}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-gray-700 text-sm font-medium">
+                    <label className="text-gray-300 text-sm font-medium">
                       Speed: {opts.speed.toFixed(1)}
                     </label>
                     <input type="range" min={0.5} max={10} step={0.1} value={opts.speed}
@@ -1123,7 +1138,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-700 text-sm font-medium">
+                    <label className="text-gray-300 text-sm font-medium">
                       Opacity: {opts.opacity.toFixed(2)}
                     </label>
                     <input type="range" min={0} max={1} step={0.01} value={opts.opacity}
@@ -1132,7 +1147,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-700 text-sm font-medium">
+                    <label className="text-gray-300 text-sm font-medium">
                       Trace Length: {opts.trace_length}
                     </label>
                     <input type="range" min={10} max={1000} step={10} value={opts.trace_length}
@@ -1141,7 +1156,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-700 text-sm font-medium">
+                    <label className="text-gray-300 text-sm font-medium">
                       Trace Width: {opts.trace_width.toFixed(1)}
                     </label>
                     <input type="range" min={0.1} max={5} step={0.1} value={opts.trace_width}
@@ -1150,7 +1165,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-700 text-sm font-medium">
+                    <label className="text-gray-300 text-sm font-medium">
                       Contour Width: {opts.contour_width.toFixed(1)}
                     </label>
                     <input type="range" min={0.1} max={5} step={0.1} value={opts.contour_width}
@@ -1163,13 +1178,13 @@ export default function SettingsPage() {
                       <input type="checkbox" checked={opts.show_point}
                         onChange={() => updateEmbedOption('show_point', !opts.show_point)}
                         className="w-4 h-4 accent-pink-500" />
-                      <span className="text-gray-700 text-sm">Show Point</span>
+                      <span className="text-gray-300 text-sm">Show Point</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={opts.show_nh}
                         onChange={() => updateEmbedOption('show_nh', !opts.show_nh)}
                         className="w-4 h-4 accent-pink-500" />
-                      <span className="text-gray-700 text-sm">Show Harmonics Counter</span>
+                      <span className="text-gray-300 text-sm">Show Harmonics Counter</span>
                     </label>
                   </div>
 
@@ -1180,33 +1195,33 @@ export default function SettingsPage() {
                   <WhenToShowSelect label="Show Fourier Circles" value={opts.show_fourier_circles}
                     onChange={(v) => updateEmbedOption('show_fourier_circles', v)} />
 
-                  <div className="pt-3 border-t border-gray-200">
-                    <h3 className="text-gray-700 text-sm font-semibold mb-2">Harmonic Steps</h3>
+                  <div className="pt-3 border-t border-gray-700">
+                    <h3 className="text-gray-300 text-sm font-semibold mb-2">Harmonic Steps</h3>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-gray-600 text-sm">Max:</span>
+                      <span className="text-gray-400 text-sm">Max:</span>
                       <input type="number" value={opts.steps.max_harmonic} min={1}
                         onChange={(e) => updateEmbedOption('steps', { ...opts.steps, max_harmonic: Number(e.target.value) })}
-                        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded" />
+                        className="w-20 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
                     </div>
                     <div className="space-y-1">
                       {opts.steps.thresholds.map((th, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="text-gray-500 text-xs w-10">from</span>
+                          <span className="text-gray-400 text-xs w-10">from</span>
                           <input type="number" value={th.start} min={0}
                             onChange={(e) => {
                               const newThresholds = [...opts.steps.thresholds]
                               newThresholds[i] = { ...newThresholds[i], start: Number(e.target.value) }
                               updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
                             }}
-                            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded" />
-                          <span className="text-gray-500 text-xs">step</span>
+                            className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
+                          <span className="text-gray-400 text-xs">step</span>
                           <input type="number" value={th.step} min={1}
                             onChange={(e) => {
                               const newThresholds = [...opts.steps.thresholds]
                               newThresholds[i] = { ...newThresholds[i], step: Number(e.target.value) }
                               updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
                             }}
-                            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded" />
+                            className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
                           <button onClick={() => {
                             const newThresholds = opts.steps.thresholds.filter((_, j) => j !== i)
                             updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
@@ -1222,14 +1237,14 @@ export default function SettingsPage() {
                   </div>
 
                   {animations.items.length > 1 && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <h3 className="text-gray-700 text-sm font-semibold mb-2">Enabled Animations</h3>
+                    <div className="pt-3 border-t border-gray-700">
+                      <h3 className="text-gray-300 text-sm font-semibold mb-2">Enabled Animations</h3>
                       <div className="space-y-1">
                         {animations.items.map((a, idx) => {
                           const allEnabled = enabledContours.length === 0
                           const isEnabled = allEnabled || enabledContours.includes(idx)
                           return (
-                            <label key={idx} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-gray-100">
+                            <label key={idx} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-gray-800">
                               <input type="checkbox" checked={isEnabled}
                                 onChange={() => {
                                   let next: number[]
@@ -1245,7 +1260,7 @@ export default function SettingsPage() {
                                   setCookie('enabledContours', JSON.stringify(next))
                                 }}
                                 className="w-4 h-4 accent-pink-500" />
-                              <span className="text-gray-700 text-sm">{a.name}</span>
+                              <span className="text-gray-300 text-sm">{a.name}</span>
                             </label>
                           )
                         })}
@@ -1261,20 +1276,20 @@ export default function SettingsPage() {
                   await saveAnimations()
                   window.dispatchEvent(new Event('reload-animation'))
                 }}
-                disabled={animationsSaving || !isAuthenticated}
-                className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 disabled:bg-gray-400"
+                disabled={animationsSaving}
+                className={`px-4 py-2 text-white rounded-lg disabled:bg-gray-400 ${animationsSaved ? 'bg-green-500' : 'bg-pink-500 hover:bg-pink-600'}`}
               >
-                {animationsSaving ? 'Saving...' : 'Save & Apply'}
+                {animationsSaving ? 'Saving...' : animationsSaved ? 'Saved!' : 'Save & Apply'}
               </button>
               <button
                 onClick={loadAnimations}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
                 Reload
               </button>
               <button
                 onClick={() => setShowAnimation(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 ml-auto"
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
                 Close
               </button>
