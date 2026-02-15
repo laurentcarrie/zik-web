@@ -8,8 +8,7 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { fetchSong } from '../api/songs'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE } from '../config'
 
 async function fetchTex(songKey: string, filename: string): Promise<{ data: string }> {
   // songKey is like "songs/author/title/song.yml", extract directory

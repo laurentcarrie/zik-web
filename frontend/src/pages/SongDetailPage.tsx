@@ -5,8 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { fetchSong, fetchSongs } from '../api/songs'
 import ActionButton, { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon, MakeIcon } from '../components/ActionButton'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE } from '../config'
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
 type LyricsMode = 'none' | '1-column' | '2-columns'

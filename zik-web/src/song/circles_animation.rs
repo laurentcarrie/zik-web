@@ -39,19 +39,26 @@ pub struct Animations {
     pub items: Vec<AnimationItem>,
 }
 
-const ANIMATIONS_PATH: &str = "static/animations.yml";
+fn animations_path(band: &str) -> String {
+    if band.is_empty() {
+        "static/animations.yml".to_string()
+    } else {
+        format!("static/{band}/animations.yml")
+    }
+}
 
-pub fn load_animations() -> Result<Animations, Box<dyn std::error::Error + Send + Sync>> {
-    let yaml = std::fs::read_to_string(ANIMATIONS_PATH)?;
+pub fn load_animations(band: &str) -> Result<Animations, Box<dyn std::error::Error + Send + Sync>> {
+    let yaml = std::fs::read_to_string(animations_path(band))?;
     let animations: Animations = serde_yaml::from_str(&yaml)?;
     Ok(animations)
 }
 
 pub fn save_animations(
+    band: &str,
     animations: &Animations,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let yaml = serde_yaml::to_string(animations)?;
-    std::fs::write(ANIMATIONS_PATH, yaml)?;
+    std::fs::write(animations_path(band), yaml)?;
     Ok(())
 }
 

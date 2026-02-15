@@ -6,8 +6,7 @@ import { yaml } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE } from '../config'
 
 async function fetchDrumPattern(name: string): Promise<{ data: string }> {
   const s3Key = `drum-patterns/${name}.yml`

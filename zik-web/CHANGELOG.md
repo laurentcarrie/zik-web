@@ -102,7 +102,7 @@
 ## [0.13.0] - 2026-01-23
 
 ### Fixed
-- App Runner IAM policies now reference correct S3 bucket name (`zik-laurent` instead of `laurent-zik`)
+- App Runner IAM policies now reference correct S3 bucket name
 
 ## [0.12.0] - 2026-01-23
 
@@ -116,7 +116,7 @@
 - `make_cloudfront_pdf_url()` and `make_cloudfront_url()` helper functions
 
 ### Changed
-- S3 bucket renamed from `laurent-zik` to `zik-laurent`
+- S3 bucket renamed
 - PDFs now served via CloudFront instead of backend proxy
 - Press-book photos and videos served via CloudFront
 - Frontend loads media directly from CloudFront URLs

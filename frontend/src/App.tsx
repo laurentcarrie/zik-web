@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import HomePage from './pages/HomePage'
 import SongsPage from './pages/SongsPage'
+import { API_BASE } from './config'
 
 const SongDetailPage = lazy(() => import('./pages/SongDetailPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
@@ -51,7 +52,7 @@ function App() {
   const namesRef = useRef<string[]>([])
 
   const loadEmbed = useCallback((index: number) => {
-    fetch(`/api/guitar-embed/${index}`)
+    fetch(`${API_BASE}/api/guitar-embed/${index}`)
       .then(async r => {
         if (!r.ok) {
           const text = await r.text()
@@ -120,6 +121,11 @@ function App() {
 
   return (
     <>
+      <a
+        href="/root"
+        className="fixed top-3 left-3 px-2 py-1 text-xs text-gray-400 bg-black/40 rounded
+                   backdrop-blur-sm hover:bg-black/60 hover:text-white transition-colors no-underline z-50"
+      >root</a>
       {animError && (
         <div style={{
           position: 'fixed', top: 10, left: '50%', transform: 'translateX(-50%)',

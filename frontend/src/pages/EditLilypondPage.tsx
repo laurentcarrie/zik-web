@@ -46,7 +46,7 @@ const lilypondMode = simpleMode({
   ],
 })
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE } from '../config'
 
 async function fetchLilypond(songKey: string, filename: string): Promise<{ data: string }> {
   // songKey is like "songs/author/title/song.yml", extract directory

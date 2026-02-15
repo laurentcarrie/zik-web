@@ -1,7 +1,7 @@
 items:
-- name: move-the-line
+- name: sunny-bd
   item: !Text
-    text: Move The Line
+    text: Sunny Bd
     font: AkayaTelivigala-Regular
   embed_options:
     max_harmonics: 3000
@@ -11,11 +11,11 @@ items:
         step: 1
         to: 10
         speed: 2.0
-      - from: 100
-        step: 50
-        to: 500
+      - from: 10
+        step: 10
+        to: 100
         speed: 2.0
-      - from: 500
+      - from: 100
         step: 500
         to: 3000
         speed: 1.0
@@ -24,23 +24,25 @@ items:
       remainders:
       - 9
     show_point: true
-    show_trace: Always
-    trace_length: 830.0
+    show_trace: !OnceEvery
+      modulo: 5
+      remainders: [0,2,4]
+    trace_length: 0.7
     opacity: 1.0
     show_nh: true
     trace_width: 0.4
-    contour_width: 0.3
+    contour_width: 0.5
     show_fourier_circles: !OnceEvery
       modulo: 2
       remainders:
       - 0
     trace_colors:
-    - white
-    - cyan
+    - black
+    - blue
     flip_y: false
-- name: move-the-line-zapfino
+- name: sunny-bd-zapfino
   item: !Text
-    text: Move The Line
+    text: Sunny Bd
     font: Zapfino
   embed_options:
     max_harmonics: 3000
@@ -51,11 +53,7 @@ items:
         to: 1
         speed: 3.0
       - from: 10
-        step: 10
-        to: 50
-        speed: 1.0
-      - from: 50
-        step: 50
+        step: 10  
         to: 200
         speed: 1.0
       - from: 200
@@ -69,7 +67,13 @@ items:
     show_point: true
     show_trace: !OnceEvery
       modulo: 10
-      remainders: [0,1,4,5,7,9]
+      remainders:
+      - 0
+      - 1
+      - 4
+      - 5
+      - 7
+      - 9
     trace_length: 0.3
     opacity: 1.0
     show_nh: true
@@ -126,45 +130,4 @@ items:
       - 2
     trace_colors:
     - white
-    flip_y: false
-- name: guitar
-  item: !SvgPath
-    path: guitar.svg
-    flip_y: true
-  embed_options:
-    max_harmonics: 7000
-    steps:
-      ranges:
-      - from: 1
-        step: 1
-        to: 10
-        speed: 3.0
-      - from: 10
-        step: 10
-        to: 100
-        speed: 3.0
-      - from: 100
-        step: 100
-        to: 500
-        speed: 3.0
-      - from: 500
-        step: 500
-        to: 8000
-        speed: 3.0
-    show_contour: Never
-    show_point: true
-    show_trace: Always
-    trace_length: 0.3
-    opacity: 1.0
-    show_nh: true
-    trace_width: 0.2
-    contour_width: 0.3
-    show_fourier_circles: !OnceEvery
-      modulo: 2
-      remainders:
-      - 0
-    trace_colors:
-    - white
-    - red
-    - cyan
     flip_y: false

@@ -1,5 +1,6 @@
 import type { Song, SongDetail, SongYml } from './types'
 import { getStoredPassword } from '../context/AuthContext'
+import { API_BASE } from '../config'
 
 function getAuthHeaders(): HeadersInit {
   const password = getStoredPassword()
@@ -13,7 +14,7 @@ function getAuthHeaders(): HeadersInit {
 }
 
 export async function fetchSongs(): Promise<Song[]> {
-  const response = await fetch('/api/songs')
+  const response = await fetch(`${API_BASE}/api/songs`)
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.error || 'Failed to fetch songs')
@@ -22,7 +23,7 @@ export async function fetchSongs(): Promise<Song[]> {
 }
 
 export async function fetchSong(id: string): Promise<SongDetail> {
-  const response = await fetch(`/api/song/${id}`)
+  const response = await fetch(`${API_BASE}/api/song/${id}`)
   if (!response.ok) {
     throw new Error('Failed to fetch song')
   }
@@ -30,7 +31,7 @@ export async function fetchSong(id: string): Promise<SongDetail> {
 }
 
 export async function fetchSongYml(id: string): Promise<SongYml> {
-  const response = await fetch(`/api/song/${id}/yml`)
+  const response = await fetch(`${API_BASE}/api/song/${id}/yml`)
   if (!response.ok) {
     throw new Error('Failed to fetch song YML')
   }
@@ -38,7 +39,7 @@ export async function fetchSongYml(id: string): Promise<SongYml> {
 }
 
 export async function saveSongYml(id: string, content: string): Promise<void> {
-  const response = await fetch(`/api/song/${id}/yml`, {
+  const response = await fetch(`${API_BASE}/api/song/${id}/yml`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({ content }),
@@ -53,7 +54,7 @@ export async function saveSongYml(id: string, content: string): Promise<void> {
 }
 
 export async function updateSongs(): Promise<string> {
-  const response = await fetch('/update')
+  const response = await fetch(`${API_BASE}/update`)
   if (!response.ok) {
     throw new Error('Failed to update songs')
   }
@@ -76,7 +77,7 @@ export class MakeError extends Error {
 }
 
 export async function makeSong(path: string): Promise<MakeResponse> {
-  const response = await fetch('/api/make', {
+  const response = await fetch(`${API_BASE}/api/make`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({ path }),

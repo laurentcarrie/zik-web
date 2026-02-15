@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { API_BASE } from '../config'
 
 async function fetchPhotos(): Promise<string[]> {
-  const response = await fetch('/api/press-book/photos')
+  const response = await fetch(`${API_BASE}/api/press-book/photos`)
   if (!response.ok) {
     throw new Error('Failed to fetch photos')
   }
@@ -11,7 +12,7 @@ async function fetchPhotos(): Promise<string[]> {
 }
 
 async function fetchVideos(): Promise<string[]> {
-  const response = await fetch('/api/press-book/videos')
+  const response = await fetch(`${API_BASE}/api/press-book/videos`)
   if (!response.ok) {
     throw new Error('Failed to fetch videos')
   }

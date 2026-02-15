@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { fetchSongs } from '../api/songs'
+import { BAND_NAME } from '../config'
 import SearchInput from '../components/SearchInput'
 import SongCard from '../components/SongCard'
 
@@ -49,11 +50,16 @@ export default function SongsPage() {
     queryFn: fetchSongs,
   })
 
+  const bandTags: Record<string, string> = { mtl: 'move-the-line', 'sunny-bd': 'sunny-bd' }
+  const hiddenTag = bandTags[BAND_NAME]
+
   const allTags = useMemo(() => {
     const tags = new Set<string>()
-    songs.forEach(song => song.tags?.forEach(tag => tags.add(tag)))
+    songs.forEach(song => song.tags?.forEach(tag => {
+      if (tag !== hiddenTag) tags.add(tag)
+    }))
     return [...tags].sort()
-  }, [songs])
+  }, [songs, hiddenTag])
 
   const filteredAndSortedSongs = useMemo(() => {
     let filtered = songs

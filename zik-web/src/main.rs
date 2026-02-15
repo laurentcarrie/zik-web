@@ -8,7 +8,7 @@ use aws_sdk_lambda::Client as LambdaClient;
 use aws_sdk_s3::Client;
 use aws_sdk_sesv2::Client as SesClient;
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{Path, Query, Request, State},
     http::{Method, StatusCode, header},
     middleware::{self, Next},
@@ -26,6 +26,9 @@ use song::{
     save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_tempo_html_to_s3,
     write_to_s3,
 };
+
+#[derive(Clone)]
+struct BandName(String);
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -135,11 +138,32 @@ async fn main() {
         .merge(public_api_routes)
         .merge(protected_api_routes);
 
-    let app = Router::new()
+    let inner = Router::new()
         .nest("/api", api_routes)
         .merge(legacy_routes)
+        .fallback_service(spa_service);
+
+    let mtl = inner
+        .clone()
+        .nest_service(
+            "/static",
+            ServeDir::new("static/mtl").fallback(ServeDir::new("static")),
+        )
+        .layer(Extension(BandName("mtl".to_string())));
+    let sunny = inner
+        .clone()
+        .nest_service(
+            "/static",
+            ServeDir::new("static/sunny-bd").fallback(ServeDir::new("static")),
+        )
+        .layer(Extension(BandName("sunny-bd".to_string())));
+
+    let app = Router::new()
+        .route("/", get(root_landing))
+        .nest("/mtl", mtl)
+        .nest("/sunny-bd", sunny)
+        .merge(inner.layer(Extension(BandName(String::new()))))
         .nest_service("/static", ServeDir::new("static"))
-        .fallback_service(spa_service)
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
@@ -186,11 +210,24 @@ struct ApiSongDetail {
     error: Option<String>,
 }
 
-async fn api_songs(State(state): State<AppState>) -> Response {
+fn band_tag(band: &str) -> Option<&str> {
+    match band {
+        "mtl" => Some("move-the-line"),
+        "sunny-bd" => Some("sunny-bd"),
+        _ => None,
+    }
+}
+
+async fn api_songs(
+    State(state): State<AppState>,
+    Extension(BandName(band)): Extension<BandName>,
+) -> Response {
     match get_all_songs(&state.s3_client).await {
         Ok(items) => {
+            let tag_filter = band_tag(&band);
             let api_songs: Vec<ApiSong> = items
                 .into_iter()
+                .filter(|s| tag_filter.is_none_or(|tag| s.tags.iter().any(|t| t == tag)))
                 .map(|s| {
                     let deezer_url = make_deezer_url(&s.title, &s.author);
                     let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
@@ -544,15 +581,24 @@ async fn api_pdf_lyrics(
     }
 }
 
-const PRESS_BOOK_PHOTOS_PATH: &str = "press-book/truskell-2025-06-06/photos/";
-const PRESS_BOOK_VIDEOS_PATH: &str = "press-book/truskell-2025-06-06/videos/";
+fn press_book_photos_path() -> String {
+    let dir = std::env::var("PRESS_BOOK_DIR")
+        .unwrap_or_else(|_| "press-book/truskell-2025-06-06".to_string());
+    format!("{dir}/photos/")
+}
+
+fn press_book_videos_path() -> String {
+    let dir = std::env::var("PRESS_BOOK_DIR")
+        .unwrap_or_else(|_| "press-book/truskell-2025-06-06".to_string());
+    format!("{dir}/videos/")
+}
 
 async fn api_press_book_photos(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
     let mut photos = Vec::new();
     let mut continuation_token: Option<String> = None;
-    let prefix = song::s3_key(PRESS_BOOK_PHOTOS_PATH);
+    let prefix = song::s3_key(&press_book_photos_path());
 
     loop {
         let mut request = state
@@ -598,7 +644,7 @@ async fn api_press_book_photos(
 
 async fn api_press_book_photo(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book photos folder
-    let photos_prefix = song::s3_key(PRESS_BOOK_PHOTOS_PATH);
+    let photos_prefix = song::s3_key(&press_book_photos_path());
     if !key.starts_with(&photos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
@@ -639,7 +685,7 @@ async fn api_press_book_videos(
     let mut videos = Vec::new();
     let mut continuation_token: Option<String> = None;
 
-    let prefix = song::s3_key(PRESS_BOOK_VIDEOS_PATH);
+    let prefix = song::s3_key(&press_book_videos_path());
 
     loop {
         let mut request = state
@@ -684,7 +730,7 @@ async fn api_press_book_videos(
 
 async fn api_press_book_video(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book videos folder
-    let videos_prefix = song::s3_key(PRESS_BOOK_VIDEOS_PATH);
+    let videos_prefix = song::s3_key(&press_book_videos_path());
     if !key.starts_with(&videos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
@@ -994,10 +1040,11 @@ async fn api_drum_pattern_to_html(
 
 async fn api_guitar_embed(
     State(state): State<AppState>,
+    Extension(BandName(band)): Extension<BandName>,
     Path(index): Path<usize>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let animations =
-        load_animations().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        load_animations(&band).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
     let count = animations.items.len();
     let url = write_animation_embed_to_s3(&state.s3_client, &animations, index)
@@ -1008,9 +1055,11 @@ async fn api_guitar_embed(
     ))
 }
 
-async fn api_get_animations() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+async fn api_get_animations(
+    Extension(BandName(band)): Extension<BandName>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let animations =
-        load_animations().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        load_animations(&band).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let value = serde_json::to_value(&animations)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(value))
@@ -1022,10 +1071,40 @@ async fn api_config() -> Json<serde_json::Value> {
 }
 
 async fn api_save_animations(
+    Extension(BandName(band)): Extension<BandName>,
     Json(animations): Json<Animations>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    save_animations(&animations).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    save_animations(&band, &animations)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
+}
+
+async fn root_landing() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songbook</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #1a1a2e; font-family: system-ui, sans-serif; }
+  .buttons { display: flex; flex-direction: column; gap: 1.5rem; }
+  a { display: block; padding: 1.5rem 3rem; border-radius: 12px; text-decoration: none; color: white; font-size: 1.5rem; font-weight: 600; text-align: center; transition: transform 0.15s, box-shadow 0.15s; }
+  a:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .mtl { background: linear-gradient(135deg, #2563eb, #7c3aed); }
+  .sunny { background: linear-gradient(135deg, #ea580c, #eab308); }
+</style>
+</head>
+<body>
+<div class="buttons">
+  <a class="mtl" href="/mtl">Move The Line</a>
+  <a class="sunny" href="/sunny-bd">Sunny Bd</a>
+</div>
+</body>
+</html>"#,
+    )
 }
 
 async fn version() -> &'static str {

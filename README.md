@@ -13,7 +13,7 @@ See [zik-web/README.md](zik-web/README.md) for details.
 ```bash
 # Backend
 cd zik-web
-BUCKET=zik-laurent BUCKET_ROOT=dev AWS_PROFILE=zik-laurent WRITE_PASSWORD=xxx cargo run
+BUCKET=<bucket> BUCKET_ROOT=dev AWS_PROFILE=<profile> WRITE_PASSWORD=<password> cargo run
 
 # Frontend (in another terminal)
 cd frontend
