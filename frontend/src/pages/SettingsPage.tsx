@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-import { API_BASE } from '../config'
+import { API_BASE, ROUTE_PREFIX } from '../config'
 const SETTINGS_KEY = 'songs/settings.yml'
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
@@ -862,7 +862,7 @@ export default function SettingsPage() {
                 {patternNames.map((name) => (
                   <div key={name} className="flex flex-col gap-1">
                     <a
-                      href={`/edit-drums-global/${encodeURIComponent(name)}`}
+                      href={`${ROUTE_PREFIX}/edit-drums-global/${encodeURIComponent(name)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"

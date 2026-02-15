@@ -71,7 +71,7 @@ interface ParsedYaml {
   info?: SongInfo
 }
 
-import { API_BASE } from '../config'
+import { API_BASE, ROUTE_PREFIX } from '../config'
 
 export default function EditYmlPage() {
   const { id } = useParams<{ id: string }>()
@@ -230,7 +230,7 @@ export default function EditYmlPage() {
 
         <div className="flex items-center gap-4 mb-6">
           <a
-            href={`/master/${id}`}
+            href={`${ROUTE_PREFIX}/master/${id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors"
@@ -251,7 +251,7 @@ export default function EditYmlPage() {
                 return (
                   <a
                     key={section.id}
-                    href={`/edit-lyrics/${id}/${encodeURIComponent(section.id)}`}
+                    href={`${ROUTE_PREFIX}/edit-lyrics/${id}/${encodeURIComponent(section.id)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] ${color.bg} text-white rounded-lg text-sm ${color.hover} transition-colors`}
@@ -273,7 +273,7 @@ export default function EditYmlPage() {
           <h3 className="text-gray-700 font-medium mb-3">TeX Files</h3>
           <div className="flex flex-wrap gap-2">
             <a
-              href={`/edit-tex/${id}/${encodeURIComponent('body.tex')}`}
+              href={`${ROUTE_PREFIX}/edit-tex/${id}/${encodeURIComponent('body.tex')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
@@ -287,7 +287,7 @@ export default function EditYmlPage() {
               files.tex.map((file) => (
                 <a
                   key={file}
-                  href={`/edit-tex/${id}/${encodeURIComponent(file)}`}
+                  href={`${ROUTE_PREFIX}/edit-tex/${id}/${encodeURIComponent(file)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
@@ -309,7 +309,7 @@ export default function EditYmlPage() {
               files.lilypond.map((file) => (
                 <div key={file} className="flex flex-col gap-1">
                   <a
-                    href={`/edit-lilypond/${id}/${encodeURIComponent(file)}`}
+                    href={`${ROUTE_PREFIX}/edit-lilypond/${id}/${encodeURIComponent(file)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors"
@@ -344,7 +344,7 @@ export default function EditYmlPage() {
               {files.drums.map((file) => (
                 <a
                   key={file}
-                  href={`/edit-drums/${id}/${encodeURIComponent(file)}`}
+                  href={`${ROUTE_PREFIX}/edit-drums/${id}/${encodeURIComponent(file)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
