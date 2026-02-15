@@ -7,9 +7,13 @@ items:
     max_harmonics: 3000
     steps:
       ranges:
-      - from: 100
-        step: 500
-        to: 3000
+      - from: 1
+        step: 1
+        to: 20
+        speed: 1.0
+      - from: 20
+        step: 20
+        to: 3100
         speed: 1.0
     show_contour: Never
     show_point: true
@@ -19,7 +23,7 @@ items:
     show_nh: true
     trace_width: 0.4
     contour_width: 0.5
-    show_fourier_circles: Never
+    show_fourier_circles: Always
     trace_colors:
     - white
     - cyan

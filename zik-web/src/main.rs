@@ -1047,7 +1047,7 @@ async fn api_guitar_embed(
         load_animations(&band).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
     let count = animations.items.len();
-    let url = write_animation_embed_to_s3(&state.s3_client, &animations, index)
+    let url = write_animation_embed_to_s3(&state.s3_client, &band, &animations, index)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(

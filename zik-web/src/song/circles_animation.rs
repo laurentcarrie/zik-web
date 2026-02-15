@@ -62,10 +62,17 @@ pub fn save_animations(
     Ok(())
 }
 
-fn contour_of_animation_enum(animation: &AnimationEnum) -> AnimResult<(String, Vec<(f64, f64)>)> {
+fn contour_of_animation_enum(
+    band: &str,
+    animation: &AnimationEnum,
+) -> AnimResult<(String, Vec<(f64, f64)>)> {
     match animation {
         AnimationEnum::SvgPath(svg) => {
-            let svg_content = std::fs::read_to_string(format!("static/{}", svg.path))?;
+            let svg_content = if band.is_empty() {
+                std::fs::read_to_string(format!("static/{}", svg.path))?
+            } else {
+                std::fs::read_to_string(format!("static/{band}/{}", svg.path))?
+            };
             let path_data = svg_content
                 .split("d=\"")
                 .nth(1)
@@ -89,6 +96,7 @@ fn contour_of_animation_enum(animation: &AnimationEnum) -> AnimResult<(String, V
 
 pub async fn write_animation_embed_to_s3(
     client: &Client,
+    band: &str,
     animations: &Animations,
     index: usize,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -99,7 +107,7 @@ pub async fn write_animation_embed_to_s3(
         )
     })?;
 
-    let (_svg_path, points) = contour_of_animation_enum(&anim.item)?;
+    let (_svg_path, points) = contour_of_animation_enum(band, &anim.item)?;
     let contour = circles_sketch::contour::Contour { points };
     let contour = circles_sketch::contour::interpolate(&contour, anim.embed_options.max_harmonics);
     let svg_path_interp = circles_sketch::svg::svg_path_of_contour(&contour);
@@ -115,8 +123,16 @@ pub async fn write_animation_embed_to_s3(
     let html = html.replace("background:black", "background:transparent");
     // Shrink sparkle point on non-mobile (desktop screens)
     let html = html.replace(
-        "</svg>",
-        r#"<style>@media (min-width: 769px) { #dot { transform: scale(0.4); } }</style></svg>"#,
+        r#"dot.setAttribute("transform", "translate(" + pt[0] + "," + pt[1] + ")")"#,
+        r#"dot.setAttribute("transform", "translate(" + pt[0] + "," + pt[1] + ")" + (window.innerWidth > 768 ? " scale(0.4)" : ""))"#,
+    );
+    // Ensure fourier-group is re-shown after loop transitions (crate hides it but
+    // may not re-show it when show_fourier_circles is Always)
+    let html = html.replace(
+        "function updateDisplay(t) {\n  updateFourier(t);",
+        r#"function updateDisplay(t) {
+  document.getElementById("fourier-group").style.display = "";
+  updateFourier(t);"#,
     );
     // Inject postMessage to report harmonics and signal completion
     let html = html.replace(
