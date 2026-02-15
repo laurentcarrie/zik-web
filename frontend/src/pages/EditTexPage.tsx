@@ -118,8 +118,8 @@ export default function EditTexPage() {
   if (songLoading || texLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-gray-500">Loading...</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -128,8 +128,8 @@ export default function EditTexPage() {
   if (!song) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-red-600">Song not found</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-red-400">Song not found</p>
           <button
             onClick={handleClose}
             className="inline-block mt-4 text-[#667eea] hover:underline"
@@ -143,7 +143,7 @@ export default function EditTexPage() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-4xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+      <div className="max-w-4xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <button
           onClick={handleClose}
           className="text-[#667eea] no-underline hover:underline mb-4 inline-block"
@@ -164,7 +164,7 @@ export default function EditTexPage() {
           theme={oneDark}
           extensions={[StreamLanguage.define(stex)]}
           onChange={handleEditorChange}
-          className="border border-gray-300 rounded-lg overflow-hidden"
+          className="border border-gray-700 rounded-lg overflow-hidden"
         />
 
         <div className="flex items-center gap-4 mt-4">

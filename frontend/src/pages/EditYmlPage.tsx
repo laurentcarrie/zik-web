@@ -188,8 +188,8 @@ export default function EditYmlPage() {
   if (songLoading || ymlLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-gray-500">Loading...</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -198,8 +198,8 @@ export default function EditYmlPage() {
   if (!song) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-red-600">Song not found</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-red-400">Song not found</p>
           <button
             onClick={() => navigate(-1)}
             className="inline-block mt-4 text-[#667eea] hover:underline"
@@ -213,7 +213,7 @@ export default function EditYmlPage() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-4xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+      <div className="max-w-4xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <button
           onClick={() => navigate(-1)}
           className="text-[#667eea] no-underline hover:underline mb-4 inline-block"
@@ -242,8 +242,8 @@ export default function EditYmlPage() {
           </a>
         </div>
 
-        <div className="pt-4 border-t border-gray-200">
-          <h3 className="text-gray-700 font-medium mb-3">Lyrics</h3>
+        <div className="pt-4 border-t border-gray-700">
+          <h3 className="text-gray-300 font-medium mb-3">Lyrics</h3>
           <div className="flex flex-wrap gap-2">
             {sections.length > 0 ? (
               sections.map((section) => {
@@ -264,13 +264,13 @@ export default function EditYmlPage() {
                 )
               })
             ) : (
-              <span className="text-gray-500 italic">No sections found in structure</span>
+              <span className="text-gray-400 italic">No sections found in structure</span>
             )}
           </div>
         </div>
 
-        <div className="pt-4 border-t border-gray-200">
-          <h3 className="text-gray-700 font-medium mb-3">TeX Files</h3>
+        <div className="pt-4 border-t border-gray-700">
+          <h3 className="text-gray-300 font-medium mb-3">TeX Files</h3>
           <div className="flex flex-wrap gap-2">
             <a
               href={`${ROUTE_PREFIX}/edit-tex/${id}/${encodeURIComponent('body.tex')}`}
@@ -302,8 +302,8 @@ export default function EditYmlPage() {
           </div>
         </div>
 
-        <div className="pt-4 border-t border-gray-200">
-          <h3 className="text-gray-700 font-medium mb-3">LilyPond Files</h3>
+        <div className="pt-4 border-t border-gray-700">
+          <h3 className="text-gray-300 font-medium mb-3">LilyPond Files</h3>
           <div className="flex flex-wrap gap-2">
             {files.lilypond && files.lilypond.length > 0 ? (
               files.lilypond.map((file) => (
@@ -332,14 +332,14 @@ export default function EditYmlPage() {
                 </div>
               ))
             ) : (
-              <span className="text-gray-500 italic">No LilyPond files</span>
+              <span className="text-gray-400 italic">No LilyPond files</span>
             )}
           </div>
         </div>
 
         {files.drums && files.drums.length > 0 && (
-          <div className="pt-4 border-t border-gray-200">
-            <h3 className="text-gray-700 font-medium mb-3">Drum Structures</h3>
+          <div className="pt-4 border-t border-gray-700">
+            <h3 className="text-gray-300 font-medium mb-3">Drum Structures</h3>
             <div className="flex flex-wrap gap-2">
               {files.drums.map((file) => (
                 <a

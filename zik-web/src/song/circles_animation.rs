@@ -113,6 +113,11 @@ pub async fn write_animation_embed_to_s3(
         &anim.embed_options,
     );
     let html = html.replace("background:black", "background:transparent");
+    // Shrink sparkle point on non-mobile (desktop screens)
+    let html = html.replace(
+        "</svg>",
+        r#"<style>@media (min-width: 769px) { #dot { transform: scale(0.4); } }</style></svg>"#,
+    );
     // Inject postMessage to report harmonics and signal completion
     let html = html.replace(
         "loopIndex = (loopIndex + 1) % totalLoops;\n    applyLoopParams();",

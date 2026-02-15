@@ -89,8 +89,8 @@ export default function PressBookPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-gray-500">Loading...</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -98,7 +98,7 @@ export default function PressBookPage() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-4xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+      <div className="max-w-4xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <button
           onClick={() => navigate(-1)}
           className="inline-block mb-4 text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-base"
@@ -106,12 +106,12 @@ export default function PressBookPage() {
           &larr; Back
         </button>
 
-        <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Press Book</h1>
+        <h1 className="text-gray-100 text-2xl md:text-3xl font-bold mb-6">Press Book</h1>
 
         {/* Photos Slideshow */}
         {photos.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-gray-700 text-xl font-semibold mb-4">Photos</h2>
+            <h2 className="text-gray-300 text-xl font-semibold mb-4">Photos</h2>
             <div className="relative">
               {/* Main image */}
               <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
@@ -148,7 +148,7 @@ export default function PressBookPage() {
                 >
                   {isPlaying ? 'Pause' : 'Play'}
                 </button>
-                <span className="text-gray-600">
+                <span className="text-gray-400">
                   {currentIndex + 1} / {photos.length}
                 </span>
               </div>
@@ -180,7 +180,7 @@ export default function PressBookPage() {
         {/* Videos Grid */}
         {videos.length > 0 && (
           <div>
-            <h2 className="text-gray-700 text-xl font-semibold mb-4">Videos</h2>
+            <h2 className="text-gray-300 text-xl font-semibold mb-4">Videos</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {videos.map((video) => (
                 <div key={video} className="rounded-lg overflow-hidden bg-black">
@@ -203,7 +203,7 @@ export default function PressBookPage() {
         )}
 
         {photos.length === 0 && videos.length === 0 && (
-          <p className="text-gray-600">No media available.</p>
+          <p className="text-gray-400">No media available.</p>
         )}
       </div>
     </div>
