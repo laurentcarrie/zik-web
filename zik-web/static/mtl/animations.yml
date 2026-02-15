@@ -13,7 +13,11 @@ items:
         speed: 1.0
       - from: 20
         step: 20
-        to: 3100
+        to: 100
+        speed: 1.0
+      - from: 100
+        step: 1000
+        to: 3200
         speed: 1.0
     show_contour: Never
     show_point: true
