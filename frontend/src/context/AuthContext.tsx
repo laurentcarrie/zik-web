@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE } from '../config'
 const STORAGE_KEY = 'write_password'
 
 interface AuthContextType {

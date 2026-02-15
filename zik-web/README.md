@@ -44,7 +44,7 @@ A web application for managing and viewing song sheets, built with Rust/Axum bac
 ### Backend
 ```bash
 cd zik-web
-BUCKET=zik-laurent BUCKET_ROOT=dev AWS_PROFILE=zik-laurent WRITE_PASSWORD=xxx cargo run
+BUCKET=<bucket> BUCKET_ROOT=dev AWS_PROFILE=<profile> WRITE_PASSWORD=<password> cargo run
 ```
 Server runs at http://localhost:8080
 

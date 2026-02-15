@@ -39,26 +39,40 @@ pub struct Animations {
     pub items: Vec<AnimationItem>,
 }
 
-const ANIMATIONS_PATH: &str = "static/animations.yml";
+fn animations_path(band: &str) -> String {
+    if band.is_empty() {
+        "static/animations.yml".to_string()
+    } else {
+        format!("static/{band}/animations.yml")
+    }
+}
 
-pub fn load_animations() -> Result<Animations, Box<dyn std::error::Error + Send + Sync>> {
-    let yaml = std::fs::read_to_string(ANIMATIONS_PATH)?;
+pub fn load_animations(band: &str) -> Result<Animations, Box<dyn std::error::Error + Send + Sync>> {
+    let yaml = std::fs::read_to_string(animations_path(band))?;
     let animations: Animations = serde_yaml::from_str(&yaml)?;
     Ok(animations)
 }
 
 pub fn save_animations(
+    band: &str,
     animations: &Animations,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let yaml = serde_yaml::to_string(animations)?;
-    std::fs::write(ANIMATIONS_PATH, yaml)?;
+    std::fs::write(animations_path(band), yaml)?;
     Ok(())
 }
 
-fn contour_of_animation_enum(animation: &AnimationEnum) -> AnimResult<(String, Vec<(f64, f64)>)> {
+fn contour_of_animation_enum(
+    band: &str,
+    animation: &AnimationEnum,
+) -> AnimResult<(String, Vec<(f64, f64)>)> {
     match animation {
         AnimationEnum::SvgPath(svg) => {
-            let svg_content = std::fs::read_to_string(format!("static/{}", svg.path))?;
+            let svg_content = if band.is_empty() {
+                std::fs::read_to_string(format!("static/{}", svg.path))?
+            } else {
+                std::fs::read_to_string(format!("static/{band}/{}", svg.path))?
+            };
             let path_data = svg_content
                 .split("d=\"")
                 .nth(1)
@@ -82,6 +96,7 @@ fn contour_of_animation_enum(animation: &AnimationEnum) -> AnimResult<(String, V
 
 pub async fn write_animation_embed_to_s3(
     client: &Client,
+    band: &str,
     animations: &Animations,
     index: usize,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -92,9 +107,9 @@ pub async fn write_animation_embed_to_s3(
         )
     })?;
 
-    let (_svg_path, points) = contour_of_animation_enum(&anim.item)?;
+    let (_svg_path, points) = contour_of_animation_enum(band, &anim.item)?;
     let contour = circles_sketch::contour::Contour { points };
-    let contour = circles_sketch::contour::interpolate(&contour, anim.embed_options.num_points);
+    let contour = circles_sketch::contour::interpolate(&contour, anim.embed_options.max_harmonics);
     let svg_path_interp = circles_sketch::svg::svg_path_of_contour(&contour);
     let max_terms = contour.points.len() / 2;
     let fd = circles_sketch::contour::fourier_decomposition(&contour, max_terms);
@@ -106,6 +121,19 @@ pub async fn write_animation_embed_to_s3(
         &anim.embed_options,
     );
     let html = html.replace("background:black", "background:transparent");
+    // Shrink sparkle point on non-mobile (desktop screens)
+    let html = html.replace(
+        r#"dot.setAttribute("transform", "translate(" + pt[0] + "," + pt[1] + ")")"#,
+        r#"dot.setAttribute("transform", "translate(" + pt[0] + "," + pt[1] + ")" + (window.innerWidth > 768 ? " scale(0.4)" : ""))"#,
+    );
+    // Ensure fourier-group is re-shown after loop transitions (crate hides it but
+    // may not re-show it when show_fourier_circles is Always)
+    let html = html.replace(
+        "function updateDisplay(t) {\n  updateFourier(t);",
+        r#"function updateDisplay(t) {
+  document.getElementById("fourier-group").style.display = "";
+  updateFourier(t);"#,
+    );
     // Inject postMessage to report harmonics and signal completion
     let html = html.replace(
         "loopIndex = (loopIndex + 1) % totalLoops;\n    applyLoopParams();",

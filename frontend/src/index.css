@@ -10,18 +10,9 @@
   --color-link: #667eea;
 }
 
-@font-face {
-  font-family: 'Fontskrivan';
-  src: url('/static/skriva-3.woff') format('woff');
-  font-weight: normal;
-  font-style: normal;
-}
-
 body {
   margin: 0;
   min-height: 100vh;
-  background: url('/static/Move-the-line-affiche.jpg') repeat center center fixed;
-  background-size: contain;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   position: relative;
 }
@@ -40,7 +31,7 @@ body::after {
 }
 
 body::before {
-  content: 'Move The Line';
+  content: var(--band-text, 'Move The Line');
   position: fixed;
   top: 0;
   left: 0;
@@ -51,8 +42,8 @@ body::before {
   justify-content: center;
   font-family: var(--font-fontskrivan), cursive;
   font-size: clamp(3rem, 10vw, 12.6rem);
-  color: rgba(255, 255, 255, 0.12);
-  -webkit-text-stroke: 3px rgba(37, 99, 235, 0.15);
+  color: var(--spin-color, rgba(255, 255, 255, 0.12));
+  -webkit-text-stroke: 3px var(--spin-stroke, rgba(37, 99, 235, 0.15));
   white-space: nowrap;
   pointer-events: none;
   z-index: 0;
@@ -60,11 +51,11 @@ body::before {
 }
 
 @keyframes spin {
-  0%   { transform: rotate(0deg);   -webkit-text-stroke-color: rgba(37, 99, 235, 0.25); color: rgba(37, 99, 235, 0.08); }
-  25%  { transform: rotate(90deg);  -webkit-text-stroke-color: rgba(235, 37, 99, 0.25); color: rgba(235, 37, 99, 0.08); }
-  50%  { transform: rotate(180deg); -webkit-text-stroke-color: rgba(37, 200, 80, 0.25); color: rgba(37, 200, 80, 0.08); }
-  75%  { transform: rotate(270deg); -webkit-text-stroke-color: rgba(235, 165, 37, 0.25); color: rgba(235, 165, 37, 0.08); }
-  100% { transform: rotate(360deg); -webkit-text-stroke-color: rgba(37, 99, 235, 0.25); color: rgba(37, 99, 235, 0.08); }
+  0%   { transform: rotate(0deg);   -webkit-text-stroke-color: var(--spin-k0, rgba(37, 99, 235, 0.25)); color: var(--spin-c0, rgba(37, 99, 235, 0.08)); }
+  25%  { transform: rotate(90deg);  -webkit-text-stroke-color: var(--spin-k1, rgba(235, 37, 99, 0.25)); color: var(--spin-c1, rgba(235, 37, 99, 0.08)); }
+  50%  { transform: rotate(180deg); -webkit-text-stroke-color: var(--spin-k2, rgba(37, 200, 80, 0.25)); color: var(--spin-c2, rgba(37, 200, 80, 0.08)); }
+  75%  { transform: rotate(270deg); -webkit-text-stroke-color: var(--spin-k3, rgba(235, 165, 37, 0.25)); color: var(--spin-c3, rgba(235, 165, 37, 0.08)); }
+  100% { transform: rotate(360deg); -webkit-text-stroke-color: var(--spin-k0, rgba(37, 99, 235, 0.25)); color: var(--spin-c0, rgba(37, 99, 235, 0.08)); }
 }
 
 .guitar-background {

@@ -22,7 +22,7 @@ export default function UpdatePage() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-3xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+      <div className="max-w-3xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <button
           onClick={() => navigate(-1)}
           className="inline-block mb-4 text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-base"
@@ -30,9 +30,9 @@ export default function UpdatePage() {
           &larr; Back
         </button>
 
-        <h1 className="text-gray-800 text-2xl md:text-3xl font-bold mb-6">Update Songs</h1>
+        <h1 className="text-gray-100 text-2xl md:text-3xl font-bold mb-6">Update Songs</h1>
 
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-400 mb-6">
           This will scan all song files in S3 and regenerate the songs index.
         </p>
 
@@ -45,13 +45,13 @@ export default function UpdatePage() {
         </button>
 
         {status === 'success' && (
-          <div className="mt-4 p-4 bg-green-100 text-green-800 rounded-lg">
+          <div className="mt-4 p-4 bg-green-900/50 text-green-300 rounded-lg">
             {message}
           </div>
         )}
 
         {status === 'error' && (
-          <div className="mt-4 p-4 bg-red-100 text-red-800 rounded-lg">
+          <div className="mt-4 p-4 bg-red-900/50 text-red-300 rounded-lg">
             Error: {message}
           </div>
         )}

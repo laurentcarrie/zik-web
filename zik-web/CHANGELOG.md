@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.23.0] - 2026-02-16
+
+### Added
+- Multi-band support: serve mtl and sunny-bd under separate URL prefixes
+- Landing page to choose between bands
+- Configurable route prefix via `ROUTE_PREFIX` / `VITE_ROUTE_PREFIX` env vars
+- Shared `API_BASE` config for frontend API calls
+- Band-specific static assets (favicons, backgrounds, animations, SVGs)
+- Help modals: TeX macros on Edit Lyrics page, song.yml structure on Master page
+- i18n translations for help modals (English and French)
+- Sunny-bd band with dedicated animations, favicon ('s' in Fontskrivan font), and background
+
+### Changed
+- All routes nested under band prefix (`/mtl/...`, `/sunny-bd/...`)
+- Dark theme applied to all edit pages
+- Sparkle point scaled down on desktop (non-mobile) screens
+- Animation SVG paths resolved relative to band directory
+- Spin animation keyframe colors use CSS custom properties (darker for sunny-bd)
+- ActionButton prefixes internal links with route prefix
+
+### Fixed
+- Internal href links missing ROUTE_PREFIX for multi-band routing
+- Fourier circles disappearing after loop transitions when `show_fourier_circles: Always`
+- Sparkle point not moving (CSS transform overwritten by JS setAttribute)
+
 ## [0.21.0] - 2026-02-14
 
 ### Added
@@ -102,7 +127,7 @@
 ## [0.13.0] - 2026-01-23
 
 ### Fixed
-- App Runner IAM policies now reference correct S3 bucket name (`zik-laurent` instead of `laurent-zik`)
+- App Runner IAM policies now reference correct S3 bucket name
 
 ## [0.12.0] - 2026-01-23
 
@@ -116,7 +141,7 @@
 - `make_cloudfront_pdf_url()` and `make_cloudfront_url()` helper functions
 
 ### Changed
-- S3 bucket renamed from `laurent-zik` to `zik-laurent`
+- S3 bucket renamed
 - PDFs now served via CloudFront instead of backend proxy
 - Press-book photos and videos served via CloudFront
 - Frontend loads media directly from CloudFront URLs

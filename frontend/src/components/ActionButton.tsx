@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ROUTE_PREFIX } from '../config'
 
 interface ActionButtonProps {
   href?: string
@@ -28,7 +29,7 @@ function PdfIcon({ className }: { className?: string }) {
 
 function DeezerIcon({ className }: { className?: string }) {
   return (
-    <img src="/deezer-favicon.ico" alt="Deezer" className={className} />
+    <img src={`${ROUTE_PREFIX}/deezer-favicon.ico`} alt="Deezer" className={className} />
   )
 }
 
@@ -78,7 +79,7 @@ export default function ActionButton({ href, variant, target, children, disabled
   }
   return (
     <a
-      href={href}
+      href={href.startsWith('/') && !href.startsWith('//') ? `${ROUTE_PREFIX}${href}` : href}
       target={target}
       rel={target === '_blank' ? 'noopener noreferrer' : undefined}
       title={title}

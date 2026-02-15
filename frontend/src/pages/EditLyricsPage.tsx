@@ -5,11 +5,11 @@ import CodeMirror from '@uiw/react-codemirror'
 import { StreamLanguage } from '@codemirror/language'
 import { stex } from '@codemirror/legacy-modes/mode/stex'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { useTranslation } from 'react-i18next'
 import { fetchSong } from '../api/songs'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE } from '../config'
 
 async function fetchLyrics(songId: string, sectionId: string): Promise<{ content: string }> {
   const res = await fetch(`${API_BASE}/api/song/${songId}/lyrics/${sectionId}`)
@@ -41,10 +41,22 @@ async function saveLyrics(songId: string, sectionId: string, content: string): P
   }
 }
 
+const TEX_MACROS = [
+  { name: '\\songword{text}', key: 'macros.songword' },
+  { name: '\\songwordfb{text}', key: 'macros.songwordfb' },
+  { name: '\\songwordl{text}', key: 'macros.songwordl' },
+  { name: '\\songwordcount{n}', key: 'macros.songwordcount' },
+  { name: '\\songbookcomment{text}', key: 'macros.songbookcomment' },
+  { name: '\\songly{file}', key: 'macros.songly' },
+  { name: '\\basecouplet{color}{title}{content}', key: 'macros.basecouplet' },
+]
+
 export default function EditLyricsPage() {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>()
   const [content, setContent] = useState('')
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showMacros, setShowMacros] = useState(false)
+  const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
@@ -103,19 +115,20 @@ export default function EditLyricsPage() {
   // Escape key closes window
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !showPasswordModal) {
-        handleClose()
+      if (e.key === 'Escape') {
+        if (showMacros) { setShowMacros(false); return }
+        if (!showPasswordModal) handleClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showPasswordModal])
+  }, [showPasswordModal, showMacros])
 
   if (songLoading || lyricsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-gray-500">Loading...</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -124,8 +137,8 @@ export default function EditLyricsPage() {
   if (!song) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/95 rounded-2xl p-8 shadow-2xl">
-          <p className="text-red-600">Song not found</p>
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-red-400">Song not found</p>
           <button
             onClick={handleClose}
             className="inline-block mt-4 text-[#667eea] hover:underline"
@@ -139,7 +152,7 @@ export default function EditLyricsPage() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-4xl mx-auto bg-white/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+      <div className="max-w-4xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
         <button
           onClick={handleClose}
           className="text-[#667eea] no-underline hover:underline mb-4 inline-block"
@@ -160,7 +173,7 @@ export default function EditLyricsPage() {
           theme={oneDark}
           extensions={[StreamLanguage.define(stex)]}
           onChange={handleEditorChange}
-          className="border border-gray-300 rounded-lg overflow-hidden"
+          className="border border-gray-700 rounded-lg overflow-hidden"
         />
 
         <div className="flex items-center gap-4 mt-4">
@@ -171,7 +184,34 @@ export default function EditLyricsPage() {
           >
             {saveMutation.isPending ? 'Saving...' : 'Save'}
           </button>
+          <button
+            onClick={() => setShowMacros(true)}
+            className="px-4 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors"
+          >
+            {t('macros.button')}
+          </button>
         </div>
+
+        {showMacros && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowMacros(false)}>
+            <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-gray-200 text-xl font-bold">{t('macros.title')}</h2>
+                <button onClick={() => setShowMacros(false)} className="text-gray-400 hover:text-gray-200 text-2xl leading-none">&times;</button>
+              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                  {TEX_MACROS.map(m => (
+                    <tr key={m.name} className="border-b border-gray-700">
+                      <td className="py-2 pr-4 font-mono text-blue-300 whitespace-nowrap align-top">{m.name}</td>
+                      <td className="py-2 text-gray-300">{t(m.key)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       <PasswordModal

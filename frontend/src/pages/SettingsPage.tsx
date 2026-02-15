@@ -8,8 +8,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE, ROUTE_PREFIX } from '../config'
 const SETTINGS_KEY = 'songs/settings.yml'
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
@@ -23,14 +22,15 @@ interface ServiceSettings {
   lyricsEnabled?: boolean // deprecated, for migration
 }
 
-interface ThresholdStep {
-  start: number
+interface HarmonicRange {
+  from: number
   step: number
+  to: number
+  speed: number
 }
 
 interface HarmonicSteps {
-  thresholds: ThresholdStep[]
-  max_harmonic: number
+  ranges: HarmonicRange[]
 }
 
 interface OnceEvery {
@@ -41,8 +41,7 @@ interface OnceEvery {
 type WhenToShow = 'Always' | 'Never' | { OnceEvery: OnceEvery }
 
 interface EmbedOptions {
-  num_points: number
-  speed: number
+  max_harmonics: number
   steps: HarmonicSteps
   show_contour: WhenToShow
   show_point: boolean
@@ -99,6 +98,7 @@ function whenToShowType(v: WhenToShow): string {
 }
 
 function WhenToShowSelect({ label, value, onChange }: { label: string; value: WhenToShow; onChange: (v: WhenToShow) => void }) {
+  const { t } = useTranslation()
   const type = whenToShowType(value)
   const onceEvery = typeof value === 'object' ? value.OnceEvery : { modulo: 2, remainders: [1] }
   return (
@@ -107,15 +107,15 @@ function WhenToShowSelect({ label, value, onChange }: { label: string; value: Wh
         <span className="text-gray-300 text-sm font-medium">{label}:</span>
         <select value={type}
           onChange={(e) => {
-            const t = e.target.value
-            if (t === 'Always') onChange('Always')
-            else if (t === 'Never') onChange('Never')
+            const v = e.target.value
+            if (v === 'Always') onChange('Always')
+            else if (v === 'Never') onChange('Never')
             else onChange({ OnceEvery: onceEvery })
           }}
           className="px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200">
-          <option value="Always">Always</option>
-          <option value="Never">Never</option>
-          <option value="OnceEvery">Once Every</option>
+          <option value="Always">{t('settings.always')}</option>
+          <option value="Never">{t('settings.never')}</option>
+          <option value="OnceEvery">{t('settings.onceEvery')}</option>
         </select>
       </div>
       {type === 'OnceEvery' && (
@@ -241,7 +241,7 @@ export default function SettingsPage() {
   }, [settingsYml])
 
   useEffect(() => {
-    fetch('/version')
+    fetch(`${API_BASE}/version`)
       .then(res => res.text())
       .then(setVersion)
       .catch(() => setVersion('unknown'))
@@ -288,11 +288,6 @@ export default function SettingsPage() {
     } finally {
       setPatternsLoading(false)
     }
-  }
-
-  async function openSequences() {
-    setShowSequences(true)
-    await loadPatterns()
   }
 
   async function handleListenPattern(name: string) {
@@ -412,7 +407,7 @@ export default function SettingsPage() {
   async function openLogFile(pathbuf: string, type: 'stdout' | 'stderr') {
     const logKey = `sandbox/logs/${pathbuf}.${type}`
     setLogModalTitle(`${pathbuf} - ${type}`)
-    setLogContent('Loading...')
+    setLogContent(t('settings.loading'))
     setShowLogModal(true)
     try {
       const res = await fetch(`${API_BASE}/api/s3/${logKey}`)
@@ -756,12 +751,6 @@ export default function SettingsPage() {
             {t('settings.renderingSettings')}
           </button>
           <button
-            onClick={openSequences}
-            className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            Sequences
-          </button>
-          <button
             onClick={openMakeReport}
             className="px-3 py-1.5 text-sm bg-[#10b981] text-white rounded-lg hover:bg-[#059669]"
           >
@@ -792,7 +781,7 @@ export default function SettingsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-200 text-xl font-bold">Rendering Settings</h2>
+              <h2 className="text-gray-200 text-xl font-bold">{t('settings.renderingSettings')}</h2>
               <button
                 onClick={() => setShowRenderingSettings(false)}
                 className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
@@ -819,22 +808,22 @@ export default function SettingsPage() {
                 disabled={settingsYmlSaving || !isYamlValid}
                 className="px-4 py-2 bg-[#667eea] text-white rounded-lg hover:bg-[#5a67d8] disabled:bg-gray-400"
               >
-                {settingsYmlSaving ? 'Saving...' : 'Save'}
+                {settingsYmlSaving ? t('settings.saving') : t('settings.save')}
               </button>
               <span className={`text-sm px-3 py-1 rounded ${isYamlValid ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
-                {isYamlValid ? 'Valid YAML' : 'Invalid YAML'}
+                {isYamlValid ? t('settings.validYaml') : t('settings.invalidYaml')}
               </span>
               <button
                 onClick={loadSettingsYml}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
-                Reload
+                {t('settings.reload')}
               </button>
               <button
                 onClick={() => setShowRenderingSettings(false)}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
-                Close
+                {t('settings.close')}
               </button>
             </div>
           </div>
@@ -873,7 +862,7 @@ export default function SettingsPage() {
                 {patternNames.map((name) => (
                   <div key={name} className="flex flex-col gap-1">
                     <a
-                      href={`/edit-drums-global/${encodeURIComponent(name)}`}
+                      href={`${ROUTE_PREFIX}/edit-drums-global/${encodeURIComponent(name)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
@@ -921,7 +910,7 @@ export default function SettingsPage() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="flex items-center gap-3">
-                  <h2 className="text-gray-200 text-xl font-bold">Build Failed Nodes</h2>
+                  <h2 className="text-gray-200 text-xl font-bold">{t('settings.buildFailedNodes')}</h2>
                   {lambdaRunning !== null && (
                     <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
                       lambdaRunning
@@ -949,7 +938,7 @@ export default function SettingsPage() {
                 </div>
                 {makeReportTimestamp && (
                   <p className="text-gray-400 text-sm mt-1">
-                    Last updated: {makeReportTimestamp}
+                    {t('settings.lastUpdated')}: {makeReportTimestamp}
                   </p>
                 )}
               </div>
@@ -962,11 +951,11 @@ export default function SettingsPage() {
             </div>
             {makeReportLoading ? (
               <div className="flex items-center justify-center h-64">
-                <p className="text-gray-400">Loading...</p>
+                <p className="text-gray-400">{t('settings.loading')}</p>
               </div>
             ) : failedNodes.length === 0 ? (
               <div className="flex items-center justify-center h-32">
-                <p className="text-green-400 font-medium">No failed builds!</p>
+                <p className="text-green-400 font-medium">{t('settings.noFailedBuilds')}</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-auto">
@@ -1007,19 +996,19 @@ export default function SettingsPage() {
                 onClick={openMakeReport}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
-                Reload
+                {t('settings.reload')}
               </button>
               <button
                 onClick={() => setShowRawMakeReport(true)}
                 className="px-4 py-2 bg-[#667eea] text-white rounded-lg hover:bg-[#5a67d8]"
               >
-                Show make-report.yml
+                {t('settings.showMakeReport')}
               </button>
               <button
                 onClick={() => setShowMakeReport(false)}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
-                Close
+                {t('settings.close')}
               </button>
             </div>
           </div>
@@ -1051,7 +1040,7 @@ export default function SettingsPage() {
                 onClick={() => setShowRawMakeReport(false)}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
-                Close
+                {t('settings.close')}
               </button>
             </div>
           </div>
@@ -1078,7 +1067,7 @@ export default function SettingsPage() {
                 onClick={() => setShowLogModal(false)}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
-                Close
+                {t('settings.close')}
               </button>
             </div>
           </div>
@@ -1098,9 +1087,9 @@ export default function SettingsPage() {
               </button>
             </div>
             {animationsLoading ? (
-              <p className="text-gray-500">Loading...</p>
+              <p className="text-gray-500">{t('settings.loading')}</p>
             ) : !animations || animations.items.length === 0 ? (
-              <p className="text-gray-500 italic">No animations found</p>
+              <p className="text-gray-500 italic">{t('settings.noAnimations')}</p>
             ) : (() => {
               const safeIndex = selectedAnimIndex < animations.items.length ? selectedAnimIndex : 0
               const anim = animations.items[safeIndex]
@@ -1111,7 +1100,7 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   {animations.items.length > 1 && (
                     <div>
-                      <label className="text-gray-300 text-sm font-medium">Animation</label>
+                      <label className="text-gray-300 text-sm font-medium">{t('settings.animation')}</label>
                       <select
                         value={selectedAnimIndex}
                         onChange={(e) => setSelectedAnimIndex(Number(e.target.value))}
@@ -1137,25 +1126,28 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Points: {opts.num_points}
+                      {t('settings.maxHarmonics')}: {opts.max_harmonics}
                     </label>
-                    <input type="range" min={500} max={10000} step={500} value={opts.num_points}
-                      onChange={(e) => updateEmbedOption('num_points', Number(e.target.value))}
+                    <input type="range" min={500} max={10000} step={500} value={opts.max_harmonics}
+                      onChange={(e) => updateEmbedOption('max_harmonics', Number(e.target.value))}
                       className="w-full accent-pink-500" />
                   </div>
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Speed: {opts.speed.toFixed(1)}
+                      {t('settings.speed')}: {(opts.steps.ranges[0]?.speed ?? 3).toFixed(1)}
                     </label>
-                    <input type="range" min={0.5} max={10} step={0.1} value={opts.speed}
-                      onChange={(e) => updateEmbedOption('speed', Number(e.target.value))}
+                    <input type="range" min={0.5} max={10} step={0.1} value={opts.steps.ranges[0]?.speed ?? 3}
+                      onChange={(e) => {
+                        const speed = Number(e.target.value)
+                        updateEmbedOption('steps', { ...opts.steps, ranges: opts.steps.ranges.map(r => ({ ...r, speed })) })
+                      }}
                       className="w-full accent-pink-500" />
                   </div>
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Opacity: {opts.opacity.toFixed(2)}
+                      {t('settings.opacity')}: {opts.opacity.toFixed(2)}
                     </label>
                     <input type="range" min={0} max={1} step={0.01} value={opts.opacity}
                       onChange={(e) => updateEmbedOption('opacity', Number(e.target.value))}
@@ -1164,7 +1156,7 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Trace Length: {opts.trace_length}
+                      {t('settings.traceLength')}: {opts.trace_length}
                     </label>
                     <input type="range" min={10} max={1000} step={10} value={opts.trace_length}
                       onChange={(e) => updateEmbedOption('trace_length', Number(e.target.value))}
@@ -1173,7 +1165,7 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Trace Width: {opts.trace_width.toFixed(1)}
+                      {t('settings.traceWidth')}: {opts.trace_width.toFixed(1)}
                     </label>
                     <input type="range" min={0.1} max={5} step={0.1} value={opts.trace_width}
                       onChange={(e) => updateEmbedOption('trace_width', Number(e.target.value))}
@@ -1182,7 +1174,7 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Contour Width: {opts.contour_width.toFixed(1)}
+                      {t('settings.contourWidth')}: {opts.contour_width.toFixed(1)}
                     </label>
                     <input type="range" min={0.1} max={5} step={0.1} value={opts.contour_width}
                       onChange={(e) => updateEmbedOption('contour_width', Number(e.target.value))}
@@ -1194,67 +1186,70 @@ export default function SettingsPage() {
                       <input type="checkbox" checked={opts.show_point}
                         onChange={() => updateEmbedOption('show_point', !opts.show_point)}
                         className="w-4 h-4 accent-pink-500" />
-                      <span className="text-gray-300 text-sm">Show Point</span>
+                      <span className="text-gray-300 text-sm">{t('settings.showPoint')}</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={opts.show_nh}
                         onChange={() => updateEmbedOption('show_nh', !opts.show_nh)}
                         className="w-4 h-4 accent-pink-500" />
-                      <span className="text-gray-300 text-sm">Show Harmonics Counter</span>
+                      <span className="text-gray-300 text-sm">{t('settings.showHarmonicsCounter')}</span>
                     </label>
                   </div>
 
-                  <WhenToShowSelect label="Show Contour" value={opts.show_contour}
+                  <WhenToShowSelect label={t('settings.showContour')} value={opts.show_contour}
                     onChange={(v) => updateEmbedOption('show_contour', v)} />
-                  <WhenToShowSelect label="Show Trace" value={opts.show_trace}
+                  <WhenToShowSelect label={t('settings.showTrace')} value={opts.show_trace}
                     onChange={(v) => updateEmbedOption('show_trace', v)} />
-                  <WhenToShowSelect label="Show Fourier Circles" value={opts.show_fourier_circles}
+                  <WhenToShowSelect label={t('settings.showFourierCircles')} value={opts.show_fourier_circles}
                     onChange={(v) => updateEmbedOption('show_fourier_circles', v)} />
 
                   <div className="pt-3 border-t border-gray-700">
-                    <h3 className="text-gray-300 text-sm font-semibold mb-2">Harmonic Steps</h3>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-gray-400 text-sm">Max:</span>
-                      <input type="number" value={opts.steps.max_harmonic} min={1}
-                        onChange={(e) => updateEmbedOption('steps', { ...opts.steps, max_harmonic: Number(e.target.value) })}
-                        className="w-20 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
-                    </div>
+                    <h3 className="text-gray-300 text-sm font-semibold mb-2">{t('settings.harmonicRanges')}</h3>
                     <div className="space-y-1">
-                      {opts.steps.thresholds.map((th, i) => (
+                      {opts.steps.ranges.map((r, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="text-gray-400 text-xs w-10">from</span>
-                          <input type="number" value={th.start} min={0}
+                          <span className="text-gray-400 text-xs">{t('settings.from')}</span>
+                          <input type="number" value={r.from} min={0}
                             onChange={(e) => {
-                              const newThresholds = [...opts.steps.thresholds]
-                              newThresholds[i] = { ...newThresholds[i], start: Number(e.target.value) }
-                              updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], from: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                             }}
                             className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
-                          <span className="text-gray-400 text-xs">step</span>
-                          <input type="number" value={th.step} min={1}
+                          <span className="text-gray-400 text-xs">{t('settings.to')}</span>
+                          <input type="number" value={r.to} min={1}
                             onChange={(e) => {
-                              const newThresholds = [...opts.steps.thresholds]
-                              newThresholds[i] = { ...newThresholds[i], step: Number(e.target.value) }
-                              updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], to: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
+                            }}
+                            className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
+                          <span className="text-gray-400 text-xs">{t('settings.step')}</span>
+                          <input type="number" value={r.step} min={1}
+                            onChange={(e) => {
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], step: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                             }}
                             className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
                           <button onClick={() => {
-                            const newThresholds = opts.steps.thresholds.filter((_, j) => j !== i)
-                            updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                            const newRanges = opts.steps.ranges.filter((_, j) => j !== i)
+                            updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                           }} className="text-red-400 hover:text-red-600 text-sm">&times;</button>
                         </div>
                       ))}
                       <button onClick={() => {
-                        const last = opts.steps.thresholds[opts.steps.thresholds.length - 1]
-                        const newThreshold = { start: last ? last.start + 10 : 0, step: 1 }
-                        updateEmbedOption('steps', { ...opts.steps, thresholds: [...opts.steps.thresholds, newThreshold] })
-                      }} className="text-pink-500 hover:text-pink-700 text-sm">+ Add threshold</button>
+                        const last = opts.steps.ranges[opts.steps.ranges.length - 1]
+                        const speed = last?.speed ?? 3.0
+                        const newRange = { from: last ? last.to : 0, step: 1, to: last ? last.to + 100 : 100, speed }
+                        updateEmbedOption('steps', { ...opts.steps, ranges: [...opts.steps.ranges, newRange] })
+                      }} className="text-pink-500 hover:text-pink-700 text-sm">{t('settings.addRange')}</button>
                     </div>
                   </div>
 
                   {animations.items.length > 1 && (
                     <div className="pt-3 border-t border-gray-700">
-                      <h3 className="text-gray-300 text-sm font-semibold mb-2">Enabled Animations</h3>
+                      <h3 className="text-gray-300 text-sm font-semibold mb-2">{t('settings.enabledAnimations')}</h3>
                       <div className="space-y-1">
                         {animations.items.map((a, idx) => {
                           const allEnabled = enabledContours.length === 0
@@ -1274,6 +1269,7 @@ export default function SettingsPage() {
                                   if (next.length === animations.items.length) next = []
                                   setEnabledContours(next)
                                   setCookie('enabledContours', JSON.stringify(next))
+                                  window.dispatchEvent(new CustomEvent('enabled-contours-changed', { detail: next }))
                                 }}
                                 className="w-4 h-4 accent-pink-500" />
                               <span className="text-gray-300 text-sm">{a.name}</span>
@@ -1295,19 +1291,19 @@ export default function SettingsPage() {
                 disabled={animationsSaving}
                 className={`px-4 py-2 text-white rounded-lg disabled:bg-gray-400 ${animationsSaved ? 'bg-green-500' : 'bg-pink-500 hover:bg-pink-600'}`}
               >
-                {animationsSaving ? 'Saving...' : animationsSaved ? 'Saved!' : 'Save & Apply'}
+                {animationsSaving ? t('settings.saving') : animationsSaved ? t('settings.saved') : t('settings.saveApply')}
               </button>
               <button
                 onClick={loadAnimations}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
-                Reload
+                {t('settings.reload')}
               </button>
               <button
                 onClick={() => setShowAnimation(false)}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
               >
-                Close
+                {t('settings.close')}
               </button>
             </div>
           </div>
