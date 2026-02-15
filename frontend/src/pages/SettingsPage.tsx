@@ -23,14 +23,15 @@ interface ServiceSettings {
   lyricsEnabled?: boolean // deprecated, for migration
 }
 
-interface ThresholdStep {
-  start: number
+interface HarmonicRange {
+  from: number
   step: number
+  to: number
+  speed: number
 }
 
 interface HarmonicSteps {
-  thresholds: ThresholdStep[]
-  max_harmonic: number
+  ranges: HarmonicRange[]
 }
 
 interface OnceEvery {
@@ -41,8 +42,7 @@ interface OnceEvery {
 type WhenToShow = 'Always' | 'Never' | { OnceEvery: OnceEvery }
 
 interface EmbedOptions {
-  num_points: number
-  speed: number
+  max_harmonics: number
   steps: HarmonicSteps
   show_contour: WhenToShow
   show_point: boolean
@@ -288,11 +288,6 @@ export default function SettingsPage() {
     } finally {
       setPatternsLoading(false)
     }
-  }
-
-  async function openSequences() {
-    setShowSequences(true)
-    await loadPatterns()
   }
 
   async function handleListenPattern(name: string) {
@@ -756,12 +751,6 @@ export default function SettingsPage() {
             {t('settings.renderingSettings')}
           </button>
           <button
-            onClick={openSequences}
-            className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            Sequences
-          </button>
-          <button
             onClick={openMakeReport}
             className="px-3 py-1.5 text-sm bg-[#10b981] text-white rounded-lg hover:bg-[#059669]"
           >
@@ -1137,19 +1126,22 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Points: {opts.num_points}
+                      Max Harmonics: {opts.max_harmonics}
                     </label>
-                    <input type="range" min={500} max={10000} step={500} value={opts.num_points}
-                      onChange={(e) => updateEmbedOption('num_points', Number(e.target.value))}
+                    <input type="range" min={500} max={10000} step={500} value={opts.max_harmonics}
+                      onChange={(e) => updateEmbedOption('max_harmonics', Number(e.target.value))}
                       className="w-full accent-pink-500" />
                   </div>
 
                   <div>
                     <label className="text-gray-300 text-sm font-medium">
-                      Speed: {opts.speed.toFixed(1)}
+                      Speed: {(opts.steps.ranges[0]?.speed ?? 3).toFixed(1)}
                     </label>
-                    <input type="range" min={0.5} max={10} step={0.1} value={opts.speed}
-                      onChange={(e) => updateEmbedOption('speed', Number(e.target.value))}
+                    <input type="range" min={0.5} max={10} step={0.1} value={opts.steps.ranges[0]?.speed ?? 3}
+                      onChange={(e) => {
+                        const speed = Number(e.target.value)
+                        updateEmbedOption('steps', { ...opts.steps, ranges: opts.steps.ranges.map(r => ({ ...r, speed })) })
+                      }}
                       className="w-full accent-pink-500" />
                   </div>
 
@@ -1212,43 +1204,46 @@ export default function SettingsPage() {
                     onChange={(v) => updateEmbedOption('show_fourier_circles', v)} />
 
                   <div className="pt-3 border-t border-gray-700">
-                    <h3 className="text-gray-300 text-sm font-semibold mb-2">Harmonic Steps</h3>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-gray-400 text-sm">Max:</span>
-                      <input type="number" value={opts.steps.max_harmonic} min={1}
-                        onChange={(e) => updateEmbedOption('steps', { ...opts.steps, max_harmonic: Number(e.target.value) })}
-                        className="w-20 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
-                    </div>
+                    <h3 className="text-gray-300 text-sm font-semibold mb-2">Harmonic Ranges</h3>
                     <div className="space-y-1">
-                      {opts.steps.thresholds.map((th, i) => (
+                      {opts.steps.ranges.map((r, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="text-gray-400 text-xs w-10">from</span>
-                          <input type="number" value={th.start} min={0}
+                          <span className="text-gray-400 text-xs">from</span>
+                          <input type="number" value={r.from} min={0}
                             onChange={(e) => {
-                              const newThresholds = [...opts.steps.thresholds]
-                              newThresholds[i] = { ...newThresholds[i], start: Number(e.target.value) }
-                              updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], from: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
+                            }}
+                            className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
+                          <span className="text-gray-400 text-xs">to</span>
+                          <input type="number" value={r.to} min={1}
+                            onChange={(e) => {
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], to: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                             }}
                             className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
                           <span className="text-gray-400 text-xs">step</span>
-                          <input type="number" value={th.step} min={1}
+                          <input type="number" value={r.step} min={1}
                             onChange={(e) => {
-                              const newThresholds = [...opts.steps.thresholds]
-                              newThresholds[i] = { ...newThresholds[i], step: Number(e.target.value) }
-                              updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], step: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                             }}
                             className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
                           <button onClick={() => {
-                            const newThresholds = opts.steps.thresholds.filter((_, j) => j !== i)
-                            updateEmbedOption('steps', { ...opts.steps, thresholds: newThresholds })
+                            const newRanges = opts.steps.ranges.filter((_, j) => j !== i)
+                            updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                           }} className="text-red-400 hover:text-red-600 text-sm">&times;</button>
                         </div>
                       ))}
                       <button onClick={() => {
-                        const last = opts.steps.thresholds[opts.steps.thresholds.length - 1]
-                        const newThreshold = { start: last ? last.start + 10 : 0, step: 1 }
-                        updateEmbedOption('steps', { ...opts.steps, thresholds: [...opts.steps.thresholds, newThreshold] })
-                      }} className="text-pink-500 hover:text-pink-700 text-sm">+ Add threshold</button>
+                        const last = opts.steps.ranges[opts.steps.ranges.length - 1]
+                        const speed = last?.speed ?? 3.0
+                        const newRange = { from: last ? last.to : 0, step: 1, to: last ? last.to + 100 : 100, speed }
+                        updateEmbedOption('steps', { ...opts.steps, ranges: [...opts.steps.ranges, newRange] })
+                      }} className="text-pink-500 hover:text-pink-700 text-sm">+ Add range</button>
                     </div>
                   </div>
 
@@ -1274,6 +1269,7 @@ export default function SettingsPage() {
                                   if (next.length === animations.items.length) next = []
                                   setEnabledContours(next)
                                   setCookie('enabledContours', JSON.stringify(next))
+                                  window.dispatchEvent(new CustomEvent('enabled-contours-changed', { detail: next }))
                                 }}
                                 className="w-4 h-4 accent-pink-500" />
                               <span className="text-gray-300 text-sm">{a.name}</span>

@@ -94,7 +94,7 @@ pub async fn write_animation_embed_to_s3(
 
     let (_svg_path, points) = contour_of_animation_enum(&anim.item)?;
     let contour = circles_sketch::contour::Contour { points };
-    let contour = circles_sketch::contour::interpolate(&contour, anim.embed_options.num_points);
+    let contour = circles_sketch::contour::interpolate(&contour, anim.embed_options.max_harmonics);
     let svg_path_interp = circles_sketch::svg::svg_path_of_contour(&contour);
     let max_terms = contour.points.len() / 2;
     let fd = circles_sketch::contour::fourier_decomposition(&contour, max_terms);

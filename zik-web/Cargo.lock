@@ -864,7 +864,9 @@ dependencies = [
 
 [[package]]
 name = "circles-sketch"
-version = "0.2.2"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2da2637f01b19d90c2de0eea262158ce30ae2557cb19897be07ef572dd96eb53"
 dependencies = [
  "clap",
  "font-kit",
@@ -4636,7 +4638,7 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudwatchlogs",

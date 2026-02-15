@@ -102,6 +102,17 @@ function App() {
   }, [loadEmbed])
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const enabled = (e as CustomEvent).detail as number[]
+      const startIndex = enabled.length > 0 ? enabled[0] : 0
+      indexRef.current = startIndex
+      loadEmbed(startIndex)
+    }
+    window.addEventListener('enabled-contours-changed', handler)
+    return () => window.removeEventListener('enabled-contours-changed', handler)
+  }, [loadEmbed])
+
+  useEffect(() => {
     const handler = () => setAnimEnabled(isAnimationEnabled())
     window.addEventListener('animation-toggled', handler)
     return () => window.removeEventListener('animation-toggled', handler)
