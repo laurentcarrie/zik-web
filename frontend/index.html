@@ -9,7 +9,8 @@
     <link rel="manifest" href="/static/site.webmanifest">
     <title>M T L</title>
     <script>
-      fetch('/api/config').then(r=>r.json()).then(c=>{
+      const band = location.pathname.match(/^\/(mtl|sunny-bd)/)?.[0] || '';
+      fetch(band + '/api/config').then(r=>r.json()).then(c=>{
         if(c.favicon){
           document.getElementById('favicon-32').href=c.favicon;
           document.getElementById('favicon-16').href=c.favicon;
