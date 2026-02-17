@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.2] - 2026-02-17
+
+### Changed
+- Update `circles-sketch` from 0.3.2 to 0.4.0 (`svg` module renamed to `canvas`, `OnceEvery` renamed to `Congruence`, `remainders` renamed to `congruents`)
+- Make deploy-prod workflow manual-only (`workflow_dispatch`), remove auto-trigger on Cargo.toml push
+
 ## [0.23.0] - 2026-02-16
 
 ### Added

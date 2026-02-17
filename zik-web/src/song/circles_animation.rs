@@ -78,7 +78,7 @@ fn contour_of_animation_enum(
                 .nth(1)
                 .and_then(|s| s.split('"').next())
                 .ok_or_else(|| format!("no path d attribute found in {}", svg.path))?;
-            let mut points = circles_sketch::svg::points_of_svg_path(path_data);
+            let mut points = circles_sketch::canvas::points_of_svg_path(path_data);
             if svg.flip_y {
                 for (_, y) in &mut points {
                     *y = -*y;
@@ -88,7 +88,7 @@ fn contour_of_animation_enum(
         }
         AnimationEnum::Text(t) => {
             let svg_path = circles_sketch::text::svg_path_of_text(&t.text, &t.font);
-            let points = circles_sketch::svg::points_of_svg_path(&svg_path);
+            let points = circles_sketch::canvas::points_of_svg_path(&svg_path);
             Ok((svg_path, points))
         }
     }
@@ -110,11 +110,11 @@ pub async fn write_animation_embed_to_s3(
     let (_svg_path, points) = contour_of_animation_enum(band, &anim.item)?;
     let contour = circles_sketch::contour::Contour { points };
     let contour = circles_sketch::contour::interpolate(&contour, anim.embed_options.max_harmonics);
-    let svg_path_interp = circles_sketch::svg::svg_path_of_contour(&contour);
+    let svg_path_interp = circles_sketch::canvas::svg_path_of_contour(&contour);
     let max_terms = contour.points.len() / 2;
     let fd = circles_sketch::contour::fourier_decomposition(&contour, max_terms);
 
-    let html = circles_sketch::svg::embed_html_of_svg_path_with_fourier(
+    let html = circles_sketch::canvas::embed_html_of_svg_path_with_fourier(
         &svg_path_interp,
         &contour.points,
         Some(&fd),
