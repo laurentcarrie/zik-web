@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.23.3] - 2026-02-17
+
+### Added
+- Per-range speed input in animation settings UI
+- Embed API response cache to eliminate network delay between animation loops
+- Band-aware favicon: extracts band prefix from URL to fetch correct favicon
+
+### Changed
+- Deploy-prod only triggers on actual version changes (not any Cargo.toml edit)
+- Root URL (/) redirects permanently to /mtl, band picker moved to /root
+- Animation trace persists across harmonic iterations instead of resetting
+- Faster animation speeds for mtl contours
+
+### Fixed
+- Null-check `fourier-group` element to prevent crash on animations without circles
+- Deezer favicon path hardcoded to /static instead of using ROUTE_PREFIX
+
 ## [0.23.2] - 2026-02-17
 
 ### Changed

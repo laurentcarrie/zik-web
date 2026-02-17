@@ -51,7 +51,20 @@ function App() {
   const countRef = useRef(1)
   const namesRef = useRef<string[]>([])
 
-  const loadEmbed = useCallback((index: number) => {
+  const embedCache = useRef<Map<number, { url: string; count: number; names?: string[] }>>(new Map())
+
+  const loadEmbed = useCallback((index: number, bustCache = false) => {
+    const cached = embedCache.current.get(index)
+    if (cached && !bustCache) {
+      setAnimError(null)
+      setGuitarUrl(cached.url + '?t=' + Date.now())
+      countRef.current = cached.count
+      if (cached.names) {
+        namesRef.current = cached.names
+        window.dispatchEvent(new CustomEvent('contour-names', { detail: cached.names }))
+      }
+      return
+    }
     fetch(`${API_BASE}/api/guitar-embed/${index}`)
       .then(async r => {
         if (!r.ok) {
@@ -61,6 +74,7 @@ function App() {
         return r.json()
       })
       .then(data => {
+        embedCache.current.set(index, data)
         setAnimError(null)
         setGuitarUrl(data.url + '?t=' + Date.now())
         countRef.current = data.count
@@ -97,7 +111,7 @@ function App() {
   }, [loadEmbed])
 
   useEffect(() => {
-    const handler = () => loadEmbed(indexRef.current)
+    const handler = () => loadEmbed(indexRef.current, true)
     window.addEventListener('reload-animation', handler)
     return () => window.removeEventListener('reload-animation', handler)
   }, [loadEmbed])

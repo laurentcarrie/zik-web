@@ -131,7 +131,7 @@ pub async fn write_animation_embed_to_s3(
     let html = html.replace(
         "function updateDisplay(t) {\n  updateFourier(t);",
         r#"function updateDisplay(t) {
-  document.getElementById("fourier-group").style.display = "";
+  { const fg = document.getElementById("fourier-group"); if (fg) fg.style.display = ""; }
   updateFourier(t);"#,
     );
     // Inject postMessage to report harmonics and signal completion
@@ -142,8 +142,7 @@ pub async fn write_animation_embed_to_s3(
     window.parent.postMessage({ type: 'guitar-harmonics', harmonics: nhSteps[loopIndex], maxHarmonics: nhSteps[totalLoops - 1] }, '*');
     if (loopIndex === 0) {
       cancelAnimationFrame(animId);
-      traceHistory = [];
-      document.getElementById("fourier-group").style.display = "none";
+      { const fg = document.getElementById("fourier-group"); if (fg) fg.style.display = "none"; }
       setTimeout(() => {
         window.parent.postMessage({ type: 'guitar-animation-complete' }, '*');
         lastTime = null;

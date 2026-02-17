@@ -29,7 +29,7 @@ function PdfIcon({ className }: { className?: string }) {
 
 function DeezerIcon({ className }: { className?: string }) {
   return (
-    <img src={`${ROUTE_PREFIX}/deezer-favicon.ico`} alt="Deezer" className={className} />
+    <img src="/static/deezer-favicon.ico" alt="Deezer" className={className} />
   )
 }
 

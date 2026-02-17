@@ -8,13 +8,13 @@ items:
     steps:
       ranges:
       - from: 1
-        step: 1
+        step: 3
         to: 20
-        speed: 1.0
+        speed: 3.0
       - from: 20
         step: 20
         to: 100
-        speed: 1.0
+        speed: 3.0
       - from: 100
         step: 1000
         to: 3200
@@ -42,16 +42,16 @@ items:
       ranges:
       - from: 1
         step: 10
-        to: 1
+        to: 3
         speed: 3.0
       - from: 10
-        step: 10
+        step: 30
         to: 200
-        speed: 1.0
+        speed: 2.0
       - from: 200
         step: 200
         to: 10000
-        speed: 1.0
+        speed: 2.0
     show_contour: !Congruence
       modulo: 5
       congruents:
@@ -77,7 +77,8 @@ items:
       - 0
     trace_colors:
     - white
-    - red
+    - blue
+    - orange
     flip_y: false
 - name: band
   item: !SvgPath
@@ -88,11 +89,11 @@ items:
     steps:
       ranges:
       - from: 1
-        step: 1
+        step: 3
         to: 10
         speed: 3.0
       - from: 10
-        step: 10
+        step: 20
         to: 50
         speed: 2.5
       - from: 50
@@ -102,7 +103,7 @@ items:
       - from: 500
         step: 500
         to: 5000
-        speed: 1.0
+        speed: 2.5
     show_contour: !Congruence
       modulo: 10
       congruents:
@@ -121,5 +122,5 @@ items:
       - 1
       - 2
     trace_colors:
-    - white
+    - orange
     flip_y: false

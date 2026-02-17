@@ -1234,6 +1234,14 @@ export default function SettingsPage() {
                               updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
                             }}
                             className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
+                          <span className="text-gray-400 text-xs">{t('settings.speed')}</span>
+                          <input type="number" value={r.speed} min={0.1} step={0.1}
+                            onChange={(e) => {
+                              const newRanges = [...opts.steps.ranges]
+                              newRanges[i] = { ...newRanges[i], speed: Number(e.target.value) }
+                              updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
+                            }}
+                            className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
                           <button onClick={() => {
                             const newRanges = opts.steps.ranges.filter((_, j) => j !== i)
                             updateEmbedOption('steps', { ...opts.steps, ranges: newRanges })
