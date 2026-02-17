@@ -2,11 +2,6 @@ name: Deploy to prod
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'zik-web/Cargo.toml'
 
 permissions:
   contents: write

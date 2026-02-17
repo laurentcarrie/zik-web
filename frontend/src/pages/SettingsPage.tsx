@@ -33,12 +33,12 @@ interface HarmonicSteps {
   ranges: HarmonicRange[]
 }
 
-interface OnceEvery {
+interface Congruence {
   modulo: number
-  remainders: number[]
+  congruents: number[]
 }
 
-type WhenToShow = 'Always' | 'Never' | { OnceEvery: OnceEvery }
+type WhenToShow = 'Always' | 'Never' | { Congruence: Congruence }
 
 interface EmbedOptions {
   max_harmonics: number
@@ -94,13 +94,13 @@ function setCookie(name: string, value: string, days: number = 365) {
 function whenToShowType(v: WhenToShow): string {
   if (v === 'Always') return 'Always'
   if (v === 'Never') return 'Never'
-  return 'OnceEvery'
+  return 'Congruence'
 }
 
 function WhenToShowSelect({ label, value, onChange }: { label: string; value: WhenToShow; onChange: (v: WhenToShow) => void }) {
   const { t } = useTranslation()
   const type = whenToShowType(value)
-  const onceEvery = typeof value === 'object' ? value.OnceEvery : { modulo: 2, remainders: [1] }
+  const congruence = typeof value === 'object' ? value.Congruence : { modulo: 2, congruents: [1] }
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -110,25 +110,25 @@ function WhenToShowSelect({ label, value, onChange }: { label: string; value: Wh
             const v = e.target.value
             if (v === 'Always') onChange('Always')
             else if (v === 'Never') onChange('Never')
-            else onChange({ OnceEvery: onceEvery })
+            else onChange({ Congruence: congruence })
           }}
           className="px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200">
           <option value="Always">{t('settings.always')}</option>
           <option value="Never">{t('settings.never')}</option>
-          <option value="OnceEvery">{t('settings.onceEvery')}</option>
+          <option value="Congruence">{t('settings.onceEvery')}</option>
         </select>
       </div>
-      {type === 'OnceEvery' && (
+      {type === 'Congruence' && (
         <div className="flex items-center gap-2 mt-1 ml-4">
           <span className="text-gray-400 text-xs">modulo</span>
-          <input type="number" value={onceEvery.modulo} min={1}
-            onChange={(e) => onChange({ OnceEvery: { ...onceEvery, modulo: Number(e.target.value) } })}
+          <input type="number" value={congruence.modulo} min={1}
+            onChange={(e) => onChange({ Congruence: { ...congruence, modulo: Number(e.target.value) } })}
             className="w-16 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
-          <span className="text-gray-400 text-xs">remainders</span>
-          <input type="text" value={onceEvery.remainders.join(',')}
+          <span className="text-gray-400 text-xs">congruents</span>
+          <input type="text" value={congruence.congruents.join(',')}
             onChange={(e) => {
               const nums = e.target.value.split(',').map(Number).filter(n => !isNaN(n))
-              onChange({ OnceEvery: { ...onceEvery, remainders: nums } })
+              onChange({ Congruence: { ...congruence, congruents: nums } })
             }}
             className="w-20 px-2 py-1 text-sm border border-gray-600 rounded bg-gray-800 text-gray-200" />
         </div>
@@ -204,6 +204,7 @@ export default function SettingsPage() {
   const [animationsLoading, setAnimationsLoading] = useState(false)
   const [animationsSaving, setAnimationsSaving] = useState(false)
   const [animationsSaved, setAnimationsSaved] = useState(false)
+  const [originalAnimations, setOriginalAnimations] = useState<Animations | null>(null)
   const [enabledContours, setEnabledContours] = useState<number[]>(() => {
     const saved = getCookie('enabledContours')
     if (saved) return JSON.parse(saved)
@@ -498,6 +499,7 @@ export default function SettingsPage() {
       if (res.ok) {
         const data: Animations = await res.json()
         setAnimations(data)
+        setOriginalAnimations(JSON.parse(JSON.stringify(data)))
       }
     } catch {
       // ignore
@@ -1298,6 +1300,17 @@ export default function SettingsPage() {
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600"
               >
                 {t('settings.reload')}
+              </button>
+              <button
+                onClick={() => {
+                  if (originalAnimations) {
+                    setAnimations(JSON.parse(JSON.stringify(originalAnimations)))
+                  }
+                }}
+                disabled={!originalAnimations}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-400"
+              >
+                {t('settings.resetDefaults')}
               </button>
               <button
                 onClick={() => setShowAnimation(false)}
