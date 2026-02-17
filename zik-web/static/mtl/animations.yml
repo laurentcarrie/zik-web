@@ -51,7 +51,7 @@ items:
       - from: 200
         step: 200
         to: 10000
-        speed: 1.0
+        speed: 2.0
     show_contour: !Congruence
       modulo: 5
       congruents:
@@ -103,7 +103,7 @@ items:
       - from: 500
         step: 500
         to: 5000
-        speed: 1.0
+        speed: 2.5
     show_contour: !Congruence
       modulo: 10
       congruents:
