@@ -17,21 +17,43 @@ env:
   APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:eu-west-3:579871531410:service/zik-web/d4df4ef8f9e346b3aed3d8ecf0569980
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: check
+        run: |
+          CURRENT=$(grep '^version' zik-web/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          PREVIOUS=$(git show HEAD~1:zik-web/Cargo.toml | grep '^version' | head -1 | sed 's/version = "\(.*\)"/\1/' || echo "")
+          echo "Current version: $CURRENT, Previous version: $PREVIOUS"
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=v$CURRENT" >> "$GITHUB_OUTPUT"
+
   deploy:
+    needs: check-version
+    if: needs.check-version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Read version and create tag
-        id: version
+      - name: Create version tag
         run: |
-          VERSION=$(grep '^version' zik-web/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          TAG="v$VERSION"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Version: $VERSION, Tag: $TAG"
+          TAG="${{ needs.check-version.outputs.tag }}"
+          echo "Creating tag: $TAG"
           git tag "$TAG"
           git push origin "$TAG"
 

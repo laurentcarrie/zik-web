@@ -72,7 +72,7 @@ jobs:
                       \"SENDER_EMAIL\": \"${{ secrets.SENDER_EMAIL }}\",
                       \"BUCKET\": \"zik-laurent\",
                       \"BUCKET_ROOT\": \"dev\",
-                      \"FAVICON\": \"/static/favicon-dev-32x32.png\"
+                      \"FAVICON\": \"favicon-dev-32x32.png\"
                     }
                   }
                 },
@@ -121,7 +121,7 @@ jobs:
                     \"SENDER_EMAIL\": \"${{ secrets.SENDER_EMAIL }}\",
                     \"BUCKET\": \"zik-laurent\",
                     \"BUCKET_ROOT\": \"dev\",
-                    \"FAVICON\": \"/static/favicon-dev-32x32.png\"
+                    \"FAVICON\": \"favicon-dev-32x32.png\"
                   }
                 }
               },

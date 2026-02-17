@@ -12,7 +12,7 @@ use axum::{
     extract::{Path, Query, Request, State},
     http::{Method, StatusCode, header},
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
@@ -160,6 +160,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(root_landing))
+        .route("/root", get(band_picker))
         .nest("/mtl", mtl)
         .nest("/sunny-bd", sunny)
         .merge(inner.layer(Extension(BandName(String::new()))))
@@ -1065,8 +1066,14 @@ async fn api_get_animations(
     Ok(Json(value))
 }
 
-async fn api_config() -> Json<serde_json::Value> {
-    let favicon = std::env::var("FAVICON").ok();
+async fn api_config(Extension(BandName(band)): Extension<BandName>) -> Json<serde_json::Value> {
+    let favicon = std::env::var("FAVICON").ok().map(|filename| {
+        if band.is_empty() {
+            format!("/static/{filename}")
+        } else {
+            format!("/static/{band}/{filename}")
+        }
+    });
     Json(serde_json::json!({ "favicon": favicon }))
 }
 
@@ -1080,6 +1087,10 @@ async fn api_save_animations(
 }
 
 async fn root_landing() -> impl IntoResponse {
+    Redirect::permanent("/mtl")
+}
+
+async fn band_picker() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
         r#"<!DOCTYPE html>
