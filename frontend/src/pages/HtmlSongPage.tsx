@@ -61,15 +61,21 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
     }
   }, [])
 
+  const VISUAL_LEAD_MS = 150
+  const visualBeatRef = useRef(-1)
+
   const startScheduler = useCallback(() => {
     stopScheduler()
     const ctx = ensureAudioCtx()
+    visualBeatRef.current = -1
     const schedule = () => {
       if (!runningRef.current) { schedulerRef.current = null; return }
       const intervalMs = 60000 / bpmRef.current
       const now = Date.now()
+      const localOrigin = originRef.current - clockOffsetRef.current
+      // Schedule audio clicks (look-ahead 100ms)
       while (true) {
-        const beatTime = originRef.current - clockOffsetRef.current + scheduledUpToRef.current * intervalMs
+        const beatTime = localOrigin + scheduledUpToRef.current * intervalMs
         if (beatTime > now + 100) break
         if (beatTime > now - 50) {
           const audioTime = ctx.currentTime + (beatTime - now) / 1000
@@ -78,6 +84,12 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
           }
         }
         scheduledUpToRef.current++
+      }
+      // Visual lead: show the beat we'll be at VISUAL_LEAD_MS from now
+      const visualBeat = Math.max(0, Math.floor((now + VISUAL_LEAD_MS - localOrigin) / intervalMs))
+      if (visualBeat !== visualBeatRef.current) {
+        visualBeatRef.current = visualBeat
+        setBeatNumber(visualBeat)
       }
       schedulerRef.current = window.setTimeout(schedule, 25)
     }
@@ -143,7 +155,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
         }
       }
       if (msg.type === 'Tick') {
-        setBeatNumber(msg.beat_number)
+        // Visual beat is handled by the scheduler with lead time
       }
     }
 
@@ -275,18 +287,40 @@ function ChordGrid({ row, color, maxBars, dark, activeBar }: { row: ParsedChordR
   )
 }
 
-function htmlOfLatex(latex: string): string {
+function htmlOfLatex(latex: string, activeFbIndex?: number): string {
+  // Remove LaTeX comment lines (lines starting with optional spaces then %)
+  let html = latex.replace(/^[ ]*%.*/gm, '')
+  // Remove empty lines
+  html = html.replace(/^\s*\n/gm, '')
   // Escape HTML entities
-  let html = latex
+  html = html
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
   // \color{color}{text} → <span style="color: color">text</span>
   html = html.replace(/\\color\{([^}]+)\}\{([^}]+)\}/g, '<span style="color: $1">$2</span>')
+  // \\ → newline
+  html = html.replace(/\\\\\n?/g, '<br>')
+  // \songwordfb{text} → text in a red box, highlight active bar
+  let fbCount = 0
+  html = html.replace(/\\songwordfb\{([^}]+)\}/g, (_, text) => {
+    const idx = fbCount++
+    const isActive = idx === activeFbIndex
+    const style = isActive
+      ? 'border: 2px solid red; border-radius: 3px; padding: 0 3px; color: white; background: red; font-weight: bold'
+      : 'border: 1px solid red; border-radius: 3px; padding: 0 3px; color: red'
+    return `<span style="${style}">${text}</span>`
+  })
+  // \songwordl{text} → text in a blue box
+  html = html.replace(/\\songwordl\{([^}]+)\}/g, '<span style="border: 1px solid #3b82f6; border-radius: 3px; padding: 0 3px; color: #3b82f6">$1</span>')
+  // \songwordcount{n}{text} → n as subscript index before text
+  html = html.replace(/\\songwordcount\{([^}]+)\}\{([^}]+)\}/g, '<sub style="font-size: 0.7em; opacity: 0.6">$1</sub>$2')
+  // \songwordcount{n} → n as subscript index
+  html = html.replace(/\\songwordcount\{([^}]+)\}/g, '<sub style="font-size: 0.7em; opacity: 0.6">$1</sub>')
   return html
 }
 
-function SectionLyrics({ songId, sectionId, dark }: { songId: string; sectionId: string; dark: boolean }) {
+function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active }: { songId: string; sectionId: string; dark: boolean; activeFbIndex?: number; active?: boolean }) {
   const { data } = useQuery({
     queryKey: ['lyrics', songId, sectionId],
     queryFn: async () => {
@@ -299,14 +333,16 @@ function SectionLyrics({ songId, sectionId, dark }: { songId: string; sectionId:
   if (!data) return null
   return (
     <pre
-      className={`text-sm whitespace-pre-wrap mt-1 mb-2 ${dark ? 'text-gray-300' : 'text-gray-600'}`}
-      dangerouslySetInnerHTML={{ __html: htmlOfLatex(data) }}
+      className={`whitespace-pre-wrap mt-1 mb-2 ${active ? 'text-lg' : 'text-sm'} ${dark ? 'text-gray-300' : 'text-gray-600'}`}
+      dangerouslySetInnerHTML={{ __html: htmlOfLatex(data, activeFbIndex) }}
     />
+  )
 }
 
-function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, onTitleClick }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; onTitleClick: (barNumber: number) => void }) {
+function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, onTitleClick }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; onTitleClick: (barNumber: number) => void }) {
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
+  const sectionTotalBars = section.rows.reduce((sum, r) => sum + r.bars.length * (r.repeat > 1 ? r.repeat : 1), 0)
   const isActiveSection = activeBar >= 0 && section.rows.some(r => {
     const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
     return r.bar_number > 0 && activeBar >= r.bar_number && activeBar < r.bar_number + total
@@ -337,20 +373,20 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
               ))}
             </div>
             <span className={`text-2xl font-mono font-bold ${dark ? 'text-gray-200' : 'text-gray-700'}`}>
-              {activeBar}
+              {activeBar - firstBarNumber + 1}/{sectionTotalBars} - {activeBar}
             </span>
           </>
         )}
       </div>
-      {isActiveSection && <SectionLyrics songId={songId} sectionId={section.id} dark={dark} />}
-      {section.rows.length > 0 && (
+      {showLyrics && isActiveSection && <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={activeBar - firstBarNumber} active />}
+      {showGrid && section.rows.length > 0 && (
         <div>
           {section.rows.map((row, j) => (
             <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} />
           ))}
         </div>
       )}
-      {isActiveSection && nextSection && (
+      {showLyrics && isActiveSection && nextSection && (
         <div className={`mt-3 pt-3 border-t ${dark ? 'border-gray-700' : 'border-gray-300'}`}>
           <span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
             Next: {nextSection.title}
@@ -370,6 +406,8 @@ export default function HtmlSongPage() {
   const [newSessionName, setNewSessionName] = useState('')
   const [darkMode, setDarkMode] = useState(true)
   const [barOffset, setBarOffset] = useState(0)
+  const [showGrid, setShowGrid] = useState(true)
+  const [showLyrics, setShowLyrics] = useState(true)
 
   const { data: song, isLoading: songLoading } = useQuery({
     queryKey: ['song', id],
@@ -443,6 +481,21 @@ export default function HtmlSongPage() {
           </Link>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => {
+                const match = document.cookie.match(/(^| )animationEnabled=([^;]+)/)
+                const current = match ? match[2] === 'true' : true
+                const next = !current
+                document.cookie = `animationEnabled=${next};path=/;max-age=${365 * 86400}`
+                window.dispatchEvent(new Event('animation-toggled'))
+              }}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+              title="Toggle animation"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className={`w-5 h-5 ${document.cookie.match(/(^| )animationEnabled=([^;]+)/)?.[2] !== 'false' ? 'text-green-400' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+              </svg>
+            </button>
+            <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
               title={darkMode ? 'Light mode' : 'Dark mode'}
@@ -473,6 +526,32 @@ export default function HtmlSongPage() {
         <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-2">
           {song?.author}
         </p>
+
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={() => { if (!connected) return; toggleRunning() }}
+            disabled={!connected}
+            className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors cursor-pointer
+              ${running ? 'bg-green-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}
+              ${!connected ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {running ? 'Stop' : 'Start'}
+          </button>
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors cursor-pointer
+              ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+          >
+            Grid
+          </button>
+          <button
+            onClick={() => setShowLyrics(!showLyrics)}
+            className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors cursor-pointer
+              ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+          >
+            Lyrics
+          </button>
+        </div>
 
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           {!selectedSession ? (
@@ -621,7 +700,7 @@ export default function HtmlSongPage() {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
               const activeBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} onTitleClick={(barNumber) => {
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} onTitleClick={(barNumber) => {
                   setBarOffset(barNumber - Math.floor(beatNumber / 4))
                   if (!running) toggleRunning()
                 }} />
