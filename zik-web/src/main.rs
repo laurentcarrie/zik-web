@@ -173,6 +173,7 @@ async fn main() {
         .nest("/sunny-bd", sunny)
         .merge(inner.layer(Extension(BandName(String::new()))))
         .nest_service("/static", ServeDir::new("static"))
+        .layer(middleware::from_fn(websocket_header_fix))
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
@@ -1390,6 +1391,23 @@ async fn band_picker() -> impl IntoResponse {
 
 async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+/// ALBs strip hop-by-hop headers (Connection, Upgrade) when proxying.
+/// This middleware restores them for WebSocket requests detected via Sec-WebSocket-Key.
+async fn websocket_header_fix(mut request: Request, next: Next) -> Response {
+    if request.headers().contains_key(header::SEC_WEBSOCKET_KEY)
+        && !request
+            .headers()
+            .get(header::CONNECTION)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.to_ascii_lowercase().contains("upgrade"))
+    {
+        let headers = request.headers_mut();
+        headers.insert(header::CONNECTION, "Upgrade".parse().unwrap());
+        headers.insert(header::UPGRADE, "websocket".parse().unwrap());
+    }
+    next.run(request).await
 }
 
 // Auth middleware for write operations
