@@ -12,6 +12,17 @@ import LandingPage from './pages/LandingPage'
 // Load font and background image dynamically (paths depend on route prefix)
 const fontFace = new FontFace('Fontskrivan', `url(${ROUTE_PREFIX}/static/skriva-3.woff)`)
 fontFace.load().then(font => document.fonts.add(font))
+
+const songbookFonts: [string, string][] = [
+  ['Songbook', 'songbook.ttf'],
+  ['SongbookFlat', 'songbook_flat.ttf'],
+  ['SongbookSharp', 'songbook_sharp.ttf'],
+  ['SongbookSus', 'songbook_sus.ttf'],
+]
+for (const [name, file] of songbookFonts) {
+  const f = new FontFace(name, `url(/fonts/${file})`)
+  f.load().then(font => document.fonts.add(font)).catch(() => {})
+}
 document.body.style.background = `url(${ROUTE_PREFIX}/static/background.jpg) repeat center center fixed`
 document.body.style.backgroundSize = BAND_NAME === 'mtl' ? 'contain' : '480px'
 const bandDisplayNames: Record<string, string> = { mtl: 'Move The Line', 'sunny-bd': 'Sunny Bd' }

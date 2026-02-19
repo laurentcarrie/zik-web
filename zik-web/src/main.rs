@@ -95,6 +95,7 @@ async fn main() {
         .route("/songs", get(api_songs))
         .route("/song/{id}", get(api_song))
         .route("/song/{id}/yml", get(api_song_yml))
+        .route("/song/{id}/structure", get(api_song_structure))
         .route("/song/{id}/lyrics/{section_id}", get(api_lyrics))
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
@@ -382,6 +383,268 @@ async fn api_song_yml(
     // println!("structure length: {}", song_yml.structure.len());
 
     Ok(Json(ApiSongYml { content }))
+}
+
+#[derive(Serialize)]
+struct ChordGlyph {
+    display: String,
+    font: String,
+    char: String,
+}
+
+#[derive(Serialize)]
+struct ParsedChordBar {
+    chords: Vec<ChordGlyph>,
+}
+
+#[derive(Serialize)]
+struct ParsedChordRow {
+    bars: Vec<ParsedChordBar>,
+    repeat: u32,
+    bar_number: i32,
+}
+
+#[derive(Serialize)]
+struct ParsedSection {
+    id: String,
+    title: String,
+    color: Option<String>,
+    rows: Vec<ParsedChordRow>,
+}
+
+#[derive(Serialize)]
+struct ParsedSongStructure {
+    sections: Vec<ParsedSection>,
+}
+
+fn chord_display(chord: &band_songbook::chords::model::Chord) -> String {
+    use band_songbook::chords::model::{Accidental, Alteration};
+    let mut s = chord.name.clone();
+    match chord.accidental {
+        Accidental::Sharp => s.push('#'),
+        Accidental::Flat => s.push('b'),
+        Accidental::None => {}
+    }
+    if chord.minor {
+        s.push('m');
+    }
+    match chord.alteration {
+        Alteration::Six => s.push('6'),
+        Alteration::Seven => s.push('7'),
+        Alteration::MajorSeven => s.push_str("7M"),
+        Alteration::Sus2 => s.push_str("sus2"),
+        Alteration::Sus4 => s.push_str("sus4"),
+        Alteration::Dim => s.push_str("dim"),
+        Alteration::None | Alteration::Nofith => {}
+    }
+    s
+}
+
+fn baritem_to_glyph(item: &band_songbook::chords::model::BarItem) -> ChordGlyph {
+    use band_songbook::chords::model::{Accidental, Alteration, BarItem};
+
+    match item {
+        BarItem::Rest(_) => ChordGlyph {
+            display: String::new(),
+            font: "songbook_sharp".into(),
+            char: "\u{2013}".into(), // en-dash
+        },
+        BarItem::Chord(chord) => {
+            let display = chord_display(chord);
+
+            // Determine font based on accidental + sus
+            let is_sus = matches!(
+                chord.alteration,
+                Alteration::Sus2 | Alteration::Sus4
+            );
+            let font = if is_sus {
+                match chord.accidental {
+                    Accidental::Flat => "songbook_flat", // flat+sus uses flat font
+                    _ => "songbook_sus",
+                }
+            } else {
+                match chord.accidental {
+                    Accidental::Flat => "songbook_flat",
+                    Accidental::Sharp => "songbook_sharp",
+                    Accidental::None => "songbook",
+                }
+            };
+
+            // Note index: A=0, B=1, C=2, D=3, E=4, F=5, G=6
+            let note_idx = match chord.name.as_str() {
+                "A" => 0, "B" => 1, "C" => 2, "D" => 3,
+                "E" => 4, "F" => 5, "G" => 6, _ => 0,
+            };
+
+            let ch = if is_sus {
+                if chord.accidental == Accidental::Flat {
+                    // flat+sus: q,r,s,t,u,v,w
+                    (b'q' + note_idx as u8) as char
+                } else {
+                    // sus2/sus4: just the note letter
+                    (b'A' + note_idx as u8) as char
+                }
+            } else {
+                match (&chord.alteration, chord.minor) {
+                    (Alteration::None | Alteration::Nofith | Alteration::Six, false) => {
+                        // Major: A-G
+                        (b'A' + note_idx as u8) as char
+                    }
+                    (Alteration::None | Alteration::Nofith | Alteration::Six, true) => {
+                        // Minor: H-N
+                        (b'H' + note_idx as u8) as char
+                    }
+                    (Alteration::Seven, false) => {
+                        // 7th: O-U
+                        (b'O' + note_idx as u8) as char
+                    }
+                    (Alteration::Seven, true) => {
+                        // m7th: V-\ (V,W,X,Y,Z,[,\)
+                        (b'V' + note_idx as u8) as char
+                    }
+                    (Alteration::MajorSeven, _) => {
+                        // 7M: c-i
+                        (b'c' + note_idx as u8) as char
+                    }
+                    (Alteration::Dim, _) => {
+                        // dim: j-p
+                        (b'j' + note_idx as u8) as char
+                    }
+                    _ => (b'A' + note_idx as u8) as char,
+                }
+            };
+
+            ChordGlyph {
+                display,
+                font: font.into(),
+                char: ch.to_string(),
+            }
+        }
+    }
+}
+
+fn default_section_color(section_type: &str) -> Option<String> {
+    let color = match section_type {
+        "intro" => "LavenderBlush2",
+        "couplet" => "Wheat1",
+        "couplet2" | "couplet3" => "MistyRose2",
+        "prerefrain" | "prerefrain1" => "blue",
+        "refrain" => "Coral1",
+        "refrainb" => "MistyRose2",
+        "pont" => "NavajoWhite2",
+        "outro" => "Aquamarine2",
+        "solo" => "red",
+        "interlude" => "orange",
+        "riff" => "blue",
+        "fill" => "Aquamarine2",
+        _ => return None,
+    };
+    Some(color.to_string())
+}
+
+async fn api_song_structure(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ParsedSongStructure>, StatusCode> {
+    let items = get_all_songs(&state.s3_client)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let s = items
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let content = get_song_yml(&state.s3_client, &s.key)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let song: band_songbook::model::Song =
+        serde_yaml::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let barcount_map =
+        band_songbook::chords::bar_numbering::barcount_map_of_structure(&song.structure);
+
+    // Build maps of id -> rows and id -> color for Ref resolution
+    let mut rows_by_id: std::collections::HashMap<String, &Vec<String>> =
+        std::collections::HashMap::new();
+    let mut color_by_id: std::collections::HashMap<String, Option<String>> =
+        std::collections::HashMap::new();
+    for item in &song.structure {
+        if let band_songbook::model::SectionItem::Chords(ref chords) = item.item {
+            rows_by_id.insert(item.id.clone(), &chords.rows);
+            let color = chords
+                .color
+                .clone()
+                .or_else(|| default_section_color(&chords.section_type));
+            color_by_id.insert(item.id.clone(), color);
+        }
+    }
+
+    let mut sections = Vec::new();
+    for item in &song.structure {
+        let (title, color, raw_rows) = match &item.item {
+            band_songbook::model::SectionItem::Chords(chords) => {
+                let color = chords
+                    .color
+                    .clone()
+                    .or_else(|| default_section_color(&chords.section_type));
+                (chords.title.clone(), color, Some(&chords.rows))
+            }
+            band_songbook::model::SectionItem::Ref(ref_section) => {
+                let rows = rows_by_id.get(&ref_section.link).copied();
+                let color = ref_section
+                    .color
+                    .clone()
+                    .or_else(|| {
+                        ref_section
+                            .section_type
+                            .as_deref()
+                            .and_then(default_section_color)
+                    })
+                    .or_else(|| {
+                        color_by_id.get(&ref_section.link).cloned().flatten()
+                    });
+                (ref_section.title.clone(), color, rows)
+            }
+            _ => continue,
+        };
+
+        let bar_numbers = barcount_map
+            .get(&item.id)
+            .map(|(nums, _)| nums.clone())
+            .unwrap_or_default();
+
+        let parsed_rows: Vec<ParsedChordRow> = raw_rows
+            .into_iter()
+            .flat_map(|rows| rows.iter())
+            .enumerate()
+            .filter_map(|(i, row)| {
+                let parsed = band_songbook::chords::parse::parse(row).ok()?;
+                let bars = parsed
+                    .bars
+                    .iter()
+                    .map(|bar| ParsedChordBar {
+                        chords: bar.items.iter().map(baritem_to_glyph).collect(),
+                    })
+                    .collect();
+                Some(ParsedChordRow {
+                    bars,
+                    repeat: parsed.repeat.n,
+                    bar_number: bar_numbers.get(i).copied().unwrap_or(0),
+                })
+            })
+            .collect();
+
+        sections.push(ParsedSection {
+            id: item.id.clone(),
+            title,
+            color,
+            rows: parsed_rows,
+        });
+    }
+
+    Ok(Json(ParsedSongStructure { sections }))
 }
 
 #[derive(Deserialize)]

@@ -38,6 +38,41 @@ export async function fetchSongYml(id: string): Promise<SongYml> {
   return response.json()
 }
 
+export interface ChordGlyph {
+  display: string
+  font: string
+  char: string
+}
+
+export interface ParsedChordBar {
+  chords: ChordGlyph[]
+}
+
+export interface ParsedChordRow {
+  bars: ParsedChordBar[]
+  repeat: number
+  bar_number: number
+}
+
+export interface ParsedSection {
+  id: string
+  title: string
+  color: string | null
+  rows: ParsedChordRow[]
+}
+
+export interface ParsedSongStructure {
+  sections: ParsedSection[]
+}
+
+export async function fetchSongStructure(id: string): Promise<ParsedSongStructure> {
+  const response = await fetch(`${API_BASE}/api/song/${id}/structure`)
+  if (!response.ok) {
+    throw new Error('Failed to fetch song structure')
+  }
+  return response.json()
+}
+
 export async function saveSongYml(id: string, content: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/song/${id}/yml`, {
     method: 'POST',
