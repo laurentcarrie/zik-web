@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 
 async function fetchPhotos(): Promise<string[]> {
@@ -48,6 +49,7 @@ function ChevronRightIcon({ className }: { className?: string }) {
 
 export default function PressBookPage() {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
 
@@ -85,6 +87,28 @@ export default function PressBookPage() {
   }
 
   const isLoading = photosLoading || videosLoading
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen p-4 md:p-8">
+        <div className="max-w-4xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-block mb-4 text-[#667eea] hover:underline bg-transparent border-none cursor-pointer text-base"
+          >
+            &larr; Back
+          </button>
+          <h1 className="text-gray-100 text-2xl md:text-3xl font-bold mb-6">Press Book</h1>
+          <p className="text-gray-300 leading-relaxed">
+            Photos and videos are hosted on CloudFront and currently under review by the editorial team. Check back soon!
+          </p>
+          <p className="text-gray-400 mt-4 italic">
+            Les photos et vidéos sont sur CloudFront, et en cours de revue par l'équipe éditoriale. Revenez bientôt pour les consulter !
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

@@ -321,6 +321,18 @@ export default function HtmlSongPage() {
 
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
+  const sections = structure?.sections ?? []
+  const lastBar = Math.max(...sections.flatMap(s =>
+    s.rows.map(r => r.bar_number + r.bars.length * (r.repeat > 1 ? r.repeat : 1) - 1)
+  ), 0)
+
+  // Stop metronome after the last bar
+  useEffect(() => {
+    if (running && lastBar > 0 && currentBar > lastBar) {
+      toggleRunning()
+    }
+  }, [currentBar, running, lastBar, toggleRunning])
+
   const handleCreateSession = () => {
     const name = newSessionName.trim()
     if (!name) return
@@ -341,8 +353,6 @@ export default function HtmlSongPage() {
     const interval = setInterval(fetchSessions, 3000)
     return () => clearInterval(interval)
   }, [])
-
-  const sections = structure?.sections ?? []
 
   if (songLoading || structureLoading) {
     return (
@@ -393,9 +403,41 @@ export default function HtmlSongPage() {
         <h1 className="font-[Fontskrivan] font-black text-2xl md:text-3xl text-[#2563eb] mt-4 mb-1">
           {song?.title}
         </h1>
-        <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-4">
+        <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-2">
           {song?.author}
         </p>
+
+        {running && sections.length > 0 && (() => {
+          const activeSection = sections.find(s =>
+            s.rows.some(r => {
+              const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
+              return r.bar_number > 0 && currentBar >= r.bar_number && currentBar < r.bar_number + total
+            })
+          ) || sections[0]
+          const cssColor = x11ToCSS(activeSection.color)
+          return (
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <span className="text-sm font-semibold" style={{ color: cssColor || (darkMode ? '#d1d5db' : '#374151') }}>
+                {activeSection.title}
+              </span>
+              <div className="flex gap-1.5">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-full transition-all duration-75 ${
+                      beatNumber % 4 === i
+                        ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
+                        : darkMode ? 'bg-gray-600' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm font-mono" style={{ color: darkMode ? '#d1d5db' : '#374151' }}>
+                {currentBar}
+              </span>
+            </div>
+          )
+        })()}
 
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           {!selectedSession ? (
