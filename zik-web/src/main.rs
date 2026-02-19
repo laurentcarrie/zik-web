@@ -1,3 +1,4 @@
+mod click_sync;
 mod edit;
 mod song;
 mod update;
@@ -80,6 +81,9 @@ async fn main() {
         settings,
     };
 
+    let click_sync_manager = click_sync::ClickSyncManager::new();
+    click_sync_manager.clone().spawn_cleanup();
+
     // CORS layer for development
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -107,6 +111,9 @@ async fn main() {
         .route("/animations", get(api_get_animations))
         .route("/config", get(api_config))
         .route("/auth/verify", post(verify_password))
+        .route("/click-sync/{name}", get(click_sync::ws_handler))
+        .route("/click-sync-sessions", get(click_sync::list_sessions_handler))
+        .layer(Extension(click_sync_manager))
         .with_state(state.clone());
 
     // Protected API routes (write operations) - require auth

@@ -6,8 +6,15 @@ const backendPaths = ['/api', '/static', '/pdf', '/version', '/save-yml', '/save
 const bands = ['/mtl', '/sunny-bd']
 
 function buildProxy() {
-  const proxy: Record<string, { target: string; changeOrigin: boolean }> = {}
+  const proxy: Record<string, { target: string; changeOrigin: boolean; ws?: boolean }> = {}
   const target = { target: 'http://localhost:8080', changeOrigin: true }
+  const wsTarget = { target: 'http://localhost:8080', changeOrigin: true, ws: true }
+
+  // WebSocket proxy for click-sync (must be before /api to take priority)
+  proxy['/api/click-sync'] = wsTarget
+  for (const band of bands) {
+    proxy[`${band}/api/click-sync`] = wsTarget
+  }
 
   // Proxy backend paths at root and under each band prefix
   for (const path of backendPaths) {
