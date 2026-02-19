@@ -171,12 +171,16 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
     send(running ? { type: 'Stop' } : { type: 'Start' })
   }, [ensureAudioCtx, send, running])
 
+  const changeBpm = useCallback((newBpm: number) => {
+    send({ type: 'SetBpm', bpm: newBpm })
+  }, [send])
+
   const disconnect = useCallback(() => {
     wsRef.current?.close()
     stopScheduler()
   }, [stopScheduler])
 
-  return { bpm, running, beatNumber, connected, soundOn, toggleSound, toggleRunning, disconnect }
+  return { bpm, running, beatNumber, connected, soundOn, toggleSound, toggleRunning, changeBpm, disconnect }
 }
 
 const FONT_MAP: Record<string, string> = {
@@ -271,24 +275,87 @@ function ChordGrid({ row, color, maxBars, dark, activeBar }: { row: ParsedChordR
   )
 }
 
-function SectionView({ section, maxBars, dark, activeBar, onTitleClick }: { section: ParsedSection; maxBars: number; dark: boolean; activeBar: number; onTitleClick: (barNumber: number) => void }) {
+function htmlOfLatex(latex: string): string {
+  // Escape HTML entities
+  let html = latex
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  // \color{color}{text} → <span style="color: color">text</span>
+  html = html.replace(/\\color\{([^}]+)\}\{([^}]+)\}/g, '<span style="color: $1">$2</span>')
+  return html
+}
+
+function SectionLyrics({ songId, sectionId, dark }: { songId: string; sectionId: string; dark: boolean }) {
+  const { data } = useQuery({
+    queryKey: ['lyrics', songId, sectionId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/song/${songId}/lyrics/${sectionId}`)
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.content as string
+    },
+  })
+  if (!data) return null
+  return (
+    <pre
+      className={`text-sm whitespace-pre-wrap mt-1 mb-2 ${dark ? 'text-gray-300' : 'text-gray-600'}`}
+      dangerouslySetInnerHTML={{ __html: htmlOfLatex(data) }}
+    />
+}
+
+function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, onTitleClick }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; onTitleClick: (barNumber: number) => void }) {
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
+  const isActiveSection = activeBar >= 0 && section.rows.some(r => {
+    const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
+    return r.bar_number > 0 && activeBar >= r.bar_number && activeBar < r.bar_number + total
+  })
   return (
     <div
       className="rounded-lg pl-3"
       style={cssColor ? { borderLeft: `4px solid ${cssColor}` } : undefined}
     >
-      <h2
-        className="font-semibold text-lg mb-1 cursor-pointer hover:underline"
-        style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
-        onClick={() => firstBarNumber > 0 && onTitleClick(firstBarNumber)}
-      >{section.title}</h2>
+      <div className="flex items-center gap-3 mb-1">
+        <h2
+          className={`font-bold cursor-pointer hover:underline transition-all duration-200 ${isActiveSection ? 'text-4xl' : 'text-lg'}`}
+          style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
+          onClick={() => firstBarNumber > 0 && onTitleClick(firstBarNumber)}
+        >{section.title}</h2>
+        {isActiveSection && (
+          <>
+            <div className="flex gap-2.5">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`w-5 h-5 rounded-full transition-all duration-75 ${
+                    beatNumber % 4 === i
+                      ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
+                      : dark ? 'bg-gray-600' : 'bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className={`text-2xl font-mono font-bold ${dark ? 'text-gray-200' : 'text-gray-700'}`}>
+              {activeBar}
+            </span>
+          </>
+        )}
+      </div>
+      {isActiveSection && <SectionLyrics songId={songId} sectionId={section.id} dark={dark} />}
       {section.rows.length > 0 && (
         <div>
           {section.rows.map((row, j) => (
             <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} />
           ))}
+        </div>
+      )}
+      {isActiveSection && nextSection && (
+        <div className={`mt-3 pt-3 border-t ${dark ? 'border-gray-700' : 'border-gray-300'}`}>
+          <span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+            Next: {nextSection.title}
+          </span>
+          <SectionLyrics songId={songId} sectionId={nextSection.id} dark={dark} />
         </div>
       )}
     </div>
@@ -317,7 +384,7 @@ export default function HtmlSongPage() {
   })
 
   const songTempo = song?.tempo && song.tempo > 0 ? song.tempo : undefined
-  const { bpm, running, beatNumber, connected, soundOn, toggleSound, toggleRunning, disconnect } = useClickSync(selectedSession, songTempo)
+  const { bpm, running, beatNumber, connected, soundOn, toggleSound, toggleRunning, changeBpm, disconnect } = useClickSync(selectedSession, songTempo)
 
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
@@ -407,38 +474,6 @@ export default function HtmlSongPage() {
           {song?.author}
         </p>
 
-        {running && sections.length > 0 && (() => {
-          const activeSection = sections.find(s =>
-            s.rows.some(r => {
-              const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
-              return r.bar_number > 0 && currentBar >= r.bar_number && currentBar < r.bar_number + total
-            })
-          ) || sections[0]
-          const cssColor = x11ToCSS(activeSection.color)
-          return (
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <span className="text-sm font-semibold" style={{ color: cssColor || (darkMode ? '#d1d5db' : '#374151') }}>
-                {activeSection.title}
-              </span>
-              <div className="flex gap-1.5">
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-3 h-3 rounded-full transition-all duration-75 ${
-                      beatNumber % 4 === i
-                        ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
-                        : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm font-mono" style={{ color: darkMode ? '#d1d5db' : '#374151' }}>
-                {currentBar}
-              </span>
-            </div>
-          )
-        })()}
-
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           {!selectedSession ? (
             <>
@@ -520,6 +555,15 @@ export default function HtmlSongPage() {
                 {Math.round(bpm)}
               </button>
 
+              <input
+                type="range"
+                min={30}
+                max={300}
+                value={Math.round(bpm)}
+                onChange={(e) => changeBpm(Number(e.target.value))}
+                className="w-24 accent-orange-500 cursor-pointer"
+              />
+
               <button
                 onClick={toggleSound}
                 className={`p-2 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : 'bg-gray-600 hover:bg-gray-700'}`}
@@ -577,7 +621,7 @@ export default function HtmlSongPage() {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
               const activeBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} maxBars={maxBars} dark={darkMode} activeBar={activeBar} onTitleClick={(barNumber) => {
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} onTitleClick={(barNumber) => {
                   setBarOffset(barNumber - Math.floor(beatNumber / 4))
                   if (!running) toggleRunning()
                 }} />
