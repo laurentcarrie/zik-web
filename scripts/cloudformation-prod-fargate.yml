@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Production Fargate + ALB stack for zik-web. Enables WebSocket support
+  (which App Runner lacks). Reuses existing S3, ECR, and Lambda
+  from the production stack.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to deploy into (typically the default VPC)
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Public subnets for ALB and Fargate tasks
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket for song storage and delivery
+  ECRImageUri:
+    Type: String
+    Description: Full ECR image URI (e.g. 123456.dkr.ecr.eu-west-3.amazonaws.com/zik-web:latest)
+  WritePassword:
+    Type: String
+    NoEcho: true
+    Description: Write password for the application
+  NotificationEmail:
+    Type: String
+    Description: Email address for notifications
+  SenderEmail:
+    Type: String
+    Description: Email address used as sender for SES
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Security Groups
+  # ---------------------------------------------------------------------------
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic to ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ALB to ECS tasks
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  # ---------------------------------------------------------------------------
+  # ALB
+  # ---------------------------------------------------------------------------
+  ProdALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: zik-web-prod-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+
+  ProdTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: zik-web-prod-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /version
+      HealthCheckProtocol: HTTP
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: "true"
+        - Key: stickiness.type
+          Value: lb_cookie
+
+  ProdHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ProdALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ProdTargetGroup
+
+  # ---------------------------------------------------------------------------
+  # ECS Cluster & Logging
+  # ---------------------------------------------------------------------------
+  ProdECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: zik-web-prod
+
+  ProdLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/zik-web-prod
+      RetentionInDays: 14
+
+  # ---------------------------------------------------------------------------
+  # IAM Roles
+  # ---------------------------------------------------------------------------
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSTaskPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3Access
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3BucketName}"
+                  - !Sub "arn:aws:s3:::${S3BucketName}/*"
+              - Sid: LambdaInvoke
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:band-songbook"
+              - Sid: CloudWatchLogsRead
+                Effect: Allow
+                Action:
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/band-songbook"
+              - Sid: SESSendEmail
+                Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+
+  # ---------------------------------------------------------------------------
+  # ECS Task Definition & Service
+  # ---------------------------------------------------------------------------
+  ProdTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: zik-web-prod
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: zik-web
+          Image: !Ref ECRImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: BUCKET
+              Value: !Ref S3BucketName
+            - Name: BUCKET_ROOT
+              Value: prod
+            - Name: WRITE_PASSWORD
+              Value: !Ref WritePassword
+            - Name: NOTIFICATION_EMAIL
+              Value: !Ref NotificationEmail
+            - Name: SENDER_EMAIL
+              Value: !Ref SenderEmail
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ProdLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: ecs
+
+  ProdECSService:
+    Type: AWS::ECS::Service
+    DependsOn: ProdHTTPListener
+    Properties:
+      ServiceName: zik-web-prod
+      Cluster: !Ref ProdECSCluster
+      TaskDefinition: !Ref ProdTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: zik-web
+          ContainerPort: 8080
+          TargetGroupArn: !Ref ProdTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+
+Outputs:
+  ALBDnsName:
+    Description: DNS name of the Application Load Balancer
+    Value: !GetAtt ProdALB.DNSName
+  ClusterName:
+    Description: ECS cluster name
+    Value: !Ref ProdECSCluster
+  ServiceName:
+    Description: ECS service name
+    Value: !GetAtt ProdECSService.Name

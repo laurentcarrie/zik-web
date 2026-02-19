@@ -301,6 +301,11 @@ function htmlOfLatex(latex: string, activeFbIndex?: number): string {
   html = html.replace(/\\color\{([^}]+)\}\{([^}]+)\}/g, '<span style="color: $1">$2</span>')
   // \\ → newline
   html = html.replace(/\\\\\n?/g, '<br>')
+  // Process inner macros first so nested macros work (e.g. \songwordfb{\songwordcount{n}text})
+  // \songwordcount{n}{text} → n as subscript index before text
+  html = html.replace(/\\songwordcount\{([^}]+)\}\{([^}]+)\}/g, '<sub style="font-size: 0.7em; opacity: 0.6">$1</sub>$2')
+  // \songwordcount{n} → n as subscript index
+  html = html.replace(/\\songwordcount\{([^}]+)\}/g, '<sub style="font-size: 0.7em; opacity: 0.6">$1</sub>')
   // \songwordfb{text} → text in a red box, highlight active bar
   let fbCount = 0
   html = html.replace(/\\songwordfb\{([^}]+)\}/g, (_, text) => {
@@ -313,10 +318,6 @@ function htmlOfLatex(latex: string, activeFbIndex?: number): string {
   })
   // \songwordl{text} → text in a blue box
   html = html.replace(/\\songwordl\{([^}]+)\}/g, '<span style="border: 1px solid #3b82f6; border-radius: 3px; padding: 0 3px; color: #3b82f6">$1</span>')
-  // \songwordcount{n}{text} → n as subscript index before text
-  html = html.replace(/\\songwordcount\{([^}]+)\}\{([^}]+)\}/g, '<sub style="font-size: 0.7em; opacity: 0.6">$1</sub>$2')
-  // \songwordcount{n} → n as subscript index
-  html = html.replace(/\\songwordcount\{([^}]+)\}/g, '<sub style="font-size: 0.7em; opacity: 0.6">$1</sub>')
   return html
 }
 
