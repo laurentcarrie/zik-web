@@ -23,6 +23,8 @@ fn now_ms() -> f64 {
 enum ClientMessage {
     Ping { client_time: f64 },
     SetBpm { bpm: f64 },
+    SetSong { song: String },
+    SetBar { bar: u64 },
     Start,
     Stop,
 }
@@ -38,6 +40,8 @@ enum ServerMessage {
         server_time: f64,
         bpm: f64,
         beat_number: u64,
+        song: String,
+        bar: u64,
     },
     State {
         bpm: f64,
@@ -45,6 +49,8 @@ enum ServerMessage {
         beat_number: u64,
         client_count: u32,
         origin: f64,
+        song: String,
+        bar: u64,
     },
 }
 
@@ -55,6 +61,8 @@ struct ClickSyncInner {
     client_count: u32,
     /// Milliseconds since Unix epoch when beat 0 started
     origin: f64,
+    song: String,
+    bar: u64,
     /// When client_count dropped to 0 (None if clients are connected)
     empty_since: Option<std::time::Instant>,
 }
@@ -76,6 +84,8 @@ impl ClickSyncState {
                 beat_number: 0,
                 client_count: 0,
                 origin: 0.0,
+                song: String::new(),
+                bar: 0,
                 empty_since: Some(std::time::Instant::now()),
             })),
             tx,
@@ -147,6 +157,8 @@ pub struct SessionInfo {
     bpm: f64,
     running: bool,
     client_count: u32,
+    song: String,
+    bar: u64,
 }
 
 pub async fn list_sessions_handler(
@@ -161,6 +173,8 @@ pub async fn list_sessions_handler(
             bpm: inner.bpm,
             running: inner.running,
             client_count: inner.client_count,
+            song: inner.song.clone(),
+            bar: inner.bar,
         });
     }
     Json(infos)
@@ -198,6 +212,8 @@ async fn ticker_loop(
                     server_time: now_ms(),
                     bpm: state.bpm,
                     beat_number: state.beat_number,
+                    song: state.song.clone(),
+                    bar: state.bar,
                 };
                 let json = serde_json::to_string(&msg).unwrap();
                 let _ = tx.send(json);
@@ -324,6 +340,14 @@ async fn handle_client_message(
             state.notify.notify_one();
             broadcast_state(state).await;
         }
+        ClientMessage::SetSong { song } => {
+            state.inner.lock().await.song = song;
+            broadcast_state(state).await;
+        }
+        ClientMessage::SetBar { bar } => {
+            state.inner.lock().await.bar = bar;
+            broadcast_state(state).await;
+        }
     }
 }
 
@@ -335,6 +359,8 @@ async fn broadcast_state(state: &ClickSyncState) {
         beat_number: inner.beat_number,
         client_count: inner.client_count,
         origin: inner.origin,
+        song: inner.song.clone(),
+        bar: inner.bar,
     };
     let json = serde_json::to_string(&msg).unwrap();
     let _ = state.tx.send(json);

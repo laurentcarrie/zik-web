@@ -8,8 +8,13 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-import { API_BASE, ROUTE_PREFIX } from '../config'
+import { API_BASE, BAND_NAME, ROUTE_PREFIX } from '../config'
 const SETTINGS_KEY = 'songs/settings.yml'
+
+const CLICK_SYNC_SESSIONS: Record<string, string[]> = {
+  mtl: ['Répet', 'Céline', 'Bertrand', 'Pierre', 'Stéphane', 'Laurent'],
+  'sunny-bd': ['Répet', 'Çisil', 'Franck', 'Harold', 'Hervé', 'Laurent'],
+}
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
 
@@ -214,6 +219,28 @@ export default function SettingsPage() {
     const saved = getCookie('languagePref')
     return (saved as 'en' | 'fr' | 'browser') || 'browser'
   })
+  const [clickSyncSession, setClickSyncSession] = useState(() => {
+    const saved = getCookie('clickSyncSession')
+    const bandSessions = CLICK_SYNC_SESSIONS[BAND_NAME]
+    if (bandSessions) {
+      return saved && bandSessions.includes(saved) ? saved : bandSessions[0]
+    }
+    return saved || 'private'
+  })
+  const [clickSyncSessions, setClickSyncSessions] = useState<Array<{ name: string; bpm: number; running: boolean; client_count: number; song: string }>>([])
+
+  useEffect(() => {
+    const fetchSessions = () => {
+      fetch(`${API_BASE}/api/click-sync-sessions`)
+        .then((r) => r.json())
+        .then(setClickSyncSessions)
+        .catch(() => {})
+    }
+    fetchSessions()
+    const interval = setInterval(fetchSessions, 3000)
+    return () => clearInterval(interval)
+  }, [])
+
   const { isAuthenticated, clearPassword } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
@@ -702,6 +729,67 @@ export default function SettingsPage() {
               <span className="text-gray-300 text-sm">{t('language.browserPreference')}</span>
             </label>
           </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-700">
+          <h2 className="text-gray-300 text-sm font-semibold mb-1">Click Sync Session</h2>
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            {CLICK_SYNC_SESSIONS[BAND_NAME] ? (
+              <select
+                value={clickSyncSession}
+                onChange={(e) => {
+                  setClickSyncSession(e.target.value)
+                  setCookie('clickSyncSession', e.target.value)
+                }}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:border-gray-400"
+              >
+                {CLICK_SYNC_SESSIONS[BAND_NAME].map((name) => {
+                  const session = clickSyncSessions.find((s) => s.name === name)
+                  const count = session?.client_count || 0
+                  return (
+                    <option key={name} value={name}>
+                      {name}{count > 0 ? ` (${count})` : ''}
+                    </option>
+                  )
+                })}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={clickSyncSession}
+                onChange={(e) => {
+                  setClickSyncSession(e.target.value)
+                  setCookie('clickSyncSession', e.target.value)
+                }}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:border-gray-400"
+                placeholder="Session name"
+              />
+            )}
+          </div>
+          {!CLICK_SYNC_SESSIONS[BAND_NAME] && clickSyncSessions.length > 0 && (
+            <div className="px-2 mt-1 space-y-1">
+              {clickSyncSessions.map((s) => (
+                <button
+                  key={s.name}
+                  onClick={() => {
+                    setClickSyncSession(s.name)
+                    setCookie('clickSyncSession', s.name)
+                  }}
+                  className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                    s.name === clickSyncSession
+                      ? 'bg-green-600/30 text-green-300 border border-green-600'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <span className="font-medium">{s.name}</span>
+                  <span className="text-gray-400 ml-2">
+                    {Math.round(s.bpm)} BPM, {s.client_count} client{s.client_count !== 1 ? 's' : ''}
+                    {s.song && ` — ${s.song}`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-700">

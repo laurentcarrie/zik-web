@@ -94,6 +94,12 @@
     "invalidYaml": "YAML invalide",
     "save": "Enregistrer"
   },
+  "htmlSong": {
+    "grid": "Grille",
+    "lyrics": "Paroles",
+    "next": "Suite",
+    "backToTop": "Haut de page"
+  },
   "home": {
     "songs": "Chansons",
     "settings": "Paramètres",

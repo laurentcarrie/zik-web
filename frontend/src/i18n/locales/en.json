@@ -94,6 +94,12 @@
     "invalidYaml": "Invalid YAML",
     "save": "Save"
   },
+  "htmlSong": {
+    "grid": "Grid",
+    "lyrics": "Lyrics",
+    "next": "Next",
+    "backToTop": "Back to top"
+  },
   "home": {
     "songs": "Songs",
     "settings": "Settings",

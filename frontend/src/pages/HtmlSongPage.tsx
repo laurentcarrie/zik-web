@@ -1,16 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { fetchSong, fetchSongStructure } from '../api/songs'
+import { fetchSong, fetchSongs, fetchSongStructure } from '../api/songs'
 import type { ParsedSection, ParsedChordRow, ChordGlyph } from '../api/songs'
 import { API_BASE } from '../config'
-
-interface SessionInfo {
-  name: string
-  bpm: number
-  running: boolean
-  client_count: number
-}
 
 function useClickSync(sessionName: string | null, initialBpm?: number) {
   const [bpm, setBpm] = useState(initialBpm || 120)
@@ -18,6 +12,8 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
   const [beatNumber, setBeatNumber] = useState(0)
   const [connected, setConnected] = useState(false)
   const [soundOn, setSoundOn] = useState(false)
+  const [sessionSong, setSessionSong] = useState<string | null>(null)
+  const [sessionBar, setSessionBar] = useState(0)
 
   const wsRef = useRef<WebSocket | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -98,6 +94,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
 
   useEffect(() => {
     initialBpmSentRef.current = false
+    setSessionSong(null)
     if (!sessionName) {
       setConnected(false)
       setRunning(false)
@@ -146,6 +143,8 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
         runningRef.current = msg.running
         setBeatNumber(msg.beat_number)
         originRef.current = msg.origin
+        setSessionSong(msg.song || '')
+        setSessionBar(msg.bar || 0)
         if (msg.running) {
           stopScheduler()
           scheduledUpToRef.current = msg.beat_number
@@ -164,7 +163,14 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
       stopScheduler()
     }
 
-    return () => { ws.close(); stopScheduler() }
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close()
+      } else {
+        ws.onopen = () => ws.close()
+      }
+      stopScheduler()
+    }
   }, [sessionName, startScheduler, stopScheduler])
 
   const send = useCallback((msg: object) => {
@@ -187,12 +193,20 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
     send({ type: 'SetBpm', bpm: newBpm })
   }, [send])
 
+  const sendSong = useCallback((song: string) => {
+    send({ type: 'SetSong', song })
+  }, [send])
+
+  const sendBar = useCallback((bar: number) => {
+    send({ type: 'SetBar', bar })
+  }, [send])
+
   const disconnect = useCallback(() => {
     wsRef.current?.close()
     stopScheduler()
   }, [stopScheduler])
 
-  return { bpm, running, beatNumber, connected, soundOn, toggleSound, toggleRunning, changeBpm, disconnect }
+  return { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, disconnect }
 }
 
 const FONT_MAP: Record<string, string> = {
@@ -318,6 +332,8 @@ function htmlOfLatex(latex: string, activeFbIndex?: number): string {
   })
   // \songwordl{text} → text in a blue box
   html = html.replace(/\\songwordl\{([^}]+)\}/g, '<span style="border: 1px solid #3b82f6; border-radius: 3px; padding: 0 3px; color: #3b82f6">$1</span>')
+  // \songbookcomment{text} → red italic text
+  html = html.replace(/\\songbookcomment\{([^}]+)\}/g, '<span style="color: red; font-style: italic">$1</span>')
   return html
 }
 
@@ -340,7 +356,8 @@ function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active }: { son
   )
 }
 
-function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, onTitleClick }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; onTitleClick: (barNumber: number) => void }) {
+function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, nextLabel, onTitleClick }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void }) {
+  const sectionRef = useRef<HTMLDivElement>(null)
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
   const sectionTotalBars = section.rows.reduce((sum, r) => sum + r.bars.length * (r.repeat > 1 ? r.repeat : 1), 0)
@@ -348,63 +365,77 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
     const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
     return r.bar_number > 0 && activeBar >= r.bar_number && activeBar < r.bar_number + total
   })
+
+  useEffect(() => {
+    if (isActiveSection && !showGrid && sectionRef.current) {
+      sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [isActiveSection, showGrid])
+
   return (
-    <div
-      className="rounded-lg pl-3"
-      style={cssColor ? { borderLeft: `4px solid ${cssColor}` } : undefined}
-    >
-      <div className="flex items-center gap-3 mb-1">
-        <h2
-          className={`font-bold cursor-pointer hover:underline transition-all duration-200 ${isActiveSection ? 'text-4xl' : 'text-lg'}`}
-          style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
-          onClick={() => firstBarNumber > 0 && onTitleClick(firstBarNumber)}
-        >{section.title}</h2>
-        {isActiveSection && (
-          <>
-            <div className="flex gap-2.5">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={`w-5 h-5 rounded-full transition-all duration-75 ${
-                    beatNumber % 4 === i
-                      ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
-                      : dark ? 'bg-gray-600' : 'bg-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
-            <span className={`text-2xl font-mono font-bold ${dark ? 'text-gray-200' : 'text-gray-700'}`}>
-              {activeBar - firstBarNumber + 1}/{sectionTotalBars} - {activeBar}
-            </span>
-          </>
+    <>
+      <div
+        ref={sectionRef}
+        className={`transition-all duration-200 ${isActiveSection ? 'rounded-2xl p-4 ' + (dark ? 'bg-gray-800/70' : 'bg-gray-100/80') : 'rounded-lg pl-3'}`}
+        style={cssColor ? { borderLeft: `4px solid ${cssColor}` } : undefined}
+      >
+        <div className="flex items-center gap-3 mb-1">
+          <h2
+            className={`font-bold cursor-pointer hover:underline transition-all duration-200 ${isActiveSection ? 'text-4xl' : 'text-lg'}`}
+            style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
+            onClick={() => firstBarNumber > 0 && onTitleClick(firstBarNumber)}
+          >{section.title}</h2>
+          {isActiveSection && (
+            <>
+              <div className="flex gap-2.5">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={`w-5 h-5 rounded-full transition-all duration-75 ${
+                      beatNumber % 4 === i
+                        ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
+                        : dark ? 'bg-gray-600' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className={`text-2xl font-mono font-bold ${dark ? 'text-gray-200' : 'text-gray-700'}`}>
+                {activeBar - firstBarNumber + 1}/{sectionTotalBars} - {activeBar}
+              </span>
+            </>
+          )}
+        </div>
+        {showLyrics && isActiveSection && (
+          <div className="text-center">
+            <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={activeBar - firstBarNumber} active />
+          </div>
+        )}
+        {showGrid && section.rows.length > 0 && (
+          <div>
+            {section.rows.map((row, j) => (
+              <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} />
+            ))}
+          </div>
         )}
       </div>
-      {showLyrics && isActiveSection && <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={activeBar - firstBarNumber} active />}
-      {showGrid && section.rows.length > 0 && (
-        <div>
-          {section.rows.map((row, j) => (
-            <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} />
-          ))}
-        </div>
-      )}
       {showLyrics && isActiveSection && nextSection && (
-        <div className={`mt-3 pt-3 border-t ${dark ? 'border-gray-700' : 'border-gray-300'}`}>
+        <div className={`mt-3 pl-3 italic text-center ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
-            Next: {nextSection.title}
+            {nextLabel}: {nextSection.title}
           </span>
           <SectionLyrics songId={songId} sectionId={nextSection.id} dark={dark} />
         </div>
       )}
-    </div>
+    </>
   )
 }
 
 export default function HtmlSongPage() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
-  const [selectedSession, setSelectedSession] = useState<string | null>('private')
-  const [sessions, setSessions] = useState<SessionInfo[]>([])
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [newSessionName, setNewSessionName] = useState('')
+  const [searchParams] = useSearchParams()
+  const cookieMatch = document.cookie.match(/(^| )clickSyncSession=([^;]+)/)
+  const selectedSession = searchParams.get('session') || (cookieMatch ? decodeURIComponent(cookieMatch[2]) : null) || 'private'
   const [darkMode, setDarkMode] = useState(true)
   const [barOffset, setBarOffset] = useState(0)
   const [showGrid, setShowGrid] = useState(true)
@@ -422,8 +453,28 @@ export default function HtmlSongPage() {
     enabled: !!id,
   })
 
+  const { data: allSongs } = useQuery({
+    queryKey: ['songs'],
+    queryFn: fetchSongs,
+  })
+
+  const { prevSong, nextSong } = useMemo(() => {
+    if (!allSongs || !id) return { prevSong: null, nextSong: null }
+    const sorted = [...allSongs].sort((a, b) => {
+      const cmp = a.author.localeCompare(b.author)
+      return cmp !== 0 ? cmp : a.title.localeCompare(b.title)
+    })
+    const idx = sorted.findIndex(s => s.id === id)
+    if (idx === -1) return { prevSong: null, nextSong: null }
+    return {
+      prevSong: idx > 0 ? sorted[idx - 1] : null,
+      nextSong: idx < sorted.length - 1 ? sorted[idx + 1] : null,
+    }
+  }, [allSongs, id])
+
   const songTempo = song?.tempo && song.tempo > 0 ? song.tempo : undefined
-  const { bpm, running, beatNumber, connected, soundOn, toggleSound, toggleRunning, changeBpm, disconnect } = useClickSync(selectedSession, songTempo)
+  const navigate = useNavigate()
+  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar } = useClickSync(selectedSession, songTempo)
 
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
@@ -432,6 +483,44 @@ export default function HtmlSongPage() {
     s.rows.map(r => r.bar_number + r.bars.length * (r.repeat > 1 ? r.repeat : 1) - 1)
   ), 0)
 
+  // When changing song: stop metronome and reset bar count
+  const prevIdRef = useRef(id)
+  useEffect(() => {
+    if (prevIdRef.current !== id) {
+      prevIdRef.current = id
+      setBarOffset(0)
+      if (running) toggleRunning()
+    }
+  }, [id, running, toggleRunning])
+
+  // Send our song to the session whenever id changes or we connect
+  useEffect(() => {
+    if (connected && id) {
+      sendSong(id)
+    }
+  }, [connected, id, sendSong])
+
+  // Follow song changes from other clients (only when sessionSong actually changes)
+  const prevSessionSongRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!connected || !sessionSong) return
+    const prev = prevSessionSongRef.current
+    prevSessionSongRef.current = sessionSong
+    if (prev === sessionSong) return
+    if (sessionSong === id) return
+    navigate(`/htmlsong/${sessionSong}`, { replace: true })
+  }, [connected, sessionSong, id, navigate])
+
+  // Sync bar offset from server when another client jumps to a section
+  useEffect(() => {
+    if (connected && sessionBar > 0) {
+      const expectedBar = Math.floor(beatNumber / 4) + barOffset
+      if (sessionBar !== expectedBar) {
+        setBarOffset(sessionBar - Math.floor(beatNumber / 4))
+      }
+    }
+  }, [connected, sessionBar])
+
   // Stop metronome after the last bar
   useEffect(() => {
     if (running && lastBar > 0 && currentBar > lastBar) {
@@ -439,26 +528,6 @@ export default function HtmlSongPage() {
     }
   }, [currentBar, running, lastBar, toggleRunning])
 
-  const handleCreateSession = () => {
-    const name = newSessionName.trim()
-    if (!name) return
-    setSelectedSession(name)
-    setShowCreateDialog(false)
-    setNewSessionName('')
-  }
-
-  // Poll sessions
-  useEffect(() => {
-    const fetchSessions = () => {
-      fetch(`${API_BASE}/api/click-sync-sessions`)
-        .then((r) => r.json())
-        .then(setSessions)
-        .catch(() => {})
-    }
-    fetchSessions()
-    const interval = setInterval(fetchSessions, 3000)
-    return () => clearInterval(interval)
-  }, [])
 
   if (songLoading || structureLoading) {
     return (
@@ -474,12 +543,30 @@ export default function HtmlSongPage() {
     <div className="min-h-screen p-4 md:p-8">
       <div className={`max-w-3xl mx-auto rounded-2xl p-4 md:p-8 shadow-2xl ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'}`}>
         <div className="flex items-center justify-between">
-          <Link
-            to={`/song/${id}`}
-            className="text-[#8b9cf7] no-underline hover:underline"
-          >
-            &larr; Back
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/song/${id}`}
+              className="text-[#8b9cf7] no-underline hover:underline"
+            >
+              &larr; {t('nav.back')}
+            </Link>
+            <button
+              onClick={() => prevSong && navigate(`/htmlsong/${prevSong.id}`)}
+              disabled={!prevSong}
+              className={`px-2 py-1 text-xs rounded-lg border transition-colors ${darkMode ? 'text-gray-200 border-gray-600 hover:bg-gray-700' : 'text-gray-700 border-gray-300 hover:bg-gray-200'} disabled:opacity-30 disabled:cursor-not-allowed`}
+              title={prevSong ? `${prevSong.author} - ${prevSong.title}` : undefined}
+            >
+              &larr; {t('nav.prev')}
+            </button>
+            <button
+              onClick={() => nextSong && navigate(`/htmlsong/${nextSong.id}`)}
+              disabled={!nextSong}
+              className={`px-2 py-1 text-xs rounded-lg border transition-colors ${darkMode ? 'text-gray-200 border-gray-600 hover:bg-gray-700' : 'text-gray-700 border-gray-300 hover:bg-gray-200'} disabled:opacity-30 disabled:cursor-not-allowed`}
+              title={nextSong ? `${nextSong.author} - ${nextSong.title}` : undefined}
+            >
+              {t('nav.next')} &rarr;
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
@@ -543,154 +630,77 @@ export default function HtmlSongPage() {
             className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors cursor-pointer
               ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
-            Grid
+            {t('htmlSong.grid')}
           </button>
           <button
             onClick={() => setShowLyrics(!showLyrics)}
             className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors cursor-pointer
               ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
-            Lyrics
+            {t('htmlSong.lyrics')}
           </button>
         </div>
 
         <div className="flex items-center gap-3 mb-6 flex-wrap">
-          {!selectedSession ? (
-            <>
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-400">
-                <path d="M12,1.75L8.57,2.67L4.06,19.53C4.03,19.68 4,19.84 4,20C4,21.11 4.89,22 6,22H18C19.11,22 20,21.11 20,20C20,19.84 19.97,19.68 19.94,19.53L18.58,14.42L17,16L17.2,17H13.41L16.25,14.16L14.84,12.75L10.59,17H6.8L10.29,4H13.71L15.17,9.43L16.8,7.79L15.43,2.67L12,1.75M11.25,5V14.75L12.75,13.25V5H11.25M19.79,7.8L16.96,10.63L16.25,9.92L14.84,11.34L17.66,14.16L19.08,12.75L18.37,12.04L21.2,9.21L19.79,7.8Z"/>
-              </svg>
-              <select
-                value=""
-                onChange={(e) => { if (e.target.value) setSelectedSession(e.target.value) }}
-                className="px-3 py-1.5 text-sm text-white rounded-lg bg-gray-700 border border-gray-600 cursor-pointer focus:outline-none focus:border-gray-400"
-              >
-                <option value="" disabled>
-                  {sessions.length > 0 ? 'Select session...' : 'No active sessions'}
-                </option>
-                {sessions.map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name} ({Math.round(s.bpm)} BPM, {s.client_count} client{s.client_count !== 1 ? 's' : ''})
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => {
-                  setNewSessionName(song ? `${song.author} - ${song.title}` : '')
-                  setShowCreateDialog(true)
-                }}
-                className="px-2 py-1 text-sm text-white rounded-lg bg-green-600 hover:bg-green-700 transition-colors cursor-pointer"
-                title="Create session"
-              >
-                +
-              </button>
-              {showCreateDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreateDialog(false)}>
-                  <div className="bg-gray-800 rounded-xl p-6 shadow-2xl w-80" onClick={(e) => e.stopPropagation()}>
-                    <h3 className="text-white font-semibold mb-4">Create session</h3>
-                    <input
-                      type="text"
-                      value={newSessionName}
-                      onChange={(e) => setNewSessionName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
-                      placeholder="Session name"
-                      autoFocus
-                      className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white
-                                 placeholder-gray-500 focus:border-white focus:outline-none mb-2"
-                    />
-                    {songTempo && (
-                      <p className="text-xs text-gray-400 mb-4">Tempo: {songTempo} BPM</p>
-                    )}
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={() => setShowCreateDialog(false)}
-                        className="px-4 py-2 text-sm rounded-lg bg-gray-600 hover:bg-gray-700 text-white transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleCreateSession}
-                        disabled={!newSessionName.trim()}
-                        className="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Create
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <button
-                onClick={toggleRunning}
-                disabled={!connected}
-                className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors active:scale-95 cursor-pointer
-                  ${running ? 'bg-green-500/70 hover:bg-green-500/90' : 'bg-orange-500/70 hover:bg-orange-500/90'}
-                  ${!connected ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                  <path d="M12,1.75L8.57,2.67L4.06,19.53C4.03,19.68 4,19.84 4,20C4,21.11 4.89,22 6,22H18C19.11,22 20,21.11 20,20C20,19.84 19.97,19.68 19.94,19.53L18.58,14.42L17,16L17.2,17H13.41L16.25,14.16L14.84,12.75L10.59,17H6.8L10.29,4H13.71L15.17,9.43L16.8,7.79L15.43,2.67L12,1.75M11.25,5V14.75L12.75,13.25V5H11.25M19.79,7.8L16.96,10.63L16.25,9.92L14.84,11.34L17.66,14.16L19.08,12.75L18.37,12.04L21.2,9.21L19.79,7.8Z"/>
-                </svg>
-                {Math.round(bpm)}
-              </button>
+          <button
+            onClick={toggleRunning}
+            disabled={!connected}
+            className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors active:scale-95 cursor-pointer
+              ${running ? 'bg-green-500/70 hover:bg-green-500/90' : 'bg-orange-500/70 hover:bg-orange-500/90'}
+              ${!connected ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path d="M12,1.75L8.57,2.67L4.06,19.53C4.03,19.68 4,19.84 4,20C4,21.11 4.89,22 6,22H18C19.11,22 20,21.11 20,20C20,19.84 19.97,19.68 19.94,19.53L18.58,14.42L17,16L17.2,17H13.41L16.25,14.16L14.84,12.75L10.59,17H6.8L10.29,4H13.71L15.17,9.43L16.8,7.79L15.43,2.67L12,1.75M11.25,5V14.75L12.75,13.25V5H11.25M19.79,7.8L16.96,10.63L16.25,9.92L14.84,11.34L17.66,14.16L19.08,12.75L18.37,12.04L21.2,9.21L19.79,7.8Z"/>
+            </svg>
+            {Math.round(bpm)}
+          </button>
 
-              <input
-                type="range"
-                min={30}
-                max={300}
-                value={Math.round(bpm)}
-                onChange={(e) => changeBpm(Number(e.target.value))}
-                className="w-24 accent-orange-500 cursor-pointer"
-              />
+          <input
+            type="range"
+            min={30}
+            max={300}
+            value={Math.round(bpm)}
+            onChange={(e) => changeBpm(Number(e.target.value))}
+            className="w-24 accent-orange-500 cursor-pointer"
+          />
 
-              <button
-                onClick={toggleSound}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : 'bg-gray-600 hover:bg-gray-700'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
-                  {soundOn ? (
-                    <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-                  ) : (
-                    <>
-                      <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06Z" />
-                      <path stroke="currentColor" strokeWidth={2} strokeLinecap="round" d="M17.25 9.75l5.5 5.5m0-5.5l-5.5 5.5" />
-                    </>
-                  )}
-                </svg>
-              </button>
-
-              {running && (
+          <button
+            onClick={toggleSound}
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
+              {soundOn ? (
+                <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
+              ) : (
                 <>
-                  <div className="flex gap-1.5">
-                    {[0, 1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className={`w-3 h-3 rounded-full transition-all duration-75 ${
-                          beatNumber % 4 === i
-                            ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
-                            : 'bg-gray-600'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm font-mono text-gray-300">
-                    {currentBar}
-                  </span>
+                  <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06Z" />
+                  <path stroke="currentColor" strokeWidth={2} strokeLinecap="round" d="M17.25 9.75l5.5 5.5m0-5.5l-5.5 5.5" />
                 </>
               )}
+            </svg>
+          </button>
 
-              <span className="text-xs text-gray-500">{selectedSession}</span>
-
-              <button
-                onClick={() => { disconnect(); setSelectedSession(null) }}
-                className="text-xs text-gray-500 hover:text-white transition-colors cursor-pointer"
-                title="Disconnect"
-              >
-                &times;
-              </button>
+          {running && (
+            <>
+              <div className="flex gap-1.5">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-full transition-all duration-75 ${
+                      beatNumber % 4 === i
+                        ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
+                        : darkMode ? 'bg-gray-600' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className={`text-sm font-mono ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {currentBar}
+              </span>
             </>
           )}
+
+          <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{selectedSession}</span>
         </div>
 
         {sections.length === 0 ? (
@@ -701,9 +711,14 @@ export default function HtmlSongPage() {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
               const activeBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} onTitleClick={(barNumber) => {
-                  setBarOffset(barNumber - Math.floor(beatNumber / 4))
-                  if (!running) toggleRunning()
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} nextLabel={t('htmlSong.next')} onTitleClick={(barNumber) => {
+                  if (running) {
+                    setBarOffset(barNumber - Math.floor(beatNumber / 4))
+                  } else {
+                    setBarOffset(barNumber)
+                    toggleRunning()
+                  }
+                  sendBar(barNumber)
                 }} />
               ))
             })()}
@@ -714,7 +729,7 @@ export default function HtmlSongPage() {
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className={`mt-6 w-full py-2 rounded-lg text-sm transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
         >
-          &uarr; Back to top
+          &uarr; {t('htmlSong.backToTop')}
         </button>
       </div>
     </div>

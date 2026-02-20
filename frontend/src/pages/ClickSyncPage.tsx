@@ -7,6 +7,8 @@ interface SessionInfo {
   bpm: number
   running: boolean
   client_count: number
+  song: string
+  bar: number
 }
 
 export default function ClickSyncPage() {
@@ -67,7 +69,7 @@ export default function ClickSyncPage() {
           {sessions.map((s) => (
             <Link
               key={s.name}
-              to={`/click/${encodeURIComponent(s.name)}`}
+              to={s.song ? `/htmlsong/${s.song}?session=${encodeURIComponent(s.name)}` : `/click/${encodeURIComponent(s.name)}`}
               className="block p-4 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors no-underline text-white"
             >
               <div className="flex items-center justify-between">
@@ -82,6 +84,7 @@ export default function ClickSyncPage() {
                   className={`inline-block w-2 h-2 rounded-full ${s.running ? 'bg-green-500' : 'bg-gray-600'}`}
                 />
                 <span>{s.running ? 'Running' : 'Stopped'}</span>
+                {s.song && <span className="text-blue-400">{s.song}</span>}
               </div>
             </Link>
           ))}

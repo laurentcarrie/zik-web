@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { API_BASE } from '../config'
 
 export default function ClickSyncSessionPage() {
   const { session } = useParams<{ session: string }>()
   const [searchParams] = useSearchParams()
   const initialBpm = Number(searchParams.get('bpm')) || null
+  const navigate = useNavigate()
 
   const [bpm, setBpm] = useState(initialBpm || 120)
   const [running, setRunning] = useState(false)
@@ -141,6 +142,12 @@ export default function ClickSyncSessionPage() {
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data)
       if (msg.type === 'State') {
+        // If session has a song active, redirect to its HtmlSong page
+        if (msg.song) {
+          ws.close()
+          navigate(`/htmlsong/${msg.song}?session=${encodeURIComponent(session || 'default')}`, { replace: true })
+          return
+        }
         // Set initial BPM if we're the first client and have a bpm param
         if (!initialBpmSentRef.current && initialBpm && msg.client_count === 1) {
           initialBpmSentRef.current = true
