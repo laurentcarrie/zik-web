@@ -8,13 +8,8 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
-import { API_BASE, BAND_NAME, ROUTE_PREFIX } from '../config'
+import { API_BASE, BAND_NAME, ROUTE_PREFIX, CLICK_SYNC_SESSIONS } from '../config'
 const SETTINGS_KEY = 'songs/settings.yml'
-
-const CLICK_SYNC_SESSIONS: Record<string, string[]> = {
-  mtl: ['Répet', 'Céline', 'Bertrand', 'Pierre', 'Stéphane', 'Laurent'],
-  'sunny-bd': ['Répet', 'Çisil', 'Franck', 'Harold', 'Hervé', 'Laurent'],
-}
 
 type MusicService = 'deezerWeb' | 'deezerApp' | 'spotifyWeb' | 'spotifyApp'
 
@@ -229,6 +224,10 @@ export default function SettingsPage() {
   })
   const [clickSyncSessions, setClickSyncSessions] = useState<Array<{ name: string; bpm: number; running: boolean; client_count: number; song: string }>>([])
 
+  const touchSession = useCallback((name: string) => {
+    fetch(`${API_BASE}/api/click-sync/${encodeURIComponent(name)}/touch`, { method: 'POST' }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     const fetchSessions = () => {
       fetch(`${API_BASE}/api/click-sync-sessions`)
@@ -240,6 +239,11 @@ export default function SettingsPage() {
     const interval = setInterval(fetchSessions, 3000)
     return () => clearInterval(interval)
   }, [])
+
+  // Touch the current session on mount so it appears in the session list
+  useEffect(() => {
+    if (clickSyncSession) touchSession(clickSyncSession)
+  }, [clickSyncSession, touchSession])
 
   const { isAuthenticated, clearPassword } = useAuth()
 
@@ -740,6 +744,7 @@ export default function SettingsPage() {
                 onChange={(e) => {
                   setClickSyncSession(e.target.value)
                   setCookie('clickSyncSession', e.target.value)
+                  touchSession(e.target.value)
                 }}
                 className="flex-1 px-3 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:border-gray-400"
               >
@@ -761,6 +766,7 @@ export default function SettingsPage() {
                   setClickSyncSession(e.target.value)
                   setCookie('clickSyncSession', e.target.value)
                 }}
+                onBlur={() => { if (clickSyncSession) touchSession(clickSyncSession) }}
                 className="flex-1 px-3 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:border-gray-400"
                 placeholder="Session name"
               />
@@ -774,6 +780,7 @@ export default function SettingsPage() {
                   onClick={() => {
                     setClickSyncSession(s.name)
                     setCookie('clickSyncSession', s.name)
+                    touchSession(s.name)
                   }}
                   className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
                     s.name === clickSyncSession

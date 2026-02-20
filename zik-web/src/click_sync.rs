@@ -225,6 +225,22 @@ async fn ticker_loop(
     }
 }
 
+pub async fn touch_session_handler(
+    Path(name): Path<String>,
+    Extension(manager): Extension<ClickSyncManager>,
+) -> Json<SessionInfo> {
+    let state = manager.get_or_create(&name).await;
+    let inner = state.inner.lock().await;
+    Json(SessionInfo {
+        name,
+        bpm: inner.bpm,
+        running: inner.running,
+        client_count: inner.client_count,
+        song: inner.song.clone(),
+        bar: inner.bar,
+    })
+}
+
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     Path(name): Path<String>,

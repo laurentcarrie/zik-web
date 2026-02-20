@@ -113,6 +113,7 @@ async fn main() {
         .route("/config", get(api_config))
         .route("/auth/verify", post(verify_password))
         .route("/click-sync/{name}", get(click_sync::ws_handler))
+        .route("/click-sync/{name}/touch", post(click_sync::touch_session_handler))
         .route("/click-sync-sessions", get(click_sync::list_sessions_handler))
         .layer(Extension(click_sync_manager))
         .with_state(state.clone());

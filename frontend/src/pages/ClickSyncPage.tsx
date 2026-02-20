@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { API_BASE } from '../config'
+import { API_BASE, BAND_NAME, CLICK_SYNC_SESSIONS } from '../config'
 
 interface SessionInfo {
   name: string
@@ -20,7 +20,19 @@ export default function ClickSyncPage() {
     const fetchSessions = () => {
       fetch(`${API_BASE}/api/click-sync-sessions`)
         .then((r) => r.json())
-        .then(setSessions)
+        .then((active: SessionInfo[]) => {
+          const predefined = CLICK_SYNC_SESSIONS[BAND_NAME] || []
+          const merged: SessionInfo[] = predefined.map(name => {
+            const found = active.find(s => s.name === name)
+            return found || { name, bpm: 120, running: false, client_count: 0, song: '', bar: 0 }
+          })
+          for (const s of active) {
+            if (!predefined.includes(s.name)) {
+              merged.push(s)
+            }
+          }
+          setSessions(merged)
+        })
         .catch(() => {})
     }
     fetchSessions()
@@ -62,22 +74,22 @@ export default function ClickSyncPage() {
         </button>
       </div>
 
-      {sessions.length === 0 ? (
-        <p className="text-gray-500 text-center">No active sessions</p>
-      ) : (
-        <div className="w-full max-w-md mx-auto flex flex-col gap-3">
-          {sessions.map((s) => (
-            <Link
-              key={s.name}
-              to={s.song ? `/htmlsong/${s.song}?session=${encodeURIComponent(s.name)}` : `/click/${encodeURIComponent(s.name)}`}
-              className="block p-4 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors no-underline text-white"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-lg">{s.name}</span>
-                <span className="text-sm text-gray-400">
-                  {s.client_count} client{s.client_count !== 1 ? 's' : ''}
-                </span>
-              </div>
+      <div className="w-full max-w-md mx-auto flex flex-col gap-3">
+        {sessions.map((s) => (
+          <Link
+            key={s.name}
+            to={s.song ? `/htmlsong/${s.song}?session=${encodeURIComponent(s.name)}` : `/songs`}
+            className={`block p-4 rounded-lg transition-colors no-underline text-white ${
+              s.client_count > 0 ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-800/50 hover:bg-gray-700/50'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`font-semibold text-lg ${s.client_count === 0 ? 'text-gray-400' : ''}`}>{s.name}</span>
+              <span className={`text-sm ${s.client_count > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                {s.client_count} client{s.client_count !== 1 ? 's' : ''}
+              </span>
+            </div>
+            {s.client_count > 0 && (
               <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
                 <span>{Math.round(s.bpm)} BPM</span>
                 <span
@@ -86,10 +98,10 @@ export default function ClickSyncPage() {
                 <span>{s.running ? 'Running' : 'Stopped'}</span>
                 {s.song && <span className="text-blue-400">{s.song}</span>}
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
+            )}
+          </Link>
+        ))}
+      </div>
       </div>
     </div>
   )

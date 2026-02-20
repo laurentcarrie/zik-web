@@ -93,14 +93,19 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
   }, [ensureAudioCtx, playClick, stopScheduler])
 
   useEffect(() => {
-    initialBpmSentRef.current = false
-    setSessionSong(null)
     if (!sessionName) {
       setConnected(false)
+      setSessionSong(null)
       setRunning(false)
+      runningRef.current = false
       setBeatNumber(0)
+      stopScheduler()
       return
     }
+
+    setConnected(false)
+    setSessionSong(null)
+    initialBpmSentRef.current = false
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}${API_BASE}/api/click-sync/${encodeURIComponent(sessionName)}`
@@ -174,7 +179,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
   }, [sessionName, startScheduler, stopScheduler])
 
   const send = useCallback((msg: object) => {
-    wsRef.current?.send(JSON.stringify(msg))
+    if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify(msg))
   }, [])
 
   const toggleSound = useCallback(() => {
@@ -186,20 +191,50 @@ function useClickSync(sessionName: string | null, initialBpm?: number) {
 
   const toggleRunning = useCallback(() => {
     ensureAudioCtx()
-    send(running ? { type: 'Stop' } : { type: 'Start' })
-  }, [ensureAudioCtx, send, running])
+    if (sessionName) {
+      send(running ? { type: 'Stop' } : { type: 'Start' })
+    } else {
+      // Local-only mode
+      if (running) {
+        runningRef.current = false
+        setRunning(false)
+        stopScheduler()
+      } else {
+        runningRef.current = true
+        setRunning(true)
+        setBeatNumber(0)
+        originRef.current = Date.now()
+        clockOffsetRef.current = 0
+        scheduledUpToRef.current = 0
+        startScheduler()
+      }
+    }
+  }, [ensureAudioCtx, sessionName, send, running, stopScheduler, startScheduler])
 
   const changeBpm = useCallback((newBpm: number) => {
-    send({ type: 'SetBpm', bpm: newBpm })
-  }, [send])
+    if (sessionName) {
+      send({ type: 'SetBpm', bpm: newBpm })
+    } else {
+      // Local-only mode
+      if (runningRef.current) {
+        const now = Date.now()
+        const oldInterval = 60000 / bpmRef.current
+        const elapsed = (now - originRef.current) / oldInterval
+        const newInterval = 60000 / newBpm
+        originRef.current = now - elapsed * newInterval
+      }
+      bpmRef.current = newBpm
+      setBpm(newBpm)
+    }
+  }, [sessionName, send])
 
   const sendSong = useCallback((song: string) => {
-    send({ type: 'SetSong', song })
-  }, [send])
+    if (sessionName) send({ type: 'SetSong', song })
+  }, [sessionName, send])
 
   const sendBar = useCallback((bar: number) => {
-    send({ type: 'SetBar', bar })
-  }, [send])
+    if (sessionName) send({ type: 'SetBar', bar })
+  }, [sessionName, send])
 
   const disconnect = useCallback(() => {
     wsRef.current?.close()
@@ -435,22 +470,24 @@ export default function HtmlSongPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const cookieMatch = document.cookie.match(/(^| )clickSyncSession=([^;]+)/)
-  const selectedSession = searchParams.get('session') || (cookieMatch ? decodeURIComponent(cookieMatch[2]) : null) || 'private'
+  const sessionFromParams = searchParams.get('session') || (cookieMatch ? decodeURIComponent(cookieMatch[2]) : null) || 'private'
   const [darkMode, setDarkMode] = useState(true)
   const [barOffset, setBarOffset] = useState(0)
   const [showGrid, setShowGrid] = useState(true)
   const [showLyrics, setShowLyrics] = useState(true)
 
-  const { data: song, isLoading: songLoading } = useQuery({
+  const { data: song, isLoading: songLoading, isError: songError } = useQuery({
     queryKey: ['song', id],
     queryFn: () => fetchSong(id!),
     enabled: !!id,
+    retry: false,
   })
 
-  const { data: structure, isLoading: structureLoading } = useQuery({
+  const { data: structure, isLoading: structureLoading, isError: structureError } = useQuery({
     queryKey: ['songStructure', id],
     queryFn: () => fetchSongStructure(id!),
     enabled: !!id,
+    retry: false,
   })
 
   const { data: allSongs } = useQuery({
@@ -474,7 +511,7 @@ export default function HtmlSongPage() {
 
   const songTempo = song?.tempo && song.tempo > 0 ? song.tempo : undefined
   const navigate = useNavigate()
-  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar } = useClickSync(selectedSession, songTempo)
+  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar } = useClickSync(sessionFromParams, songTempo)
 
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
@@ -493,14 +530,14 @@ export default function HtmlSongPage() {
     }
   }, [id, running, toggleRunning])
 
-  // Send our song to the session whenever id changes or we connect
+  // Send our song to the session on connect or when navigating songs
   useEffect(() => {
     if (connected && id) {
       sendSong(id)
     }
   }, [connected, id, sendSong])
 
-  // Follow song changes from other clients (only when sessionSong actually changes)
+  // Follow song changes from other clients
   const prevSessionSongRef = useRef<string | null>(null)
   useEffect(() => {
     if (!connected || !sessionSong) return
@@ -529,7 +566,14 @@ export default function HtmlSongPage() {
   }, [currentBar, running, lastBar, toggleRunning])
 
 
-  if (songLoading || structureLoading) {
+  // Redirect to songs list if song doesn't exist
+  useEffect(() => {
+    if (songError || structureError) {
+      navigate('/songs', { replace: true })
+    }
+  }, [songError, structureError, navigate])
+
+  if (songLoading || structureLoading || songError || structureError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
@@ -700,7 +744,10 @@ export default function HtmlSongPage() {
             </>
           )}
 
-          <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{selectedSession}</span>
+          <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${connected ? 'text-green-400' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
+            {sessionFromParams}
+          </span>
         </div>
 
         {sections.length === 0 ? (
