@@ -1,4 +1,4 @@
-.PHONY: help start stop restart backend frontend build check test kill-backend kill-frontend
+.PHONY: help start stop restart backend frontend build check test kill-backend kill-frontend reindex
 
 help:
 	@echo "make start           Start backend + frontend"
@@ -9,8 +9,9 @@ help:
 	@echo "make build-frontend  TypeScript check + Vite build"
 	@echo "make check           cargo check"
 	@echo "make test            cargo test"
+	@echo "make reindex         Re-index songs on localhost"
 
-BACKEND_ENV = BUCKET=zik-laurent BUCKET_ROOT=dev AWS_PROFILE=zik-laurent WRITE_PASSWORD=xxx FAVICON=favicon-dev-32x32.png
+BACKEND_ENV = BUCKET=$(BUCKET) BUCKET_ROOT=$(BUCKET_ROOT) AWS_PROFILE=$(AWS_PROFILE) WRITE_PASSWORD=$(WRITE_PASSWORD) FAVICON=favicon-dev-32x32.png
 
 start: backend frontend
 
@@ -33,10 +34,13 @@ check:
 	cd zik-web && rtk cargo check
 
 test:
-	cd zik-web && AWS_PROFILE=zik-laurent rtk cargo test
+	cd zik-web && AWS_PROFILE=$(AWS_PROFILE) rtk cargo test
 
 kill-backend:
 	-kill $$(lsof -ti :8080) 2>/dev/null || true
 
 kill-frontend:
 	-kill $$(lsof -ti :3000) 2>/dev/null || true
+
+reindex:
+	curl -s -X POST -H "X-Write-Password: $(WRITE_PASSWORD)" http://localhost:8080/api/world

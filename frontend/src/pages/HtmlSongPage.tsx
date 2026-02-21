@@ -391,7 +391,7 @@ function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active }: { son
   )
 }
 
-function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, gridLabel, lyricsLabel }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; gridLabel: string; lyricsLabel: string }) {
+function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, onToggleAllLyrics, gridLabel, lyricsLabel, allLyricsLabel }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; onToggleAllLyrics: () => void; gridLabel: string; lyricsLabel: string; allLyricsLabel: string }) {
   const sectionRef = useRef<HTMLDivElement>(null)
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
@@ -418,7 +418,7 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
           <h2
             className={`font-bold cursor-pointer hover:underline transition-all duration-200 ${isActiveSection ? 'text-4xl' : 'text-lg'}`}
             style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
-            onClick={() => firstBarNumber > 0 && onTitleClick(firstBarNumber)}
+            onClick={() => firstBarNumber > 0 && onTitleClick(Math.max(1, firstBarNumber - 1))}
           >{section.title}</h2>
           {isActiveSection && (
             <>
@@ -460,11 +460,17 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
             >
               {lyricsLabel}
             </button>
+            <button
+              onClick={onToggleAllLyrics}
+              className={`px-2 py-0.5 text-xs rounded font-medium transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-600 text-white' : dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+            >
+              {allLyricsLabel}
+            </button>
           </div>
         )}
-        {showLyrics && isActiveSection && (
+        {showLyrics && (isActiveSection || showAllLyrics) && (
           <div className="text-center">
-            <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={activeBar - firstBarNumber} active />
+            <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={isActiveSection ? activeBar - firstBarNumber : undefined} active={isActiveSection} />
           </div>
         )}
         {showGrid && section.rows.length > 0 && (
@@ -475,7 +481,7 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
           </div>
         )}
       </div>
-      {showLyrics && isActiveSection && nextSection && (
+      {showLyrics && isActiveSection && !showAllLyrics && nextSection && (
         <div className={`mt-3 pl-3 italic text-center ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
             {nextLabel}: {nextSection.title}
@@ -500,6 +506,7 @@ export default function HtmlSongPage() {
   const [showLyrics, setShowLyrics] = useState(true)
   const [flash, setFlash] = useState(false)
   const [flashEnabled, setFlashEnabled] = useState(true)
+  const [showAllLyrics, setShowAllLyrics] = useState(false)
 
   const { data: song, isLoading: songLoading, isError: songError } = useQuery({
     queryKey: ['song', id],
@@ -538,6 +545,15 @@ export default function HtmlSongPage() {
   const navigate = useNavigate()
   const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar } = useClickSync(sessionFromParams, songTempo)
 
+  // Update BPM when song tempo loads (async query resolves after hook init)
+  const songTempoAppliedRef = useRef(false)
+  useEffect(() => {
+    if (songTempo && !songTempoAppliedRef.current) {
+      songTempoAppliedRef.current = true
+      changeBpm(songTempo)
+    }
+  }, [songTempo, changeBpm])
+
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
   const sections = structure?.sections ?? []
@@ -550,6 +566,7 @@ export default function HtmlSongPage() {
   useEffect(() => {
     if (prevIdRef.current !== id) {
       prevIdRef.current = id
+      songTempoAppliedRef.current = false
       setBarOffset(0)
       if (running) toggleRunning()
       // Push song change to session (only when user navigates, not on initial mount)
@@ -701,7 +718,7 @@ export default function HtmlSongPage() {
 
         <div className="grid grid-cols-3 gap-2 mb-4">
           <button
-            onClick={() => { if (!connected) return; toggleRunning() }}
+            onClick={() => { if (!connected) return; if (!running) { setBarOffset(0); sendBar(0) } toggleRunning() }}
             disabled={!connected}
             className={`px-4 py-2.5 text-base rounded-lg font-semibold transition-colors cursor-pointer
               ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}
@@ -772,6 +789,16 @@ export default function HtmlSongPage() {
             </svg>
           </button>
 
+          <button
+            onClick={() => setShowAllLyrics(!showAllLyrics)}
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-500/70 hover:bg-purple-500/90' : darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'}`}
+            title={t('htmlSong.allLyrics', 'All lyrics')}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
+              <path d="M3 5h12v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z" />
+            </svg>
+          </button>
+
           {running && (
             <>
               <div className="flex gap-1.5">
@@ -806,7 +833,7 @@ export default function HtmlSongPage() {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
               const activeBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} onTitleClick={(barNumber) => {
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} onToggleAllLyrics={() => setShowAllLyrics(!showAllLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} allLyricsLabel={t('htmlSong.allLyrics', 'All lyrics')} onTitleClick={(barNumber) => {
                   if (running) {
                     setBarOffset(barNumber - Math.floor(beatNumber / 4))
                     sendBar(barNumber)

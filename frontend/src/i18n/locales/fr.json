@@ -100,7 +100,8 @@
     "lyrics": "Paroles",
     "next": "Suite",
     "backToTop": "Haut de page",
-    "notConnected": "Non connecté"
+    "notConnected": "Non connecté",
+    "allLyrics": "Toutes les paroles"
   },
   "home": {
     "songs": "Chansons",
