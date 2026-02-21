@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import CodeMirror from '@uiw/react-codemirror'
 import { StreamLanguage } from '@codemirror/language'
@@ -53,14 +53,17 @@ const TEX_MACROS = [
 
 export default function EditLyricsPage() {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>()
+  const navigate = useNavigate()
   const [content, setContent] = useState('')
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showMacros, setShowMacros] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
 
   const handleEditorChange = useCallback((value: string) => {
     setContent(value)
+    setSaveStatus('idle')
   }, [])
 
   const { data: song, isLoading: songLoading } = useQuery({
@@ -78,13 +81,15 @@ export default function EditLyricsPage() {
   const saveMutation = useMutation({
     mutationFn: () => saveLyrics(id!, sectionId!, content),
     onSuccess: () => {
-      alert('Saved successfully!')
+      setSaveStatus('success')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     },
     onError: (error: Error) => {
       if (error.message === 'Unauthorized') {
         setShowPasswordModal(true)
       } else {
-        alert('Failed to save')
+        setSaveStatus('error')
+        setTimeout(() => setSaveStatus('idle'), 2000)
       }
     },
   })
@@ -109,7 +114,7 @@ export default function EditLyricsPage() {
   }
 
   function handleClose() {
-    window.close()
+    navigate(-1)
   }
 
   // Escape key closes window
@@ -180,9 +185,13 @@ export default function EditLyricsPage() {
           <button
             onClick={handleSave}
             disabled={saveMutation.isPending}
-            className="px-6 py-3 bg-[#667eea] text-white rounded-lg font-medium hover:bg-[#5a67d8] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className={`px-6 py-3 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed ${
+              saveStatus === 'success' ? 'bg-green-600' :
+              saveStatus === 'error' ? 'bg-red-600' :
+              'bg-[#667eea] hover:bg-[#5a67d8] disabled:bg-gray-400'
+            }`}
           >
-            {saveMutation.isPending ? 'Saving...' : 'Save'}
+            {saveMutation.isPending ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : saveStatus === 'error' ? 'Error' : 'Save'}
           </button>
           <button
             onClick={() => setShowMacros(true)}

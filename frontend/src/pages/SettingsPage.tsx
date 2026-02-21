@@ -701,6 +701,39 @@ export default function SettingsPage() {
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-700 space-y-1">
+          <h2 className="text-gray-300 text-sm font-semibold mb-1">{t('settings.htmlSongDefaults')}</h2>
+          {[
+            { cookie: 'htmlSongFlash', label: t('settings.htmlSongFlash'), defaultVal: true },
+            { cookie: 'htmlSongSound', label: t('settings.htmlSongSound'), defaultVal: false },
+            { cookie: 'htmlSongAllLyrics', label: t('settings.htmlSongAllLyrics'), defaultVal: false },
+          ].map(({ cookie, label, defaultVal }) => (
+            <label key={cookie} className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-800">
+              <input
+                type="checkbox"
+                checked={getCookie(cookie) !== null ? getCookie(cookie) !== 'false' : defaultVal}
+                onChange={(e) => setCookie(cookie, String(e.target.checked))}
+                className="w-4 h-4 accent-purple-500"
+              />
+              <span className="text-gray-300 text-sm">{label}</span>
+            </label>
+          ))}
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <span className="text-gray-300 text-sm">{t('settings.htmlSongLyricsFontSize')}</span>
+            <select
+              value={getCookie('htmlSongLyricsFontSize') || 'text-lg'}
+              onChange={(e) => setCookie('htmlSongLyricsFontSize', e.target.value)}
+              className="bg-gray-700 text-gray-300 text-sm rounded px-2 py-1"
+            >
+              <option value="text-sm">S</option>
+              <option value="text-base">M</option>
+              <option value="text-lg">L</option>
+              <option value="text-xl">XL</option>
+              <option value="text-2xl">XXL</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-700 space-y-1">
           <h2 className="text-gray-300 text-sm font-semibold mb-1">{t('language.title')}</h2>
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-2">
             <label className="flex items-center gap-2 cursor-pointer py-1">
