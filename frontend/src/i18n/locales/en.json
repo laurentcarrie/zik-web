@@ -100,10 +100,7 @@
     "lyrics": "Lyrics",
     "next": "Next",
     "backToTop": "Back to top",
-    "notConnected": "Not connected",
-    "songChanged": "Song changed",
-    "follow": "Follow",
-    "stay": "Stay"
+    "notConnected": "Not connected"
   },
   "home": {
     "songs": "Songs",

@@ -100,10 +100,7 @@
     "lyrics": "Paroles",
     "next": "Suite",
     "backToTop": "Haut de page",
-    "notConnected": "Non connecté",
-    "songChanged": "Chanson modifiée",
-    "follow": "Suivre",
-    "stay": "Rester"
+    "notConnected": "Non connecté"
   },
   "home": {
     "songs": "Chansons",
