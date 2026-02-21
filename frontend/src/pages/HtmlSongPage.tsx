@@ -500,6 +500,7 @@ export default function HtmlSongPage() {
   const [showLyrics, setShowLyrics] = useState(true)
   const [flash, setFlash] = useState(false)
   const [flashEnabled, setFlashEnabled] = useState(true)
+  const [pendingSong, setPendingSong] = useState<string | null>(null)
 
   const { data: song, isLoading: songLoading, isError: songError } = useQuery({
     queryKey: ['song', id],
@@ -576,8 +577,8 @@ export default function HtmlSongPage() {
       if (id && sessionSong !== id) sendSong(id)
       return
     }
-    navigate(`/htmlsong/${sessionSong}`, { replace: true })
-  }, [connected, sessionSong, id, navigate, sendSong])
+    setPendingSong(sessionSong)
+  }, [connected, sessionSong, id, sendSong])
 
   // Sync bar offset from server when another client jumps to a section
   useEffect(() => {
@@ -828,6 +829,32 @@ export default function HtmlSongPage() {
           &uarr; {t('htmlSong.backToTop')}
         </button>
       </div>
+      {pendingSong && (() => {
+        const ps = allSongs?.find(s => s.id === pendingSong)
+        const label = ps ? `${ps.author} — ${ps.title}` : pendingSong
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className={`rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+              <p className="text-lg font-semibold mb-2">{t('htmlSong.songChanged', 'Song changed')}</p>
+              <p className={`mb-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{label}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { const target = pendingSong; setPendingSong(null); navigate(`/htmlsong/${target}`, { replace: true }) }}
+                  className="flex-1 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                >
+                  {t('htmlSong.follow', 'Follow')}
+                </button>
+                <button
+                  onClick={() => setPendingSong(null)}
+                  className={`flex-1 py-2 rounded-lg font-medium transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                >
+                  {t('htmlSong.stay', 'Stay')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
