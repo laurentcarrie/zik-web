@@ -78,7 +78,8 @@ export default function ClickSyncPage() {
         {sessions.map((s) => (
           <Link
             key={s.name}
-            to={s.song ? `/htmlsong/${s.song}?session=${encodeURIComponent(s.name)}` : `/songs`}
+            to={s.song ? `/htmlsong/${s.song}` : `/songs`}
+            onClick={() => { document.cookie = `clickSyncSession=${encodeURIComponent(s.name)};path=/;max-age=31536000` }}
             className={`block p-4 rounded-lg transition-colors no-underline text-white ${
               s.client_count > 0 ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-800/50 hover:bg-gray-700/50'
             }`}

@@ -797,6 +797,15 @@ export default function SettingsPage() {
               ))}
             </div>
           )}
+          <button
+            onClick={() => {
+              document.cookie = 'clickSyncSession=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
+              navigate('/songs', { replace: true })
+            }}
+            className="mt-2 px-3 py-1.5 text-sm rounded-lg bg-red-600/30 text-red-300 hover:bg-red-600/50 transition-colors cursor-pointer mx-2"
+          >
+            Disconnect
+          </button>
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-700">

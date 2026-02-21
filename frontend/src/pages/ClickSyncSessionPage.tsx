@@ -16,7 +16,8 @@ export default function ClickSyncSessionPage() {
       if (msg.type === 'State') {
         ws.close()
         if (msg.song) {
-          navigate(`/htmlsong/${msg.song}?session=${encodeURIComponent(session || 'default')}`, { replace: true })
+          document.cookie = `clickSyncSession=${encodeURIComponent(session || 'default')};path=/;max-age=31536000`
+          navigate(`/htmlsong/${msg.song}`, { replace: true })
         } else {
           navigate('/songs', { replace: true })
         }

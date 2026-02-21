@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSong, fetchSongs, fetchSongStructure } from '../api/songs'
@@ -468,9 +468,8 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
 export default function HtmlSongPage() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
-  const [searchParams] = useSearchParams()
   const cookieMatch = document.cookie.match(/(^| )clickSyncSession=([^;]+)/)
-  const sessionFromParams = searchParams.get('session') || (cookieMatch ? decodeURIComponent(cookieMatch[2]) : null) || 'private'
+  const sessionFromParams = (cookieMatch ? decodeURIComponent(cookieMatch[2]) : null) || 'private'
   const [darkMode, setDarkMode] = useState(true)
   const [barOffset, setBarOffset] = useState(0)
   const [showGrid, setShowGrid] = useState(true)
