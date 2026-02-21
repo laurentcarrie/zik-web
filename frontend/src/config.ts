@@ -4,6 +4,6 @@ export const ROUTE_PREFIX = BAND_NAME ? `/${BAND_NAME}` : ''
 export const API_BASE = import.meta.env.VITE_API_URL || ROUTE_PREFIX
 
 export const CLICK_SYNC_SESSIONS: Record<string, string[]> = {
-  mtl: ['Répet', 'Céline', 'Bertrand', 'Pierre', 'Stéphane', 'Laurent'],
-  'sunny-bd': ['Répet', 'Çisil', 'Franck', 'Harold', 'Hervé', 'Laurent'],
+  mtl: ['Répet - Move The Line', 'Céline', 'Bertrand', 'Pierre', 'Stéphane', 'Laurent', 'Whoever'],
+  'sunny-bd': ['Répet - Sunny Bd', 'Çisil', 'Franck', 'Harold', 'Hervé', 'Laurent'],
 }

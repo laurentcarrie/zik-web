@@ -258,14 +258,13 @@ async fn handle_socket(
     session_name: String,
     manager: ClickSyncManager,
 ) {
+    let mut broadcast_rx = state.tx.subscribe();
     {
         let mut inner = state.inner.lock().await;
         inner.client_count += 1;
         inner.empty_since = None;
     }
     broadcast_state(&state).await;
-
-    let mut broadcast_rx = state.tx.subscribe();
     let (direct_tx, mut direct_rx) = tokio::sync::mpsc::channel::<String>(32);
 
     loop {
@@ -280,17 +279,13 @@ async fn handle_socket(
                 }
             }
             msg = broadcast_rx.recv() => {
-                if let Ok(text) = msg {
-                    if socket.send(Message::Text(text.into())).await.is_err() {
-                        break;
-                    }
+                if let Ok(text) = msg && socket.send(Message::Text(text.into())).await.is_err() {
+                    break;
                 }
             }
             msg = direct_rx.recv() => {
-                if let Some(text) = msg {
-                    if socket.send(Message::Text(text.into())).await.is_err() {
-                        break;
-                    }
+                if let Some(text) = msg && socket.send(Message::Text(text.into())).await.is_err() {
+                    break;
                 }
             }
         }

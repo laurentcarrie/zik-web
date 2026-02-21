@@ -28,7 +28,8 @@
     "web": "Web",
     "app": "App",
     "edit": "Éditer",
-    "build": "Compiler"
+    "build": "Compiler",
+    "gridAndLyrics": "Grille & Paroles"
   },
   "settings": {
     "title": "Paramètres",
@@ -98,7 +99,8 @@
     "grid": "Grille",
     "lyrics": "Paroles",
     "next": "Suite",
-    "backToTop": "Haut de page"
+    "backToTop": "Haut de page",
+    "notConnected": "Non connecté"
   },
   "home": {
     "songs": "Chansons",

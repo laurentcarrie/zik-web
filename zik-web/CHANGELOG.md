@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.24.0] - 2026-02-21
+
+### Added
+- Click sync: shared metronome via WebSocket with session-based rooms
+- HtmlSong page: chord grid with songbook fonts, section colors, bar tracking
+- HtmlSong page: lyrics rendering with LaTeX macro support (songwordfb, songwordl, songwordcount, songbookcomment, color)
+- HtmlSong page: visual lead (150ms) for beat display ahead of audio clicks
+- HtmlSong page: BPM slider, sound toggle, dark/light mode toggle
+- HtmlSong page: prev/next song navigation
+- HtmlSong page: Start/Stop, Grid, Lyrics toggle buttons (equal-sized grid layout)
+- HtmlSong page: small duplicate controls before the active section
+- HtmlSong page: count-in bar when starting from a section click
+- HtmlSong page: downbeat flash on active section title (toggleable via lightning button)
+- HtmlSong page: metronome dots display on active section, auto-stop at last bar
+- HtmlSong page: next section lyrics preview below active section
+- Click sync session management: modal with session cards showing name, client count, BPM, running status, active song
+- Click sync: song and bar sync across clients in the same session
+- Click sync: cookie-based session persistence with disconnect button
+- Click sync sessions page and per-session WebSocket routes
+- ClickSync backend: broadcast channel for state sync, clock offset calibration via Ping/Pong
+- SongDetailPage: renamed HTML button to "Grid & Lyrics" with grid+text icon
+- SongDetailPage: grouped PDF/Lyrics/Edit/Build buttons together
+- Fargate + ALB dev and prod stacks with WebSocket support
+- Press book auth guard
+- Makefile for common dev operations
+- Band-specific session names (Repet - Move The Line, Repet - Sunny Bd)
+- "Whoever" session for mtl, selectable without edit mode
+
+### Changed
+- SongDetailPage: removed standalone metronome buttons (moved to HtmlSong page)
+- Settings page: session selector converted to modal with Join button
+- For mtl band: sessions locked unless edit mode enabled (except "Whoever")
+- Navigating to different song via prev/next stops metronome, resets bar, syncs to session
+
+### Fixed
+- Cross-tab session interference: cookie shared across tabs caused session switching (fixed with useState initializer)
+- Metronome stopping when new client joins session (backend subscribe ordering, frontend song push logic)
+- Count-in bar off by one on remote clients (send correct bar number)
+- Empty session song detection (check null instead of falsy empty string)
+- Session Apply button not showing due to cookie sharing between tabs
+- Clippy warnings: collapsible if statements in click_sync.rs
+
 ## [0.23.3] - 2026-02-17
 
 ### Added

@@ -113,8 +113,14 @@ async fn main() {
         .route("/config", get(api_config))
         .route("/auth/verify", post(verify_password))
         .route("/click-sync/{name}", get(click_sync::ws_handler))
-        .route("/click-sync/{name}/touch", post(click_sync::touch_session_handler))
-        .route("/click-sync-sessions", get(click_sync::list_sessions_handler))
+        .route(
+            "/click-sync/{name}/touch",
+            post(click_sync::touch_session_handler),
+        )
+        .route(
+            "/click-sync-sessions",
+            get(click_sync::list_sessions_handler),
+        )
         .layer(Extension(click_sync_manager))
         .with_state(state.clone());
 
@@ -455,10 +461,7 @@ fn baritem_to_glyph(item: &band_songbook::chords::model::BarItem) -> ChordGlyph 
             let display = chord_display(chord);
 
             // Determine font based on accidental + sus
-            let is_sus = matches!(
-                chord.alteration,
-                Alteration::Sus2 | Alteration::Sus4
-            );
+            let is_sus = matches!(chord.alteration, Alteration::Sus2 | Alteration::Sus4);
             let font = if is_sus {
                 match chord.accidental {
                     Accidental::Flat => "songbook_flat", // flat+sus uses flat font
@@ -474,8 +477,14 @@ fn baritem_to_glyph(item: &band_songbook::chords::model::BarItem) -> ChordGlyph 
 
             // Note index: A=0, B=1, C=2, D=3, E=4, F=5, G=6
             let note_idx = match chord.name.as_str() {
-                "A" => 0, "B" => 1, "C" => 2, "D" => 3,
-                "E" => 4, "F" => 5, "G" => 6, _ => 0,
+                "A" => 0,
+                "B" => 1,
+                "C" => 2,
+                "D" => 3,
+                "E" => 4,
+                "F" => 5,
+                "G" => 6,
+                _ => 0,
             };
 
             let ch = if is_sus {
@@ -604,9 +613,7 @@ async fn api_song_structure(
                             .as_deref()
                             .and_then(default_section_color)
                     })
-                    .or_else(|| {
-                        color_by_id.get(&ref_section.link).cloned().flatten()
-                    });
+                    .or_else(|| color_by_id.get(&ref_section.link).cloned().flatten());
                 (ref_section.title.clone(), color, rows)
             }
             _ => continue,

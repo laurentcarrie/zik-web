@@ -3,7 +3,7 @@ import { ROUTE_PREFIX } from '../config'
 
 interface ActionButtonProps {
   href?: string
-  variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app' | 'edit' | 'htmlsong' | 'metronome'
+  variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app' | 'edit' | 'htmlsong'
   target?: '_blank' | '_self'
   children: ReactNode
   disabled?: boolean
@@ -18,7 +18,6 @@ const variantStyles = {
   'spotify-app': 'bg-[#158c3a]/70 hover:bg-[#158c3a]/90',
   edit: 'bg-[#6b7280]/70 hover:bg-[#6b7280]/90',
   htmlsong: 'bg-[#2dd4bf]/70 hover:bg-[#2dd4bf]/90',
-  metronome: 'bg-orange-500/70 hover:bg-orange-500/90',
 }
 
 function PdfIcon({ className }: { className?: string }) {

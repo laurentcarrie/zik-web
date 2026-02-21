@@ -28,7 +28,8 @@
     "web": "Web",
     "app": "App",
     "edit": "Edit",
-    "build": "Build"
+    "build": "Build",
+    "gridAndLyrics": "Grid & Lyrics"
   },
   "settings": {
     "title": "Settings",
@@ -98,7 +99,8 @@
     "grid": "Grid",
     "lyrics": "Lyrics",
     "next": "Next",
-    "backToTop": "Back to top"
+    "backToTop": "Back to top",
+    "notConnected": "Not connected"
   },
   "home": {
     "songs": "Songs",

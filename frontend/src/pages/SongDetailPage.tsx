@@ -448,40 +448,14 @@ export default function SongDetailPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {song.tempo > 0 && (
-            <ActionButton
-              href={`/click/${encodeURIComponent(`${song.author} - ${song.title}`)}?bpm=${song.tempo}`}
-              variant="metronome"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                <path d="M12,1.75L8.57,2.67L4.06,19.53C4.03,19.68 4,19.84 4,20C4,21.11 4.89,22 6,22H18C19.11,22 20,21.11 20,20C20,19.84 19.97,19.68 19.94,19.53L18.58,14.42L17,16L17.2,17H13.41L16.25,14.16L14.84,12.75L10.59,17H6.8L10.29,4H13.71L15.17,9.43L16.8,7.79L15.43,2.67L12,1.75M11.25,5V14.75L12.75,13.25V5H11.25M19.79,7.8L16.96,10.63L16.25,9.92L14.84,11.34L17.66,14.16L19.08,12.75L18.37,12.04L21.2,9.21L19.79,7.8Z"/>
-              </svg>
-              {song.tempo}
-            </ActionButton>
-          )}
-
-          {song.tempo_url ? (
-            <a
-              href={song.tempo_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] justify-center transition-colors active:scale-95 bg-gray-400/50 hover:bg-gray-400/70"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                <path d="M12,1.75L8.57,2.67L4.06,19.53C4.03,19.68 4,19.84 4,20C4,21.11 4.89,22 6,22H18C19.11,22 20,21.11 20,20C20,19.84 19.97,19.68 19.94,19.53L18.58,14.42L17,16L17.2,17H13.41L16.25,14.16L14.84,12.75L10.59,17H6.8L10.29,4H13.71L15.17,9.43L16.8,7.79L15.43,2.67L12,1.75M11.25,5V14.75L12.75,13.25V5H11.25M19.79,7.8L16.96,10.63L16.25,9.92L14.84,11.34L17.66,14.16L19.08,12.75L18.37,12.04L21.2,9.21L19.79,7.8Z"/>
-              </svg>
-              {song.tempo}
-            </a>
-          ) : null}
-
           <ActionButton
             href={`/htmlsong/${song.id}`}
             variant="htmlsong"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-              <path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h12v2H3v-2z"/>
+              <path d="M3 3h8v2H3V3zm0 4h8v2H3V7zm0 4h8v2H3v-2zm12-8h6v2h-6V3zm0 4h6v2h-6V7zm0 4h4v2h-4v-2zM3 15h18v2H3v-2zm0 4h14v2H3v-2z"/>
             </svg>
-            HTML
+            {t('buttons.gridAndLyrics')}
           </ActionButton>
 
           <ActionButton
@@ -505,6 +479,33 @@ export default function SongDetailPage() {
               <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics')}
             </ActionButton>
           )}
+
+          <ActionButton
+            href={`/edit-yml/${song.id}`}
+            variant="edit"
+            disabled={!isAuthenticated}
+            title={!isAuthenticated ? t('settings.enableEditBuildFirst') : undefined}
+          >
+            <EditIcon className="w-5 h-5" /> {t('buttons.edit')}
+          </ActionButton>
+
+          <div className="relative group">
+            <button
+              onClick={triggerBuild}
+              disabled={building || !isAuthenticated}
+              className={isAuthenticated
+                ? "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center transition-colors active:scale-95 bg-[#8b5cf6]/70 hover:bg-[#8b5cf6]/90 disabled:bg-gray-400/50 disabled:cursor-not-allowed"
+                : "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center bg-gray-400/50 cursor-not-allowed"
+              }
+            >
+              <MakeIcon className="w-5 h-5" /> {building ? '...' : t('buttons.build')}
+            </button>
+            {!isAuthenticated && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {t('settings.enableEditBuildFirst')}
+              </div>
+            )}
+          </div>
 
           {settings.musicService === 'deezerWeb' && (
             <ActionButton
@@ -543,34 +544,6 @@ export default function SongDetailPage() {
               <SpotifyIcon className="w-5 h-5" /> {t('buttons.app')}
             </ActionButton>
           )}
-
-          <ActionButton
-            href={`/edit-yml/${song.id}`}
-            variant="edit"
-            disabled={!isAuthenticated}
-            title={!isAuthenticated ? t('settings.enableEditBuildFirst') : undefined}
-          >
-            <EditIcon className="w-5 h-5" /> {t('buttons.edit')}
-          </ActionButton>
-
-          <div className="relative group">
-            <button
-              onClick={triggerBuild}
-              disabled={building || !isAuthenticated}
-              className={isAuthenticated
-                ? "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center transition-colors active:scale-95 bg-[#8b5cf6]/70 hover:bg-[#8b5cf6]/90 disabled:bg-gray-400/50 disabled:cursor-not-allowed"
-                : "flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium h-[44px] w-full justify-center bg-gray-400/50 cursor-not-allowed"
-              }
-            >
-              <MakeIcon className="w-5 h-5" /> {building ? '...' : t('buttons.build')}
-            </button>
-            {!isAuthenticated && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                {t('settings.enableEditBuildFirst')}
-              </div>
-            )}
-          </div>
-
         </div>
 
         {buildMessage && (

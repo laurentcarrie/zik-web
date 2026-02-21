@@ -223,6 +223,7 @@ export default function SettingsPage() {
     return saved || 'private'
   })
   const [clickSyncSessions, setClickSyncSessions] = useState<Array<{ name: string; bpm: number; running: boolean; client_count: number; song: string }>>([])
+  const [showSessionModal, setShowSessionModal] = useState(false)
 
   const touchSession = useCallback((name: string) => {
     fetch(`${API_BASE}/api/click-sync/${encodeURIComponent(name)}/touch`, { method: 'POST' }).catch(() => {})
@@ -738,74 +739,20 @@ export default function SettingsPage() {
         <div className="mt-4 pt-3 border-t border-gray-700">
           <h2 className="text-gray-300 text-sm font-semibold mb-1">Click Sync Session</h2>
           <div className="flex items-center gap-2 px-2 py-1.5">
-            {CLICK_SYNC_SESSIONS[BAND_NAME] ? (
-              <select
-                value={clickSyncSession}
-                onChange={(e) => {
-                  setClickSyncSession(e.target.value)
-                  setCookie('clickSyncSession', e.target.value)
-                  touchSession(e.target.value)
-                }}
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:border-gray-400"
-              >
-                {CLICK_SYNC_SESSIONS[BAND_NAME].map((name) => {
-                  const session = clickSyncSessions.find((s) => s.name === name)
-                  const count = session?.client_count || 0
-                  return (
-                    <option key={name} value={name}>
-                      {name}{count > 0 ? ` (${count})` : ''}
-                    </option>
-                  )
-                })}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={clickSyncSession}
-                onChange={(e) => {
-                  setClickSyncSession(e.target.value)
-                  setCookie('clickSyncSession', e.target.value)
-                }}
-                onBlur={() => { if (clickSyncSession) touchSession(clickSyncSession) }}
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-600 rounded-lg bg-gray-800 text-gray-200 focus:outline-none focus:border-gray-400"
-                placeholder="Session name"
-              />
-            )}
+            <span className="text-gray-200 text-sm">{clickSyncSession}</span>
+            {(() => {
+              const session = clickSyncSessions.find((s) => s.name === clickSyncSession)
+              return session && session.client_count > 0 ? (
+                <span className="text-green-400 text-xs">{session.client_count} client{session.client_count !== 1 ? 's' : ''}</span>
+              ) : null
+            })()}
+            <button
+              onClick={() => setShowSessionModal(true)}
+              className="ml-auto px-3 py-1.5 text-sm rounded-lg bg-[#667eea] text-white hover:bg-[#5a67d8] transition-colors cursor-pointer"
+            >
+              Change
+            </button>
           </div>
-          {!CLICK_SYNC_SESSIONS[BAND_NAME] && clickSyncSessions.length > 0 && (
-            <div className="px-2 mt-1 space-y-1">
-              {clickSyncSessions.map((s) => (
-                <button
-                  key={s.name}
-                  onClick={() => {
-                    setClickSyncSession(s.name)
-                    setCookie('clickSyncSession', s.name)
-                    touchSession(s.name)
-                  }}
-                  className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
-                    s.name === clickSyncSession
-                      ? 'bg-green-600/30 text-green-300 border border-green-600'
-                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                  }`}
-                >
-                  <span className="font-medium">{s.name}</span>
-                  <span className="text-gray-400 ml-2">
-                    {Math.round(s.bpm)} BPM, {s.client_count} client{s.client_count !== 1 ? 's' : ''}
-                    {s.song && ` — ${s.song}`}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <button
-            onClick={() => {
-              document.cookie = 'clickSyncSession=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
-              navigate('/songs', { replace: true })
-            }}
-            className="mt-2 px-3 py-1.5 text-sm rounded-lg bg-red-600/30 text-red-300 hover:bg-red-600/50 transition-colors cursor-pointer mx-2"
-          >
-            Disconnect
-          </button>
         </div>
 
         <div className="mt-4 pt-3 border-t border-gray-700">
@@ -1427,6 +1374,87 @@ export default function SettingsPage() {
               <button
                 onClick={() => setShowAnimation(false)}
                 className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto"
+              >
+                {t('settings.close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSessionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900/95 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-gray-100 text-xl font-bold">Click Sync Session</h2>
+              <button
+                onClick={() => setShowSessionModal(false)}
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="space-y-2">
+              {(CLICK_SYNC_SESSIONS[BAND_NAME] || clickSyncSessions.map(s => s.name)).map((name) => {
+                const session = clickSyncSessions.find((s) => s.name === name)
+                const count = session?.client_count || 0
+                const isCurrent = name === clickSyncSession
+                const locked = BAND_NAME === 'mtl' && !isAuthenticated && name !== 'Whoever'
+                return (
+                  <button
+                    key={name}
+                    disabled={locked}
+                    onClick={() => {
+                      setClickSyncSession(name)
+                      setCookie('clickSyncSession', name)
+                      touchSession(name)
+                      setShowSessionModal(false)
+                      if (session?.song) {
+                        navigate(`/htmlsong/${session.song}`)
+                      } else {
+                        navigate('/songs')
+                      }
+                    }}
+                    className={`w-full text-left p-3 rounded-lg text-sm transition-colors ${
+                      locked ? 'opacity-40 cursor-not-allowed' :
+                      isCurrent ? 'bg-green-600/30 border border-green-600 cursor-default' :
+                      'bg-gray-800 hover:bg-gray-700 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-semibold ${isCurrent ? 'text-green-300' : 'text-gray-200'}`}>{name}</span>
+                      <span className={`text-xs ${count > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                        {count > 0 ? `${count} client${count !== 1 ? 's' : ''}` : ''}
+                      </span>
+                    </div>
+                    {session && count > 0 && (
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                        <span>{Math.round(session.bpm)} BPM</span>
+                        <span className={`inline-block w-2 h-2 rounded-full ${session.running ? 'bg-green-500' : 'bg-gray-600'}`} />
+                        <span>{session.running ? 'Running' : 'Stopped'}</span>
+                        {session.song && <span className="text-blue-400">{session.song}</span>}
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex gap-3 mt-4">
+              {(BAND_NAME !== 'mtl' || isAuthenticated || clickSyncSession === 'Whoever') && (
+                <button
+                  onClick={() => {
+                    document.cookie = 'clickSyncSession=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
+                    setShowSessionModal(false)
+                    navigate('/songs', { replace: true })
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-red-600/30 text-red-300 hover:bg-red-600/50 transition-colors cursor-pointer"
+                >
+                  Disconnect
+                </button>
+              )}
+              <button
+                onClick={() => setShowSessionModal(false)}
+                className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 ml-auto cursor-pointer"
               >
                 {t('settings.close')}
               </button>
