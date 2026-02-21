@@ -567,8 +567,12 @@ export default function HtmlSongPage() {
     const prev = prevSessionSongRef.current
     prevSessionSongRef.current = sessionSong
     if (prev === sessionSong) return
+    if (prev === null) {
+      // Initial connect: always push our song to the session
+      if (id && sessionSong !== id) sendSong(id)
+      return
+    }
     if (sessionSong === '' || sessionSong === id) {
-      // Session has no song or same song — push ours
       if (id && sessionSong !== id) sendSong(id)
       return
     }
