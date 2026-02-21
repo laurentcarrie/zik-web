@@ -27,6 +27,7 @@ frontend: kill-frontend build-frontend
 build-frontend:
 	cd frontend && rtk npx tsc -b
 	cd frontend && npx vite build
+	rm -rf zik-web/dist && cp -r frontend/dist zik-web/dist
 
 check:
 	cd zik-web && rtk cargo check
