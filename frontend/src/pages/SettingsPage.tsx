@@ -707,6 +707,7 @@ export default function SettingsPage() {
             { cookie: 'htmlSongSound', label: t('settings.htmlSongSound'), defaultVal: false },
             { cookie: 'htmlSongGrid', label: t('settings.htmlSongGrid'), defaultVal: true },
             { cookie: 'htmlSongAllLyrics', label: t('settings.htmlSongAllLyrics'), defaultVal: false },
+            { cookie: 'htmlSongEditLyrics', label: t('settings.htmlSongEditLyrics'), defaultVal: false },
           ].map(({ cookie, label, defaultVal }) => (
             <label key={cookie} className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-800">
               <input

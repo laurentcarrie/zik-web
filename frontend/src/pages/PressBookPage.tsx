@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import PasswordModal from '../components/PasswordModal'
 import { API_BASE } from '../config'
 
 async function fetchPhotos(): Promise<string[]> {
@@ -49,6 +51,7 @@ function ChevronRightIcon({ className }: { className?: string }) {
 
 export default function PressBookPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
@@ -88,6 +91,8 @@ export default function PressBookPage() {
 
   const isLoading = photosLoading || videosLoading
 
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen p-4 md:p-8">
@@ -105,6 +110,17 @@ export default function PressBookPage() {
           <p className="text-gray-400 mt-4 italic">
             Les photos et vidéos sont sur CloudFront, et en cours de revue par l'équipe éditoriale. Revenez bientôt pour les consulter !
           </p>
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="mt-6 px-6 py-3 bg-[#667eea] text-white rounded-lg font-medium hover:bg-[#5a67d8] transition-colors cursor-pointer"
+          >
+            {t('home.pressBookEnterPassword')}
+          </button>
+          <PasswordModal
+            isOpen={showPasswordModal}
+            onClose={() => setShowPasswordModal(false)}
+            onSuccess={() => setShowPasswordModal(false)}
+          />
         </div>
       </div>
     )

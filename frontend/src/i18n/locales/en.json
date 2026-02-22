@@ -59,6 +59,7 @@
     "htmlSongGrid": "Grid",
     "htmlSongAllLyrics": "All lyrics",
     "htmlSongLyricsFontSize": "Lyrics font size",
+    "htmlSongEditLyrics": "Edit lyrics buttons",
     "uselessAnimation": "Useless animation",
     "showContour": "Show contour",
     "speed": "Speed",
@@ -112,7 +113,8 @@
   "home": {
     "songs": "Songs",
     "settings": "Settings",
-    "pressBook": "Press Book"
+    "pressBook": "Press Book",
+    "pressBookEnterPassword": "Enter password"
   },
   "songYml": {
     "title": "song.yml Structure",

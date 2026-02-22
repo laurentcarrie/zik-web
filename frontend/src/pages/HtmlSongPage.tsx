@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSong, fetchSongs, fetchSongStructure } from '../api/songs'
 import type { ParsedSection, ParsedChordRow, ChordGlyph } from '../api/songs'
+import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 
 function useClickSync(sessionName: string | null, initialBpm?: number, initialSoundOn?: boolean) {
@@ -384,7 +385,7 @@ function htmlOfLatex(latex: string, activeFbIndex?: number): string {
 
 function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSize, italic }: { songId: string; sectionId: string; dark: boolean; activeFbIndex?: number; active?: boolean; fontSize?: string; italic?: boolean }) {
   const { data } = useQuery({
-    queryKey: ['lyrics', songId, sectionId],
+    queryKey: ['lyricsHtml', songId, sectionId],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/song/${songId}/lyrics/${sectionId}`)
       if (!res.ok) return null
@@ -402,8 +403,9 @@ function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSiz
   )
 }
 
-function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, onToggleAllLyrics, gridLabel, lyricsLabel, allLyricsLabel, lyricsFontSize }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; onToggleAllLyrics: () => void; gridLabel: string; lyricsLabel: string; allLyricsLabel: string; lyricsFontSize: string }) {
+function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, onToggleAllLyrics, gridLabel, lyricsLabel, allLyricsLabel, lyricsFontSize, editLyrics }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; onToggleAllLyrics: () => void; gridLabel: string; lyricsLabel: string; allLyricsLabel: string; lyricsFontSize: string; editLyrics: boolean }) {
   const sectionRef = useRef<HTMLDivElement>(null)
+  const { isAuthenticated } = useAuth()
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
   const sectionTotalBars = section.rows.reduce((sum, r) => sum + r.bars.length * (r.repeat > 1 ? r.repeat : 1), 0)
@@ -443,6 +445,18 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
             style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
             onClick={() => firstBarNumber > 0 && onTitleClick(Math.max(1, firstBarNumber - 1))}
           >{section.title}</h2>
+          {editLyrics && (
+            <Link
+              to={`/edit-lyrics/${songId}/${section.id}`}
+              className={`p-1 rounded transition-colors ${isAuthenticated ? (dark ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200') : 'pointer-events-none opacity-30'}`}
+              tabIndex={isAuthenticated ? 0 : -1}
+              title="Edit lyrics"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+              </svg>
+            </Link>
+          )}
           {isActiveSection && (
             <>
               <div className="flex gap-2.5">
@@ -537,6 +551,7 @@ export default function HtmlSongPage() {
   const [flashEnabled, setFlashEnabled] = useState(() => cookieBool('htmlSongFlash', true))
   const [showAllLyrics, setShowAllLyrics] = useState(() => cookieBool('htmlSongAllLyrics', false))
   const [initialSoundOn] = useState(() => cookieBool('htmlSongSound', false))
+  const [editLyrics] = useState(() => cookieBool('htmlSongEditLyrics', false))
   const [lyricsFontSize] = useState(() => {
     const m = document.cookie.match(/(^| )htmlSongLyricsFontSize=([^;]+)/)
     return m ? decodeURIComponent(m[2]) : '1.125rem'
@@ -865,7 +880,7 @@ export default function HtmlSongPage() {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
               const activeBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} onToggleAllLyrics={() => setShowAllLyrics(!showAllLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} allLyricsLabel={t('htmlSong.allLyrics', 'All lyrics')} lyricsFontSize={lyricsFontSize} onTitleClick={(barNumber) => {
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} onToggleAllLyrics={() => setShowAllLyrics(!showAllLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} allLyricsLabel={t('htmlSong.allLyrics', 'All lyrics')} lyricsFontSize={lyricsFontSize} editLyrics={editLyrics} onTitleClick={(barNumber) => {
                   if (running) {
                     setBarOffset(barNumber - Math.floor(beatNumber / 4))
                     sendBar(barNumber)
