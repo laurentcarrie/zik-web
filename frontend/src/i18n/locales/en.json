@@ -28,7 +28,8 @@
     "web": "Web",
     "app": "App",
     "edit": "Edit",
-    "build": "Build"
+    "build": "Build",
+    "gridAndLyrics": "Grid & Lyrics"
   },
   "settings": {
     "title": "Settings",
@@ -52,6 +53,12 @@
     "makeReport": "Make Report",
     "enableEditBuildFirst": "Enable Edit/Build in Settings first",
     "animation": "Animation",
+    "htmlSongDefaults": "Grid & Lyrics defaults",
+    "htmlSongFlash": "Flash on downbeat",
+    "htmlSongSound": "Sound",
+    "htmlSongGrid": "Grid",
+    "htmlSongAllLyrics": "All lyrics",
+    "htmlSongLyricsFontSize": "Lyrics font size",
     "uselessAnimation": "Useless animation",
     "showContour": "Show contour",
     "speed": "Speed",
@@ -93,6 +100,14 @@
     "validYaml": "Valid YAML",
     "invalidYaml": "Invalid YAML",
     "save": "Save"
+  },
+  "htmlSong": {
+    "grid": "Grid",
+    "lyrics": "Lyrics",
+    "next": "Next",
+    "backToTop": "Back to top",
+    "notConnected": "Not connected",
+    "allLyrics": "All lyrics"
   },
   "home": {
     "songs": "Songs",

@@ -15,6 +15,9 @@ const EditDrumsPage = lazy(() => import('./pages/EditDrumsPage'))
 const EditDrumsGlobalPage = lazy(() => import('./pages/EditDrumsGlobalPage'))
 const MasterPage = lazy(() => import('./pages/MasterPage'))
 const UpdatePage = lazy(() => import('./pages/UpdatePage'))
+const HtmlSongPage = lazy(() => import('./pages/HtmlSongPage'))
+const ClickSyncPage = lazy(() => import('./pages/ClickSyncPage'))
+const ClickSyncSessionPage = lazy(() => import('./pages/ClickSyncSessionPage'))
 
 function getEnabledContours(): number[] {
   try {
@@ -165,6 +168,7 @@ function App() {
           <Route path="/song/:id" element={<SongDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/press-book" element={<PressBookPage />} />
+          <Route path="/htmlsong/:id" element={<HtmlSongPage />} />
           <Route path="/edit-yml/:id" element={<EditYmlPage />} />
           <Route path="/edit-lyrics/:id/:sectionId" element={<EditLyricsPage />} />
           <Route path="/edit-lilypond/:id/:filename" element={<EditLilypondPage />} />
@@ -173,6 +177,8 @@ function App() {
           <Route path="/edit-drums-global/:name" element={<EditDrumsGlobalPage />} />
           <Route path="/master/:id" element={<MasterPage />} />
           <Route path="/update" element={<UpdatePage />} />
+          <Route path="/click" element={<ClickSyncPage />} />
+          <Route path="/click/:session" element={<ClickSyncSessionPage />} />
         </Routes>
       </Suspense>
     </>

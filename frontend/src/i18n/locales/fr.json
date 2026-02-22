@@ -28,7 +28,8 @@
     "web": "Web",
     "app": "App",
     "edit": "Éditer",
-    "build": "Compiler"
+    "build": "Compiler",
+    "gridAndLyrics": "Grille & Paroles"
   },
   "settings": {
     "title": "Paramètres",
@@ -52,6 +53,12 @@
     "makeReport": "Rapport de compilation",
     "enableEditBuildFirst": "Activer Édition/Compilation dans les Paramètres",
     "animation": "Animation",
+    "htmlSongDefaults": "Grille & Paroles (défauts)",
+    "htmlSongFlash": "Flash sur temps fort",
+    "htmlSongSound": "Son",
+    "htmlSongGrid": "Grille",
+    "htmlSongAllLyrics": "Toutes les paroles",
+    "htmlSongLyricsFontSize": "Taille police paroles",
     "uselessAnimation": "Animation inutile",
     "showContour": "Afficher le contour",
     "speed": "Vitesse",
@@ -93,6 +100,14 @@
     "validYaml": "YAML valide",
     "invalidYaml": "YAML invalide",
     "save": "Enregistrer"
+  },
+  "htmlSong": {
+    "grid": "Grille",
+    "lyrics": "Paroles",
+    "next": "Suite",
+    "backToTop": "Haut de page",
+    "notConnected": "Non connecté",
+    "allLyrics": "Toutes les paroles"
   },
   "home": {
     "songs": "Chansons",

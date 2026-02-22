@@ -252,8 +252,6 @@ export default function EditYmlPage() {
                   <a
                     key={section.id}
                     href={`${ROUTE_PREFIX}/edit-lyrics/${id}/${encodeURIComponent(section.id)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className={`inline-flex items-center justify-center gap-2 px-4 py-2 min-w-[140px] ${color.bg} text-white rounded-lg text-sm ${color.hover} transition-colors`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

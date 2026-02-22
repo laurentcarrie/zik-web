@@ -3,7 +3,7 @@ import { ROUTE_PREFIX } from '../config'
 
 interface ActionButtonProps {
   href?: string
-  variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app' | 'edit'
+  variant: 'pdf' | 'deezer' | 'deezer-app' | 'spotify' | 'spotify-app' | 'edit' | 'htmlsong'
   target?: '_blank' | '_self'
   children: ReactNode
   disabled?: boolean
@@ -17,6 +17,7 @@ const variantStyles = {
   spotify: 'bg-[#158c3a]/70 hover:bg-[#158c3a]/90',
   'spotify-app': 'bg-[#158c3a]/70 hover:bg-[#158c3a]/90',
   edit: 'bg-[#6b7280]/70 hover:bg-[#6b7280]/90',
+  htmlsong: 'bg-[#2dd4bf]/70 hover:bg-[#2dd4bf]/90',
 }
 
 function PdfIcon({ className }: { className?: string }) {
@@ -62,9 +63,9 @@ export { PdfIcon, DeezerIcon, SpotifyIcon, EditIcon, MakeIcon }
 export default function ActionButton({ href, variant, target, children, disabled, title }: ActionButtonProps) {
   if (disabled || !href) {
     return (
-      <div className="relative group w-full sm:w-auto">
+      <div className="relative group">
         <span
-          className="flex items-center gap-2 px-4 py-2 text-white no-underline rounded-lg text-sm font-medium
+          className="flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
                       h-[44px] justify-center bg-gray-400/50 cursor-not-allowed"
         >
           {children}
@@ -84,7 +85,7 @@ export default function ActionButton({ href, variant, target, children, disabled
       rel={target === '_blank' ? 'noopener noreferrer' : undefined}
       title={title}
       className={`flex items-center gap-2 px-4 py-3 text-white no-underline rounded-lg text-base font-medium
-                  h-[44px] min-w-24 justify-center w-full sm:w-auto
+                  h-[44px] justify-center
                   transition-colors active:scale-95
                   ${variantStyles[variant]}`}
     >
