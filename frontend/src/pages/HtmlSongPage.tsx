@@ -192,7 +192,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
 
   const toggleRunning = useCallback(() => {
     ensureAudioCtx()
-    if (sessionName) {
+    if (sessionName && wsRef.current?.readyState === WebSocket.OPEN) {
       send(running ? { type: 'Stop' } : { type: 'Start' })
     } else {
       // Local-only mode
@@ -541,7 +541,7 @@ export default function HtmlSongPage() {
   const { id } = useParams<{ id: string }>()
   const [sessionFromParams] = useState(() => {
     const m = document.cookie.match(/(^| )clickSyncSession=([^;]+)/)
-    return (m ? decodeURIComponent(m[2]) : null) || 'private'
+    return m ? decodeURIComponent(m[2]) || null : null
   })
   const [darkMode, setDarkMode] = useState(true)
   const [barOffset, setBarOffset] = useState(0)

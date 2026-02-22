@@ -220,7 +220,7 @@ export default function SettingsPage() {
     if (bandSessions) {
       return saved && bandSessions.includes(saved) ? saved : bandSessions[0]
     }
-    return saved || 'private'
+    return saved || ''
   })
   const [clickSyncSessions, setClickSyncSessions] = useState<Array<{ name: string; bpm: number; running: boolean; client_count: number; song: string }>>([])
   const [showSessionModal, setShowSessionModal] = useState(false)
@@ -774,19 +774,38 @@ export default function SettingsPage() {
         <div className="mt-4 pt-3 border-t border-gray-700">
           <h2 className="text-gray-300 text-sm font-semibold mb-1">Click Sync Session</h2>
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <span className="text-gray-200 text-sm">{clickSyncSession}</span>
-            {(() => {
-              const session = clickSyncSessions.find((s) => s.name === clickSyncSession)
-              return session && session.client_count > 0 ? (
-                <span className="text-green-400 text-xs">{session.client_count} client{session.client_count !== 1 ? 's' : ''}</span>
-              ) : null
-            })()}
-            <button
-              onClick={() => setShowSessionModal(true)}
-              className="ml-auto px-3 py-1.5 text-sm rounded-lg bg-[#667eea] text-white hover:bg-[#5a67d8] transition-colors cursor-pointer"
-            >
-              Change
-            </button>
+            {clickSyncSession ? (
+              <>
+                <span className="text-gray-200 text-sm">{clickSyncSession}</span>
+                {(() => {
+                  const session = clickSyncSessions.find((s) => s.name === clickSyncSession)
+                  return session && session.client_count > 0 ? (
+                    <span className="text-green-400 text-xs">{session.client_count} client{session.client_count !== 1 ? 's' : ''}</span>
+                  ) : null
+                })()}
+              </>
+            ) : (
+              <span className="text-gray-500 text-sm italic">Disconnected</span>
+            )}
+            <div className="ml-auto flex gap-2">
+              {clickSyncSession && (
+                <button
+                  onClick={() => {
+                    document.cookie = 'clickSyncSession=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
+                    setClickSyncSession('')
+                  }}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-red-600/30 text-red-300 hover:bg-red-600/50 transition-colors cursor-pointer"
+                >
+                  Disconnect
+                </button>
+              )}
+              <button
+                onClick={() => setShowSessionModal(true)}
+                className="px-3 py-1.5 text-sm rounded-lg bg-[#667eea] text-white hover:bg-[#5a67d8] transition-colors cursor-pointer"
+              >
+                {clickSyncSession ? 'Change' : 'Connect'}
+              </button>
+            </div>
           </div>
         </div>
 
