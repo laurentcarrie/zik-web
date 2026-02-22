@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.25.0] - 2026-02-22
+
+### Added
+- Grid toggle setting persisted via cookie
+- Lyrics scroll sync: active songwordfb scrolls to center when both grid and lyrics shown
+- LaTeX ~ replaced with space in lyrics rendering
+- Next section preview with improved visibility
+
+### Changed
+- Lyrics font size uses explicit rem values instead of Tailwind classes
+- songbookcomment color changed from red to coral
+- ChordGrid scroll disabled when lyrics are shown (to avoid competing scrolls)
+
 ## [0.24.0] - 2026-02-21
 
 ### Added
