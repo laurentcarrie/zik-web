@@ -10,6 +10,10 @@
     <title>M T L</title>
     <script>
       const band = location.pathname.match(/^\/(mtl|sunny-bd)/)?.[0] || '';
+      if(band){
+        document.getElementById('favicon-32').href='/static'+band+'/favicon-32x32.png';
+        document.getElementById('favicon-16').href='/static'+band+'/favicon-16x16.png';
+      }
       fetch(band + '/api/config').then(r=>r.json()).then(c=>{
         if(c.favicon){
           document.getElementById('favicon-32').href=c.favicon;

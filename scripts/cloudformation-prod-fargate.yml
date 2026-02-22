@@ -192,6 +192,8 @@ Resources:
               Value: !Ref S3BucketName
             - Name: BUCKET_ROOT
               Value: prod
+            - Name: FAVICON
+              Value: favicon-32x32.png
             - Name: WRITE_PASSWORD
               Value: !Ref WritePassword
             - Name: NOTIFICATION_EMAIL

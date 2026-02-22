@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.25.2] - 2026-02-22
+
+### Added
+- Settings: Disconnect button for Click Sync session
+- Settings: "Connect" label when no session is active
+
+### Fixed
+- Metronome not starting when WebSocket not connected (fall back to local-only mode)
+- Favicon not showing on production (missing FAVICON env var in prod Fargate, band-prefixed default in index.html)
+- Remove default "private" session — no cookie means disconnected (local-only metronome)
+
 ## [0.25.1] - 2026-02-22
 
 ### Added
