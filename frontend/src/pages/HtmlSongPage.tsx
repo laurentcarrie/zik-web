@@ -752,11 +752,9 @@ export default function HtmlSongPage() {
 
         <div className="grid grid-cols-3 gap-2 mb-4">
           <button
-            onClick={() => { if (!connected) return; if (!running) { setBarOffset(0); sendBar(0) } toggleRunning() }}
-            disabled={!connected}
+            onClick={() => { if (!running) { setBarOffset(0); if (connected) sendBar(0) } toggleRunning() }}
             className={`px-4 py-2.5 text-base rounded-lg font-semibold transition-colors cursor-pointer
-              ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}
-              ${!connected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
           >
             {running ? 'Stop' : 'Start'}
           </button>
