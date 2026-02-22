@@ -283,7 +283,7 @@ function ChordCell({ glyph }: { glyph: ChordGlyph }) {
   )
 }
 
-function ChordGrid({ row, color, maxBars, dark, activeBar }: { row: ParsedChordRow; color?: string; maxBars: number; dark: boolean; activeBar: number }) {
+function ChordGrid({ row, color, maxBars, dark, activeBar, disableScroll }: { row: ParsedChordRow; color?: string; maxBars: number; dark: boolean; activeBar: number; disableScroll?: boolean }) {
   const rowRef = useRef<HTMLDivElement>(null)
   const bgStyle = color ? { backgroundColor: color + 'e6' } : undefined
   const emptyCells = maxBars - row.bars.length
@@ -294,10 +294,10 @@ function ChordGrid({ row, color, maxBars, dark, activeBar }: { row: ParsedChordR
   const highlightIdx = isInRow ? (activeBar - row.bar_number) % n : -1
 
   useEffect(() => {
-    if (isInRow && rowRef.current) {
+    if (isInRow && !disableScroll && rowRef.current) {
       rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-  }, [isInRow])
+  }, [isInRow, disableScroll])
 
   return (
     <div ref={rowRef} className="flex items-center gap-1 mb-1">
@@ -364,16 +364,23 @@ function htmlOfLatex(latex: string, activeFbIndex?: number): string {
     const style = isActive
       ? 'border: 2px solid red; border-radius: 3px; padding: 0 3px; color: white; background: red; font-weight: bold'
       : 'border: 1px solid red; border-radius: 3px; padding: 0 3px; color: red'
-    return `<span style="${style}">${display}</span>`
+    const idAttr = isActive ? ' id="active-lyrics-fb"' : ''
+    return `<span${idAttr} style="${style}">${display}</span>`
   })
   // \songwordl{text} → text in a blue box
   html = html.replace(/\\songwordl\{([^}]+)\}/g, '<span style="border: 1px solid #3b82f6; border-radius: 3px; padding: 0 3px; color: #3b82f6">$1</span>')
   // \songbookcomment{text} → red italic text
-  html = html.replace(/\\songbookcomment\{([^}]+)\}/g, '<span style="color: red; font-style: italic">$1</span>')
+  html = html.replace(/\\songbookcomment\{([^}]+)\}/g, '<span style="color: coral; font-style: italic">$1</span>')
+  // \tiny{text} → just text
+  html = html.replace(/\\tiny\{([^}]*)\}/g, '$1')
+  // \_ → _
+  html = html.replace(/\\_/g, '_')
+  // \textonehalf → ½
+  html = html.replace(/\\textonehalf/g, '½')
   return html
 }
 
-function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSize }: { songId: string; sectionId: string; dark: boolean; activeFbIndex?: number; active?: boolean; fontSize?: string }) {
+function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSize, italic }: { songId: string; sectionId: string; dark: boolean; activeFbIndex?: number; active?: boolean; fontSize?: string; italic?: boolean }) {
   const { data } = useQuery({
     queryKey: ['lyrics', songId, sectionId],
     queryFn: async () => {
@@ -386,7 +393,8 @@ function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSiz
   if (!data) return null
   return (
     <pre
-      className={`whitespace-pre-wrap mt-1 mb-2 ${active ? (fontSize || 'text-lg') : 'text-sm'} ${dark ? 'text-gray-300' : 'text-gray-600'}`}
+      className={`whitespace-pre-wrap mt-1 mb-2 ${active ? '' : 'text-sm'} ${italic ? 'italic' : ''} ${dark ? 'text-gray-300' : 'text-gray-600'}`}
+      style={active ? { fontSize: fontSize || '1.125rem' } : undefined}
       dangerouslySetInnerHTML={{ __html: htmlOfLatex(data, activeFbIndex) }}
     />
   )
@@ -407,6 +415,18 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
       sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [isActiveSection, showGrid])
+
+  // Scroll active \songwordfb to center when both lyrics and grid are shown
+  useEffect(() => {
+    if (isActiveSection && showGrid && showLyrics) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById('active-lyrics-fb')
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+    }
+  }, [isActiveSection, showGrid, showLyrics, activeBar])
 
   return (
     <>
@@ -477,17 +497,17 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
         {showGrid && section.rows.length > 0 && (
           <div>
             {section.rows.map((row, j) => (
-              <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} />
+              <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} disableScroll={showLyrics} />
             ))}
           </div>
         )}
       </div>
       {showLyrics && isActiveSection && !showAllLyrics && nextSection && (
-        <div className={`mt-3 pl-3 italic text-center opacity-40 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
-          <span className={`text-sm font-semibold ${dark ? 'text-gray-600' : 'text-gray-300'}`}>
+        <div className={`mt-3 pl-3 italic text-center opacity-70 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+          <span className={`text-base font-semibold ${dark ? 'text-gray-400' : 'text-gray-400'}`}>
             {nextLabel}: {nextSection.title}
           </span>
-          <SectionLyrics songId={songId} sectionId={nextSection.id} dark={dark} />
+          <SectionLyrics songId={songId} sectionId={nextSection.id} dark={dark} italic />
         </div>
       )}
     </>
@@ -509,7 +529,7 @@ export default function HtmlSongPage() {
   })
   const [darkMode, setDarkMode] = useState(true)
   const [barOffset, setBarOffset] = useState(0)
-  const [showGrid, setShowGrid] = useState(true)
+  const [showGrid, setShowGrid] = useState(() => cookieBool('htmlSongGrid', true))
   const [showLyrics, setShowLyrics] = useState(true)
   const [flash, setFlash] = useState(false)
   const [flashEnabled, setFlashEnabled] = useState(() => cookieBool('htmlSongFlash', true))
@@ -517,7 +537,7 @@ export default function HtmlSongPage() {
   const [initialSoundOn] = useState(() => cookieBool('htmlSongSound', false))
   const [lyricsFontSize] = useState(() => {
     const m = document.cookie.match(/(^| )htmlSongLyricsFontSize=([^;]+)/)
-    return m ? decodeURIComponent(m[2]) : 'text-lg'
+    return m ? decodeURIComponent(m[2]) : '1.125rem'
   })
 
   const { data: song, isLoading: songLoading, isError: songError } = useQuery({

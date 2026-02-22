@@ -705,6 +705,7 @@ export default function SettingsPage() {
           {[
             { cookie: 'htmlSongFlash', label: t('settings.htmlSongFlash'), defaultVal: true },
             { cookie: 'htmlSongSound', label: t('settings.htmlSongSound'), defaultVal: false },
+            { cookie: 'htmlSongGrid', label: t('settings.htmlSongGrid'), defaultVal: true },
             { cookie: 'htmlSongAllLyrics', label: t('settings.htmlSongAllLyrics'), defaultVal: false },
           ].map(({ cookie, label, defaultVal }) => (
             <label key={cookie} className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-gray-800">
@@ -720,15 +721,15 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2 px-2 py-1.5">
             <span className="text-gray-300 text-sm">{t('settings.htmlSongLyricsFontSize')}</span>
             <select
-              value={getCookie('htmlSongLyricsFontSize') || 'text-lg'}
+              value={getCookie('htmlSongLyricsFontSize') || '1.125rem'}
               onChange={(e) => setCookie('htmlSongLyricsFontSize', e.target.value)}
               className="bg-gray-700 text-gray-300 text-sm rounded px-2 py-1"
             >
-              <option value="text-sm">S</option>
-              <option value="text-base">M</option>
-              <option value="text-lg">L</option>
-              <option value="text-xl">XL</option>
-              <option value="text-2xl">XXL</option>
+              <option value="0.875rem">S</option>
+              <option value="1rem">M</option>
+              <option value="1.125rem">L</option>
+              <option value="1.25rem">XL</option>
+              <option value="1.5rem">XXL</option>
             </select>
           </div>
         </div>
