@@ -377,6 +377,8 @@ function htmlOfLatex(latex: string, activeFbIndex?: number): string {
   html = html.replace(/\\_/g, '_')
   // \textonehalf → ½
   html = html.replace(/\\textonehalf/g, '½')
+  // ~ → non-breaking space (LaTeX convention)
+  html = html.replace(/~/g, ' ')
   return html
 }
 
