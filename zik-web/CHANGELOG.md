@@ -1,6 +1,14 @@
 # Changelog
 
-<<<<<<< HEAD
+## [0.25.1] - 2026-02-22
+
+### Added
+- HtmlSong page: edit lyrics button per section (pencil icon next to section title)
+- Settings: "Edit lyrics buttons" toggle to show/hide edit buttons on HtmlSong page (default: off)
+
+### Fixed
+- React Query cache collision between HtmlSong lyrics display and EditLyrics page (different query keys)
+
 ## [0.25.0] - 2026-02-22
 
 ### Added

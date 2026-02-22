@@ -59,6 +59,7 @@
     "htmlSongGrid": "Grille",
     "htmlSongAllLyrics": "Toutes les paroles",
     "htmlSongLyricsFontSize": "Taille police paroles",
+    "htmlSongEditLyrics": "Boutons édition paroles",
     "uselessAnimation": "Animation inutile",
     "showContour": "Afficher le contour",
     "speed": "Vitesse",
@@ -112,7 +113,8 @@
   "home": {
     "songs": "Chansons",
     "settings": "Paramètres",
-    "pressBook": "Press Book"
+    "pressBook": "Press Book",
+    "pressBookEnterPassword": "Entrer le mot de passe"
   },
   "songYml": {
     "title": "Structure de song.yml",
