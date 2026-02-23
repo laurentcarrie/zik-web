@@ -8,7 +8,6 @@ import CodeMirror from '@uiw/react-codemirror'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { useAuth } from '../context/AuthContext'
-import PasswordModal from '../components/PasswordModal'
 
 // Custom YAML schema to handle custom tags
 const customTags = [
@@ -33,7 +32,7 @@ export default function MasterPage() {
   const [content, setContent] = useState('')
   const [isValid, setIsValid] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [showHelp, setShowHelp] = useState(false)
   const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
@@ -57,14 +56,12 @@ export default function MasterPage() {
   const saveMutation = useMutation({
     mutationFn: (newContent: string) => saveSongYml(id!, newContent),
     onSuccess: () => {
-      alert('Saved successfully!')
+      setSaveStatus('success')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     },
-    onError: (error: Error) => {
-      if (error.message === 'Unauthorized') {
-        setShowPasswordModal(true)
-      } else {
-        alert(error.message)
-      }
+    onError: () => {
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     },
   })
 
@@ -97,15 +94,6 @@ export default function MasterPage() {
 
   function handleSave() {
     if (!isValid) return
-    if (!isAuthenticated) {
-      setShowPasswordModal(true)
-      return
-    }
-    saveMutation.mutate(content)
-  }
-
-  function handlePasswordSuccess() {
-    setShowPasswordModal(false)
     saveMutation.mutate(content)
   }
 
@@ -174,10 +162,14 @@ export default function MasterPage() {
         <div className="flex items-center gap-4 mt-4">
           <button
             onClick={handleSave}
-            disabled={!isValid || saveMutation.isPending}
-            className="px-6 py-3 bg-[#667eea] text-white rounded-lg font-medium hover:bg-[#5a67d8] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            disabled={!isAuthenticated || !isValid || saveMutation.isPending}
+            className={`px-6 py-3 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed ${
+              saveStatus === 'success' ? 'bg-green-600' :
+              saveStatus === 'error' ? 'bg-red-600' :
+              'bg-[#667eea] hover:bg-[#5a67d8] disabled:bg-gray-400'
+            }`}
           >
-            {saveMutation.isPending ? 'Saving...' : 'Save'}
+            {saveMutation.isPending ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : saveStatus === 'error' ? 'Error' : 'Save'}
           </button>
 
           <button
@@ -258,11 +250,6 @@ export default function MasterPage() {
         )}
       </div>
 
-      <PasswordModal
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        onSuccess={handlePasswordSuccess}
-      />
     </div>
   )
 }

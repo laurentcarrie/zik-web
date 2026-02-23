@@ -7,6 +7,20 @@ import type { ParsedSection, ParsedChordRow, ChordGlyph } from '../api/songs'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 
+function Tip({ text, children, side }: { text: string; children: React.ReactNode; side?: 'bottom' | 'right' }) {
+  const pos = side === 'right'
+    ? 'left-full top-1/2 -translate-y-1/2 ml-1'
+    : 'left-1/2 -translate-x-1/2 top-full mt-1'
+  return (
+    <span className="relative group">
+      {children}
+      <span className={`pointer-events-none absolute px-2 py-1 text-xs rounded bg-black/90 text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] ${pos}`}>
+        {text}
+      </span>
+    </span>
+  )
+}
+
 function useClickSync(sessionName: string | null, initialBpm?: number, initialSoundOn?: boolean) {
   const [bpm, setBpm] = useState(initialBpm || 120)
   const [running, setRunning] = useState(false)
@@ -58,7 +72,11 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
     }
   }, [])
 
-  const VISUAL_LEAD_MS = 150
+  const [visualLeadMs, setVisualLeadMs] = useState(0)
+  const visualLeadRef = useRef(0)
+  const [audioOffsetMs, setAudioOffsetMs] = useState(0)
+  const audioOffsetRef = useRef(0)
+  const muteRef = useRef(false)
   const visualBeatRef = useRef(-1)
 
   const startScheduler = useCallback(() => {
@@ -75,15 +93,16 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
         const beatTime = localOrigin + scheduledUpToRef.current * intervalMs
         if (beatTime > now + 100) break
         if (beatTime > now - 50) {
-          const audioTime = ctx.currentTime + (beatTime - now) / 1000
-          if (audioTime > ctx.currentTime && soundOnRef.current) {
+          const audioTime = ctx.currentTime + (beatTime - now + audioOffsetRef.current) / 1000
+          if (audioTime > ctx.currentTime && soundOnRef.current && !muteRef.current) {
             playClick(audioTime, scheduledUpToRef.current % 4 === 0)
           }
         }
         scheduledUpToRef.current++
       }
-      // Visual lead: show the beat we'll be at VISUAL_LEAD_MS from now
-      const visualBeat = Math.max(0, Math.floor((now + VISUAL_LEAD_MS - localOrigin) / intervalMs))
+      // Visual: show the last beat that has actually been scheduled for audio
+      const timeBeat = Math.max(0, Math.floor((now + visualLeadRef.current - localOrigin) / intervalMs))
+      const visualBeat = Math.min(timeBeat, Math.max(0, scheduledUpToRef.current - 1))
       if (visualBeat !== visualBeatRef.current) {
         visualBeatRef.current = visualBeat
         setBeatNumber(visualBeat)
@@ -237,12 +256,21 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
     if (sessionName) send({ type: 'SetBar', bar })
   }, [sessionName, send])
 
+  const resetToBarStart = useCallback(() => {
+    stopScheduler()
+    originRef.current = Date.now() + 30
+    scheduledUpToRef.current = 0
+    setBeatNumber(0)
+    visualBeatRef.current = 0
+    if (runningRef.current) startScheduler()
+  }, [stopScheduler, startScheduler])
+
   const disconnect = useCallback(() => {
     wsRef.current?.close()
     stopScheduler()
   }, [stopScheduler])
 
-  return { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, disconnect }
+  return { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs: (ms: number) => { visualLeadRef.current = ms; setVisualLeadMs(ms) }, audioOffsetMs, setAudioOffsetMs: (ms: number) => { audioOffsetRef.current = ms; setAudioOffsetMs(ms) }, muteRef, disconnect }
 }
 
 const FONT_MAP: Record<string, string> = {
@@ -284,7 +312,7 @@ function ChordCell({ glyph }: { glyph: ChordGlyph }) {
   )
 }
 
-function ChordGrid({ row, color, maxBars, dark, activeBar, disableScroll }: { row: ParsedChordRow; color?: string; maxBars: number; dark: boolean; activeBar: number; disableScroll?: boolean }) {
+function ChordGrid({ row, color, maxBars, dark, activeBar, scrollBar, disableScroll, onBarClick }: { row: ParsedChordRow; color?: string; maxBars: number; dark: boolean; activeBar: number; scrollBar: number; disableScroll?: boolean; onBarClick?: (barNumber: number) => void }) {
   const rowRef = useRef<HTMLDivElement>(null)
   const bgStyle = color ? { backgroundColor: color + 'e6' } : undefined
   const emptyCells = maxBars - row.bars.length
@@ -292,13 +320,14 @@ function ChordGrid({ row, color, maxBars, dark, activeBar, disableScroll }: { ro
   const n = row.bars.length
   const totalBars = n * (row.repeat > 1 ? row.repeat : 1)
   const isInRow = row.bar_number > 0 && activeBar >= row.bar_number && activeBar < row.bar_number + totalBars
+  const isScrollRow = row.bar_number > 0 && scrollBar >= row.bar_number && scrollBar < row.bar_number + totalBars
   const highlightIdx = isInRow ? (activeBar - row.bar_number) % n : -1
 
   useEffect(() => {
-    if (isInRow && !disableScroll && rowRef.current) {
+    if (isScrollRow && !disableScroll && rowRef.current) {
       rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-  }, [isInRow, disableScroll])
+  }, [isScrollRow, disableScroll])
 
   return (
     <div ref={rowRef} className="flex items-center gap-1 mb-1">
@@ -317,8 +346,9 @@ function ChordGrid({ row, color, maxBars, dark, activeBar, disableScroll }: { ro
           return (
             <div
               key={j}
-              className={`border px-2 py-1 text-black flex justify-around items-center relative transition-all duration-100 ${dark ? 'border-gray-600' : 'border-gray-300'} ${isActive ? 'border-2 border-yellow-400 rounded-md' : ''}`}
+              className={`border px-2 py-1 text-black flex justify-around items-center relative transition-all duration-100 ${dark ? 'border-gray-600' : 'border-gray-300'} ${isActive ? 'border-2 border-yellow-400 rounded-md' : ''} ${onBarClick && row.bar_number > 0 ? 'cursor-pointer' : ''}`}
               style={cellStyle}
+              onClick={() => onBarClick && row.bar_number > 0 && onBarClick(row.bar_number + j)}
             >
               {bar.chords.length > 0
                 ? bar.chords.map((g, k) => <ChordCell key={k} glyph={g} />)
@@ -403,34 +433,39 @@ function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSiz
   )
 }
 
-function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, onToggleAllLyrics, gridLabel, lyricsLabel, allLyricsLabel, lyricsFontSize, editLyrics }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; onToggleAllLyrics: () => void; gridLabel: string; lyricsLabel: string; allLyricsLabel: string; lyricsFontSize: string; editLyrics: boolean }) {
+function SectionView({ section, nextSection, maxBars, dark, activeBar, scrollBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, lyricsFontSize, editLyrics, bpm }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; scrollBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; lyricsFontSize: string; editLyrics: boolean; bpm: number }) {
   const sectionRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated } = useAuth()
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
+  const elapsedMinutes = bpm > 0 ? (firstBarNumber - 1) * 4 / bpm : 0
+  const elapsedMin = Math.floor(elapsedMinutes)
+  const elapsedSec = Math.floor((elapsedMinutes - elapsedMin) * 60)
   const sectionTotalBars = section.rows.reduce((sum, r) => sum + r.bars.length * (r.repeat > 1 ? r.repeat : 1), 0)
   const isActiveSection = activeBar >= 0 && section.rows.some(r => {
     const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
     return r.bar_number > 0 && activeBar >= r.bar_number && activeBar < r.bar_number + total
   })
+  const isScrollSection = scrollBar >= 0 && section.rows.some(r => {
+    const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
+    return r.bar_number > 0 && scrollBar >= r.bar_number && scrollBar < r.bar_number + total
+  })
 
   useEffect(() => {
-    if (isActiveSection && !showGrid && sectionRef.current) {
-      sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [isActiveSection, showGrid])
-
-  // Scroll active \songwordfb to center when both lyrics and grid are shown
-  useEffect(() => {
-    if (isActiveSection && showGrid && showLyrics) {
+    if (!isScrollSection) return
+    if (showGrid && showLyrics) {
       requestAnimationFrame(() => {
         const el = document.getElementById('active-lyrics-fb')
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else if (sectionRef.current) {
+          sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       })
+    } else if (sectionRef.current) {
+      sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-  }, [isActiveSection, showGrid, showLyrics, activeBar])
+  }, [isScrollSection, showGrid, showLyrics, scrollBar])
 
   return (
     <>
@@ -443,9 +478,10 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
           <h2
             className={`font-bold cursor-pointer hover:underline transition-all duration-200 ${isActiveSection ? 'text-4xl' : 'text-lg'}`}
             style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
-            onClick={() => firstBarNumber > 0 && onTitleClick(Math.max(1, firstBarNumber - 1))}
+            onClick={() => firstBarNumber > 0 && onTitleClick(running ? firstBarNumber : Math.max(1, firstBarNumber - 1))}
           >{section.title}</h2>
-          {editLyrics && (
+          <span className={`text-xs tabular-nums ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{elapsedMin}:{String(elapsedSec).padStart(2, '0')}</span>
+          {editLyrics && isAuthenticated && (
             <Link
               to={`/edit-lyrics/${songId}/${section.id}`}
               className={`p-1 rounded transition-colors ${isAuthenticated ? (dark ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200') : 'pointer-events-none opacity-30'}`}
@@ -477,48 +513,20 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
             </>
           )}
         </div>
-        {isActiveSection && (
-          <div className="flex gap-1.5 mb-2">
-            <button
-              onClick={onToggleRunning}
-              className={`px-2 py-0.5 text-xs rounded font-medium transition-colors cursor-pointer ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
-            >
-              {running ? 'Stop' : 'Start'}
-            </button>
-            <button
-              onClick={onToggleGrid}
-              className={`px-2 py-0.5 text-xs rounded font-medium transition-colors cursor-pointer ${showGrid ? 'bg-blue-600 text-white' : dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
-            >
-              {gridLabel}
-            </button>
-            <button
-              onClick={onToggleLyrics}
-              className={`px-2 py-0.5 text-xs rounded font-medium transition-colors cursor-pointer ${showLyrics ? 'bg-blue-600 text-white' : dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
-            >
-              {lyricsLabel}
-            </button>
-            <button
-              onClick={onToggleAllLyrics}
-              className={`px-2 py-0.5 text-xs rounded font-medium transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-600 text-white' : dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
-            >
-              {allLyricsLabel}
-            </button>
-          </div>
-        )}
-        {showLyrics && (isActiveSection || showAllLyrics) && (
+        {showLyrics && (isActiveSection || isScrollSection || showAllLyrics) && (
           <div className="text-center">
-            <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={isActiveSection ? activeBar - firstBarNumber : undefined} active={isActiveSection} fontSize={lyricsFontSize} />
+            <SectionLyrics songId={songId} sectionId={section.id} dark={dark} activeFbIndex={isActiveSection ? activeBar - firstBarNumber : undefined} active={isActiveSection || isScrollSection} fontSize={lyricsFontSize} />
           </div>
         )}
         {showGrid && section.rows.length > 0 && (
           <div>
             {section.rows.map((row, j) => (
-              <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} disableScroll={showLyrics} />
+              <ChordGrid key={j} row={row} color={cssColor} maxBars={maxBars} dark={dark} activeBar={activeBar} scrollBar={scrollBar} disableScroll={showLyrics} onBarClick={onTitleClick} />
             ))}
           </div>
         )}
       </div>
-      {showLyrics && isActiveSection && !showAllLyrics && nextSection && (
+      {showLyrics && (isActiveSection || isScrollSection) && !showAllLyrics && nextSection && (
         <div className={`mt-3 pl-3 italic text-center opacity-70 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span className={`text-base font-semibold ${dark ? 'text-gray-400' : 'text-gray-400'}`}>
             {nextLabel}: {nextSection.title}
@@ -552,6 +560,10 @@ export default function HtmlSongPage() {
   const [showAllLyrics, setShowAllLyrics] = useState(() => cookieBool('htmlSongAllLyrics', false))
   const [initialSoundOn] = useState(() => cookieBool('htmlSongSound', false))
   const [editLyrics] = useState(() => cookieBool('htmlSongEditLyrics', false))
+  const [highlight, setHighlight] = useState(true)
+  const [showOffsets, setShowOffsets] = useState(false)
+  const [bannerVertical, setBannerVertical] = useState(() => cookieBool('htmlSongBannerVertical', false))
+  const tapTimesRef = useRef<number[]>([])
   const [lyricsFontSize] = useState(() => {
     const m = document.cookie.match(/(^| )htmlSongLyricsFontSize=([^;]+)/)
     return m ? decodeURIComponent(m[2]) : '1.125rem'
@@ -592,7 +604,8 @@ export default function HtmlSongPage() {
 
   const songTempo = song?.tempo && song.tempo > 0 ? song.tempo : undefined
   const navigate = useNavigate()
-  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
+  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs, muteRef } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
+  muteRef.current = !highlight
 
   // Update BPM when song tempo loads (async query resolves after hook init)
   const songTempoAppliedRef = useRef(false)
@@ -603,12 +616,51 @@ export default function HtmlSongPage() {
     }
   }, [songTempo, changeBpm])
 
+  const handleTap = useCallback(() => {
+    const now = performance.now()
+    const taps = tapTimesRef.current
+    if (taps.length > 0 && now - taps[taps.length - 1] > 3000) {
+      tapTimesRef.current = []
+    }
+    tapTimesRef.current.push(now)
+    if (tapTimesRef.current.length >= 2) {
+      const intervals = tapTimesRef.current.slice(-8).reduce((acc: number[], t, i, arr) =>
+        i > 0 ? [...acc, t - arr[i - 1]] : acc, [])
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length
+      changeBpm(Math.round(60000 / avg))
+    }
+  }, [changeBpm])
+
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
   const sections = structure?.sections ?? []
   const lastBar = Math.max(...sections.flatMap(s =>
     s.rows.map(r => r.bar_number + r.bars.length * (r.repeat > 1 ? r.repeat : 1) - 1)
   ), 0)
+
+  const activeSectionIndex = useMemo(() => {
+    if (!running) return -1
+    return sections.findIndex(s => s.rows.some(r => {
+      const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
+      return r.bar_number > 0 && currentBar >= r.bar_number && currentBar < r.bar_number + total
+    }))
+  }, [running, currentBar, sections])
+
+  const jumpToSection = useCallback((sectionIndex: number) => {
+    if (sectionIndex < 0 || sectionIndex >= sections.length) return
+    const s = sections[sectionIndex]
+    const firstBar = s.rows.length > 0 ? s.rows[0].bar_number : 0
+    if (firstBar <= 0) return
+    if (running) {
+      setBarOffset(firstBar)
+      resetToBarStart()
+      sendBar(firstBar)
+    } else {
+      setBarOffset(firstBar - 1)
+      toggleRunning()
+      sendBar(firstBar - 1)
+    }
+  }, [sections, running, beatNumber, setBarOffset, sendBar, resetToBarStart, toggleRunning])
 
   // When changing song locally (prev/next buttons): stop metronome, reset bar, push to session
   const prevIdRef = useRef(id)
@@ -668,6 +720,7 @@ export default function HtmlSongPage() {
   useEffect(() => {
     if (running && lastBar > 0 && currentBar > lastBar) {
       toggleRunning()
+      setBarOffset(0)
     }
   }, [currentBar, running, lastBar, toggleRunning])
 
@@ -689,8 +742,207 @@ export default function HtmlSongPage() {
     )
   }
 
+  const tipSide = bannerVertical ? 'right' as const : 'bottom' as const
+
   return (
-    <div className="min-h-screen p-4 md:p-8 relative">
+    <div className={`min-h-screen p-4 md:p-8 relative ${bannerVertical ? 'ml-12' : ''}`}>
+      <div className={`fixed z-50 flex items-center justify-center ${bannerVertical ? 'top-0 left-0 bottom-0 flex-col gap-1.5 py-2 px-1.5' : 'top-0 left-0 right-0 flex-wrap gap-1.5 sm:gap-3 py-1.5 sm:py-2 px-2 sm:px-4'} ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'} ${bannerVertical ? (darkMode ? 'border-r border-gray-700' : 'border-r border-gray-200') : (darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200')}`}>
+        <span className={`text-sm font-mono font-bold tabular-nums ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+          {currentBar}
+        </span>
+        <Tip side={tipSide} text={t('htmlSong.tipDecreaseTempo')}>
+          <button
+            onClick={() => changeBpm(Math.max(20, Math.round(bpm) - 1))}
+            className={`px-2 py-1.5 rounded-lg text-sm font-bold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            &minus;
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipTapTempo')}>
+          <button
+            onClick={handleTap}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors cursor-pointer ${darkMode ? 'bg-orange-600 hover:bg-orange-500 text-white' : 'bg-orange-500 hover:bg-orange-400 text-white'}`}
+          >
+            {Math.round(bpm)}
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipIncreaseTempo')}>
+          <button
+            onClick={() => changeBpm(Math.min(300, Math.round(bpm) + 1))}
+            className={`px-2 py-1.5 rounded-lg text-sm font-bold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            +
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipPrevSection')}>
+          <button
+            onClick={() => jumpToSection(activeSectionIndex > 0 ? activeSectionIndex - 1 : 0)}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipPrevBar')}>
+          <button
+            onClick={() => { const b = currentBar - 1; if (b >= 1) { setBarOffset(b); resetToBarStart(); sendBar(b) } }}
+            disabled={currentBar <= 1}
+            className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            &lsaquo;
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipResetBeat')}>
+          <button
+            onClick={() => { setBarOffset(currentBar); resetToBarStart(); sendBar(currentBar) }}
+            className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            ●
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipNextBar')}>
+          <button
+            onClick={() => { const b = currentBar + 1; setBarOffset(b); resetToBarStart(); sendBar(b) }}
+            className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            &rsaquo;
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipNextSection')}>
+          <button
+            onClick={() => jumpToSection((activeSectionIndex >= 0 ? activeSectionIndex : -1) + 1)}
+            disabled={activeSectionIndex >= sections.length - 1}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z" /></svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={running ? t('htmlSong.tipStop') : t('htmlSong.tipStart')}>
+          <button
+            onClick={toggleRunning}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">{running ? <path d="M6 6h12v12H6z" /> : <path d="M8 5v14l11-7z" />}</svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipSound')}>
+          <button
+            onClick={toggleSound}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-white">
+              {soundOn ? (
+                <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
+              ) : (
+                <>
+                  <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06Z" />
+                  <path stroke="currentColor" strokeWidth={2} strokeLinecap="round" d="M17.25 9.75l5.5 5.5m0-5.5l-5.5 5.5" />
+                </>
+              )}
+            </svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipFlash')}>
+          <button
+            onClick={() => setFlashEnabled(!flashEnabled)}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${flashEnabled ? 'bg-yellow-500/70 hover:bg-yellow-500/90' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-white">
+              <path d="M7 2v11h3v9l7-12h-4l4-8z" />
+            </svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipGrid')}>
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z" /></svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipLyrics')}>
+          <button
+            onClick={() => setShowLyrics(!showLyrics)}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h12v2H3z" /></svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipAllLyrics')}>
+          <button
+            onClick={() => setShowAllLyrics(!showAllLyrics)}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M3 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3z" /></svg>
+          </button>
+        </Tip>
+        <Tip side={tipSide} text={t('htmlSong.tipHighlight')}>
+          <button
+            onClick={() => setHighlight(!highlight)}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${highlight ? 'bg-yellow-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M11 7l6 6-8.5 8.5H2v-6.5L11 7zm7-2l-2-2a1.5 1.5 0 00-2.12 0L12 5l6 6 2-1.88A1.5 1.5 0 0018 5z" /></svg>
+          </button>
+        </Tip>
+        <button
+          onClick={() => setShowOffsets(!showOffsets)}
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showOffsets ? (darkMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-700') : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-500'}`}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+        </button>
+        {showOffsets && (
+          <>
+            <Tip side={tipSide} text={t('htmlSong.tipDecreaseVisualLead')}>
+              <button
+                onClick={() => setVisualLeadMs(visualLeadMs - 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                &minus;
+              </button>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipVisualLead')}>
+              <span className={`text-xs font-mono tabular-nums ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {visualLeadMs}ms
+              </span>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipIncreaseVisualLead')}>
+              <button
+                onClick={() => setVisualLeadMs(visualLeadMs + 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                +
+              </button>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipDecreaseAudioOffset')}>
+              <button
+                onClick={() => setAudioOffsetMs(audioOffsetMs - 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                &minus;
+              </button>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipAudioOffset')}>
+              <span className={`text-xs font-mono tabular-nums ${darkMode ? 'text-orange-400' : 'text-orange-500'}`}>
+                {audioOffsetMs > 0 ? '+' : ''}{audioOffsetMs}ms
+              </span>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipIncreaseAudioOffset')}>
+              <button
+                onClick={() => setAudioOffsetMs(audioOffsetMs + 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                +
+              </button>
+            </Tip>
+          </>
+        )}
+        <button
+          onClick={() => { const next = !bannerVertical; setBannerVertical(next); document.cookie = `htmlSongBannerVertical=${next};path=/;max-age=${365 * 86400}` }}
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-500'}`}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">{bannerVertical ? <path d="M4 4h16v2H4zm0 9h16v2H4zm0 9h16v2H4z" /> : <path d="M4 4h2v16H4zm9 0h2v16h-2zm9 0h2v16h-2z" />}</svg>
+        </button>
+      </div>
+      {!bannerVertical && <div className="h-20 sm:h-12" />}
       <div className={`max-w-3xl mx-auto rounded-2xl p-4 md:p-8 shadow-2xl ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -765,107 +1017,7 @@ export default function HtmlSongPage() {
           {song?.author}
         </p>
 
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <button
-            onClick={() => { if (!running) { setBarOffset(0); if (connected) sendBar(0) } toggleRunning() }}
-            className={`px-4 py-2.5 text-base rounded-lg font-semibold transition-colors cursor-pointer
-              ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
-          >
-            {running ? 'Stop' : 'Start'}
-          </button>
-          <button
-            onClick={() => setShowGrid(!showGrid)}
-            className={`px-4 py-2.5 text-base rounded-lg font-semibold transition-colors cursor-pointer
-              ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
-          >
-            {t('htmlSong.grid')}
-          </button>
-          <button
-            onClick={() => setShowLyrics(!showLyrics)}
-            className={`px-4 py-2.5 text-base rounded-lg font-semibold transition-colors cursor-pointer
-              ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
-          >
-            {t('htmlSong.lyrics')}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <span
-            className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium
-              ${running ? 'bg-green-500/70' : 'bg-orange-500/70'}
-              ${!connected ? 'opacity-50' : ''}`}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-              <path d="M12,1.75L8.57,2.67L4.06,19.53C4.03,19.68 4,19.84 4,20C4,21.11 4.89,22 6,22H18C19.11,22 20,21.11 20,20C20,19.84 19.97,19.68 19.94,19.53L18.58,14.42L17,16L17.2,17H13.41L16.25,14.16L14.84,12.75L10.59,17H6.8L10.29,4H13.71L15.17,9.43L16.8,7.79L15.43,2.67L12,1.75M11.25,5V14.75L12.75,13.25V5H11.25M19.79,7.8L16.96,10.63L16.25,9.92L14.84,11.34L17.66,14.16L19.08,12.75L18.37,12.04L21.2,9.21L19.79,7.8Z"/>
-            </svg>
-            {Math.round(bpm)}
-          </span>
-
-          <input
-            type="range"
-            min={30}
-            max={300}
-            value={Math.round(bpm)}
-            onChange={(e) => changeBpm(Number(e.target.value))}
-            className="w-24 accent-orange-500 cursor-pointer"
-          />
-
-          <button
-            onClick={toggleSound}
-            className={`p-2 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
-              {soundOn ? (
-                <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-              ) : (
-                <>
-                  <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06Z" />
-                  <path stroke="currentColor" strokeWidth={2} strokeLinecap="round" d="M17.25 9.75l5.5 5.5m0-5.5l-5.5 5.5" />
-                </>
-              )}
-            </svg>
-          </button>
-
-          <button
-            onClick={() => setFlashEnabled(!flashEnabled)}
-            className={`p-2 rounded-lg transition-colors cursor-pointer ${flashEnabled ? 'bg-yellow-500/70 hover:bg-yellow-500/90' : darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'}`}
-            title="Flash on downbeat"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
-              <path d="M7 2v11h3v9l7-12h-4l4-8z" />
-            </svg>
-          </button>
-
-          <button
-            onClick={() => setShowAllLyrics(!showAllLyrics)}
-            className={`p-2 rounded-lg transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-500/70 hover:bg-purple-500/90' : darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'}`}
-            title={t('htmlSong.allLyrics', 'All lyrics')}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
-              <path d="M3 5h12v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z" />
-            </svg>
-          </button>
-
-          {running && (
-            <>
-              <div className="flex gap-1.5">
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-3 h-3 rounded-full transition-all duration-75 ${
-                      beatNumber % 4 === i
-                        ? i === 0 ? 'bg-orange-500 scale-125' : 'bg-white scale-125'
-                        : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className={`text-sm font-mono ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {currentBar}
-              </span>
-            </>
-          )}
-
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${connected ? 'text-green-400' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
             <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
             {connected ? sessionFromParams : t('htmlSong.notConnected')}
@@ -878,11 +1030,13 @@ export default function HtmlSongPage() {
           <div className="space-y-4">
             {(() => {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
-              const activeBar = running ? currentBar : -1
+              const activeBar = running && highlight ? currentBar : -1
+              const scrollBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} onToggleAllLyrics={() => setShowAllLyrics(!showAllLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} allLyricsLabel={t('htmlSong.allLyrics', 'All lyrics')} lyricsFontSize={lyricsFontSize} editLyrics={editLyrics} onTitleClick={(barNumber) => {
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} scrollBar={scrollBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} lyricsFontSize={lyricsFontSize} editLyrics={editLyrics} bpm={bpm} onTitleClick={(barNumber) => {
                   if (running) {
-                    setBarOffset(barNumber - Math.floor(beatNumber / 4))
+                    setBarOffset(barNumber)
+                    resetToBarStart()
                     sendBar(barNumber)
                   } else {
                     setBarOffset(barNumber - 1)
