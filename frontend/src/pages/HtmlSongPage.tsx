@@ -7,11 +7,14 @@ import type { ParsedSection, ParsedChordRow, ChordGlyph } from '../api/songs'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 
-function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+function Tip({ text, children, side }: { text: string; children: React.ReactNode; side?: 'bottom' | 'right' }) {
+  const pos = side === 'right'
+    ? 'left-full top-1/2 -translate-y-1/2 ml-1'
+    : 'left-1/2 -translate-x-1/2 top-full mt-1'
   return (
     <span className="relative group">
       {children}
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-xs rounded bg-black/90 text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60]">
+      <span className={`pointer-events-none absolute px-2 py-1 text-xs rounded bg-black/90 text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] ${pos}`}>
         {text}
       </span>
     </span>
@@ -73,6 +76,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
   const visualLeadRef = useRef(0)
   const [audioOffsetMs, setAudioOffsetMs] = useState(0)
   const audioOffsetRef = useRef(0)
+  const muteRef = useRef(false)
   const visualBeatRef = useRef(-1)
 
   const startScheduler = useCallback(() => {
@@ -90,7 +94,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
         if (beatTime > now + 100) break
         if (beatTime > now - 50) {
           const audioTime = ctx.currentTime + (beatTime - now + audioOffsetRef.current) / 1000
-          if (audioTime > ctx.currentTime && soundOnRef.current) {
+          if (audioTime > ctx.currentTime && soundOnRef.current && !muteRef.current) {
             playClick(audioTime, scheduledUpToRef.current % 4 === 0)
           }
         }
@@ -266,7 +270,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
     stopScheduler()
   }, [stopScheduler])
 
-  return { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs: (ms: number) => { visualLeadRef.current = ms; setVisualLeadMs(ms) }, audioOffsetMs, setAudioOffsetMs: (ms: number) => { audioOffsetRef.current = ms; setAudioOffsetMs(ms) }, disconnect }
+  return { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs: (ms: number) => { visualLeadRef.current = ms; setVisualLeadMs(ms) }, audioOffsetMs, setAudioOffsetMs: (ms: number) => { audioOffsetRef.current = ms; setAudioOffsetMs(ms) }, muteRef, disconnect }
 }
 
 const FONT_MAP: Record<string, string> = {
@@ -557,6 +561,8 @@ export default function HtmlSongPage() {
   const [initialSoundOn] = useState(() => cookieBool('htmlSongSound', false))
   const [editLyrics] = useState(() => cookieBool('htmlSongEditLyrics', false))
   const [highlight, setHighlight] = useState(true)
+  const [showOffsets, setShowOffsets] = useState(false)
+  const [bannerVertical, setBannerVertical] = useState(() => cookieBool('htmlSongBannerVertical', false))
   const tapTimesRef = useRef<number[]>([])
   const [lyricsFontSize] = useState(() => {
     const m = document.cookie.match(/(^| )htmlSongLyricsFontSize=([^;]+)/)
@@ -598,7 +604,8 @@ export default function HtmlSongPage() {
 
   const songTempo = song?.tempo && song.tempo > 0 ? song.tempo : undefined
   const navigate = useNavigate()
-  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
+  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs, muteRef } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
+  muteRef.current = !highlight
 
   // Update BPM when song tempo loads (async query resolves after hook init)
   const songTempoAppliedRef = useRef(false)
@@ -735,13 +742,15 @@ export default function HtmlSongPage() {
     )
   }
 
+  const tipSide = bannerVertical ? 'right' as const : 'bottom' as const
+
   return (
-    <div className="min-h-screen p-4 md:p-8 relative">
-      <div className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-3 py-2 px-4 ${darkMode ? 'bg-gray-900/95 border-b border-gray-700' : 'bg-white/95 border-b border-gray-200'}`}>
+    <div className={`min-h-screen p-4 md:p-8 relative ${bannerVertical ? 'ml-12' : ''}`}>
+      <div className={`fixed z-50 flex items-center justify-center ${bannerVertical ? 'top-0 left-0 bottom-0 flex-col gap-1.5 py-2 px-1.5' : 'top-0 left-0 right-0 flex-wrap gap-1.5 sm:gap-3 py-1.5 sm:py-2 px-2 sm:px-4'} ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'} ${bannerVertical ? (darkMode ? 'border-r border-gray-700' : 'border-r border-gray-200') : (darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200')}`}>
         <span className={`text-sm font-mono font-bold tabular-nums ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
           {currentBar}
         </span>
-        <Tip text={t('htmlSong.tipDecreaseTempo')}>
+        <Tip side={tipSide} text={t('htmlSong.tipDecreaseTempo')}>
           <button
             onClick={() => changeBpm(Math.max(20, Math.round(bpm) - 1))}
             className={`px-2 py-1.5 rounded-lg text-sm font-bold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
@@ -749,15 +758,15 @@ export default function HtmlSongPage() {
             &minus;
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipTapTempo')}>
+        <Tip side={tipSide} text={t('htmlSong.tipTapTempo')}>
           <button
             onClick={handleTap}
             className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors cursor-pointer ${darkMode ? 'bg-orange-600 hover:bg-orange-500 text-white' : 'bg-orange-500 hover:bg-orange-400 text-white'}`}
           >
-            TAP {Math.round(bpm)}
+            {Math.round(bpm)}
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipIncreaseTempo')}>
+        <Tip side={tipSide} text={t('htmlSong.tipIncreaseTempo')}>
           <button
             onClick={() => changeBpm(Math.min(300, Math.round(bpm) + 1))}
             className={`px-2 py-1.5 rounded-lg text-sm font-bold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
@@ -765,15 +774,15 @@ export default function HtmlSongPage() {
             +
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipPrevSection')}>
+        <Tip side={tipSide} text={t('htmlSong.tipPrevSection')}>
           <button
             onClick={() => jumpToSection(activeSectionIndex > 0 ? activeSectionIndex - 1 : 0)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
-            &larr; Prev
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipPrevBar')}>
+        <Tip side={tipSide} text={t('htmlSong.tipPrevBar')}>
           <button
             onClick={() => { const b = currentBar - 1; if (b >= 1) { setBarOffset(b); resetToBarStart(); sendBar(b) } }}
             disabled={currentBar <= 1}
@@ -782,7 +791,7 @@ export default function HtmlSongPage() {
             &lsaquo;
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipResetBeat')}>
+        <Tip side={tipSide} text={t('htmlSong.tipResetBeat')}>
           <button
             onClick={() => { setBarOffset(currentBar); resetToBarStart(); sendBar(currentBar) }}
             className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
@@ -790,7 +799,7 @@ export default function HtmlSongPage() {
             ●
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipNextBar')}>
+        <Tip side={tipSide} text={t('htmlSong.tipNextBar')}>
           <button
             onClick={() => { const b = currentBar + 1; setBarOffset(b); resetToBarStart(); sendBar(b) }}
             className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
@@ -798,24 +807,24 @@ export default function HtmlSongPage() {
             &rsaquo;
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipNextSection')}>
+        <Tip side={tipSide} text={t('htmlSong.tipNextSection')}>
           <button
             onClick={() => jumpToSection((activeSectionIndex >= 0 ? activeSectionIndex : -1) + 1)}
             disabled={activeSectionIndex >= sections.length - 1}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
-            Next &rarr;
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z" /></svg>
           </button>
         </Tip>
-        <Tip text={running ? t('htmlSong.tipStop') : t('htmlSong.tipStart')}>
+        <Tip side={tipSide} text={running ? t('htmlSong.tipStop') : t('htmlSong.tipStart')}>
           <button
             onClick={toggleRunning}
-            className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
           >
-            {running ? 'Stop' : 'Start'}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">{running ? <path d="M6 6h12v12H6z" /> : <path d="M8 5v14l11-7z" />}</svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipSound')}>
+        <Tip side={tipSide} text={t('htmlSong.tipSound')}>
           <button
             onClick={toggleSound}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
@@ -832,7 +841,7 @@ export default function HtmlSongPage() {
             </svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipFlash')}>
+        <Tip side={tipSide} text={t('htmlSong.tipFlash')}>
           <button
             onClick={() => setFlashEnabled(!flashEnabled)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${flashEnabled ? 'bg-yellow-500/70 hover:bg-yellow-500/90' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
@@ -842,82 +851,98 @@ export default function HtmlSongPage() {
             </svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipGrid')}>
+        <Tip side={tipSide} text={t('htmlSong.tipGrid')}>
           <button
             onClick={() => setShowGrid(!showGrid)}
-            className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
-            {t('htmlSong.grid')}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z" /></svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipLyrics')}>
+        <Tip side={tipSide} text={t('htmlSong.tipLyrics')}>
           <button
             onClick={() => setShowLyrics(!showLyrics)}
-            className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
-            {t('htmlSong.lyrics')}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h12v2H3z" /></svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipAllLyrics')}>
+        <Tip side={tipSide} text={t('htmlSong.tipAllLyrics')}>
           <button
             onClick={() => setShowAllLyrics(!showAllLyrics)}
-            className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
-            {t('htmlSong.allLyrics', 'All lyrics')}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M3 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3z" /></svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipHighlight')}>
+        <Tip side={tipSide} text={t('htmlSong.tipHighlight')}>
           <button
             onClick={() => setHighlight(!highlight)}
-            className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer ${highlight ? 'bg-yellow-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${highlight ? 'bg-yellow-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
-            {t('htmlSong.highlight')}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M11 7l6 6-8.5 8.5H2v-6.5L11 7zm7-2l-2-2a1.5 1.5 0 00-2.12 0L12 5l6 6 2-1.88A1.5 1.5 0 0018 5z" /></svg>
           </button>
         </Tip>
-        <Tip text={t('htmlSong.tipDecreaseVisualLead')}>
-          <button
-            onClick={() => setVisualLeadMs(visualLeadMs - 10)}
-            className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-          >
-            &minus;
-          </button>
-        </Tip>
-        <Tip text={t('htmlSong.tipVisualLead')}>
-          <span className={`text-xs font-mono tabular-nums ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            {visualLeadMs}ms
-          </span>
-        </Tip>
-        <Tip text={t('htmlSong.tipIncreaseVisualLead')}>
-          <button
-            onClick={() => setVisualLeadMs(visualLeadMs + 10)}
-            className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-          >
-            +
-          </button>
-        </Tip>
-        <Tip text={t('htmlSong.tipDecreaseAudioOffset')}>
-          <button
-            onClick={() => setAudioOffsetMs(audioOffsetMs - 10)}
-            className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-          >
-            &minus;
-          </button>
-        </Tip>
-        <Tip text={t('htmlSong.tipAudioOffset')}>
-          <span className={`text-xs font-mono tabular-nums ${darkMode ? 'text-orange-400' : 'text-orange-500'}`}>
-            {audioOffsetMs > 0 ? '+' : ''}{audioOffsetMs}ms
-          </span>
-        </Tip>
-        <Tip text={t('htmlSong.tipIncreaseAudioOffset')}>
-          <button
-            onClick={() => setAudioOffsetMs(audioOffsetMs + 10)}
-            className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-          >
-            +
-          </button>
-        </Tip>
+        <button
+          onClick={() => setShowOffsets(!showOffsets)}
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showOffsets ? (darkMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-700') : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-500'}`}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+        </button>
+        {showOffsets && (
+          <>
+            <Tip side={tipSide} text={t('htmlSong.tipDecreaseVisualLead')}>
+              <button
+                onClick={() => setVisualLeadMs(visualLeadMs - 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                &minus;
+              </button>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipVisualLead')}>
+              <span className={`text-xs font-mono tabular-nums ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {visualLeadMs}ms
+              </span>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipIncreaseVisualLead')}>
+              <button
+                onClick={() => setVisualLeadMs(visualLeadMs + 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                +
+              </button>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipDecreaseAudioOffset')}>
+              <button
+                onClick={() => setAudioOffsetMs(audioOffsetMs - 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                &minus;
+              </button>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipAudioOffset')}>
+              <span className={`text-xs font-mono tabular-nums ${darkMode ? 'text-orange-400' : 'text-orange-500'}`}>
+                {audioOffsetMs > 0 ? '+' : ''}{audioOffsetMs}ms
+              </span>
+            </Tip>
+            <Tip side={tipSide} text={t('htmlSong.tipIncreaseAudioOffset')}>
+              <button
+                onClick={() => setAudioOffsetMs(audioOffsetMs + 10)}
+                className={`px-1.5 py-1 text-xs rounded font-mono transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+              >
+                +
+              </button>
+            </Tip>
+          </>
+        )}
+        <button
+          onClick={() => { const next = !bannerVertical; setBannerVertical(next); document.cookie = `htmlSongBannerVertical=${next};path=/;max-age=${365 * 86400}` }}
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-500'}`}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">{bannerVertical ? <path d="M4 4h16v2H4zm0 9h16v2H4zm0 9h16v2H4z" /> : <path d="M4 4h2v16H4zm9 0h2v16h-2zm9 0h2v16h-2z" />}</svg>
+        </button>
       </div>
-      <div className="h-12" />
+      {!bannerVertical && <div className="h-20 sm:h-12" />}
       <div className={`max-w-3xl mx-auto rounded-2xl p-4 md:p-8 shadow-2xl ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

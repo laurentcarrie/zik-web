@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.25.4] - 2026-02-24
+
+### Changed
+- HtmlSong banner: replaced all text labels with SVG icons (prev/next section, start/stop, grid, lyrics, all lyrics, highlight)
+- HtmlSong banner: removed "TAP" label, showing BPM number only
+- HtmlSong banner: visual lead and audio offset controls collapsed behind ⋮ toggle
+- HtmlSong banner: supports vertical layout on the left (toggle button, cookie-persisted)
+- HtmlSong banner: responsive wrapping on small screens (flex-wrap, tighter gaps)
+- HtmlSong banner: tooltips appear to the right when banner is vertical
+- HtmlSong: mute click sound when highlight is off
+
 ## [0.25.3] - 2026-02-23
 
 ### Added
