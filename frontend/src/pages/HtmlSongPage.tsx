@@ -403,11 +403,14 @@ function SectionLyrics({ songId, sectionId, dark, activeFbIndex, active, fontSiz
   )
 }
 
-function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, onToggleAllLyrics, gridLabel, lyricsLabel, allLyricsLabel, lyricsFontSize, editLyrics }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; onToggleAllLyrics: () => void; gridLabel: string; lyricsLabel: string; allLyricsLabel: string; lyricsFontSize: string; editLyrics: boolean }) {
+function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumber, songId, showGrid, showLyrics, showAllLyrics, nextLabel, onTitleClick, running, flash, onToggleRunning, onToggleGrid, onToggleLyrics, onToggleAllLyrics, gridLabel, lyricsLabel, allLyricsLabel, lyricsFontSize, editLyrics, bpm }: { section: ParsedSection; nextSection?: ParsedSection; maxBars: number; dark: boolean; activeBar: number; beatNumber: number; songId: string; showGrid: boolean; showLyrics: boolean; showAllLyrics: boolean; nextLabel: string; onTitleClick: (barNumber: number) => void; running: boolean; flash: boolean; onToggleRunning: () => void; onToggleGrid: () => void; onToggleLyrics: () => void; onToggleAllLyrics: () => void; gridLabel: string; lyricsLabel: string; allLyricsLabel: string; lyricsFontSize: string; editLyrics: boolean; bpm: number }) {
   const sectionRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated } = useAuth()
   const cssColor = x11ToCSS(section.color)
   const firstBarNumber = section.rows.length > 0 ? section.rows[0].bar_number : 0
+  const elapsedMinutes = bpm > 0 ? (firstBarNumber - 1) * 4 / bpm : 0
+  const elapsedMin = Math.floor(elapsedMinutes)
+  const elapsedSec = Math.floor((elapsedMinutes - elapsedMin) * 60)
   const sectionTotalBars = section.rows.reduce((sum, r) => sum + r.bars.length * (r.repeat > 1 ? r.repeat : 1), 0)
   const isActiveSection = activeBar >= 0 && section.rows.some(r => {
     const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
@@ -445,7 +448,8 @@ function SectionView({ section, nextSection, maxBars, dark, activeBar, beatNumbe
             style={{ color: cssColor || (dark ? '#d1d5db' : '#374151') }}
             onClick={() => firstBarNumber > 0 && onTitleClick(Math.max(1, firstBarNumber - 1))}
           >{section.title}</h2>
-          {editLyrics && (
+          <span className={`text-xs tabular-nums ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{elapsedMin}:{String(elapsedSec).padStart(2, '0')}</span>
+          {editLyrics && isAuthenticated && (
             <Link
               to={`/edit-lyrics/${songId}/${section.id}`}
               className={`p-1 rounded transition-colors ${isAuthenticated ? (dark ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200') : 'pointer-events-none opacity-30'}`}
@@ -880,7 +884,7 @@ export default function HtmlSongPage() {
               const maxBars = Math.max(...sections.flatMap(s => s.rows.map(r => r.bars.length)), 1)
               const activeBar = running ? currentBar : -1
               return sections.map((s, i) => (
-                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} onToggleAllLyrics={() => setShowAllLyrics(!showAllLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} allLyricsLabel={t('htmlSong.allLyrics', 'All lyrics')} lyricsFontSize={lyricsFontSize} editLyrics={editLyrics} onTitleClick={(barNumber) => {
+                <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} onToggleRunning={toggleRunning} onToggleGrid={() => setShowGrid(!showGrid)} onToggleLyrics={() => setShowLyrics(!showLyrics)} onToggleAllLyrics={() => setShowAllLyrics(!showAllLyrics)} gridLabel={t('htmlSong.grid')} lyricsLabel={t('htmlSong.lyrics')} allLyricsLabel={t('htmlSong.allLyrics', 'All lyrics')} lyricsFontSize={lyricsFontSize} editLyrics={editLyrics} bpm={bpm} onTitleClick={(barNumber) => {
                   if (running) {
                     setBarOffset(barNumber - Math.floor(beatNumber / 4))
                     sendBar(barNumber)

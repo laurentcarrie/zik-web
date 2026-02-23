@@ -8,7 +8,6 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { useTranslation } from 'react-i18next'
 import { fetchSong } from '../api/songs'
 import { useAuth, getStoredPassword } from '../context/AuthContext'
-import PasswordModal from '../components/PasswordModal'
 import { API_BASE } from '../config'
 
 async function fetchLyrics(songId: string, sectionId: string): Promise<{ content: string }> {
@@ -55,7 +54,6 @@ export default function EditLyricsPage() {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>()
   const navigate = useNavigate()
   const [content, setContent] = useState('')
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showMacros, setShowMacros] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const { t } = useTranslation()
@@ -84,13 +82,9 @@ export default function EditLyricsPage() {
       setSaveStatus('success')
       setTimeout(() => setSaveStatus('idle'), 2000)
     },
-    onError: (error: Error) => {
-      if (error.message === 'Unauthorized') {
-        setShowPasswordModal(true)
-      } else {
-        setSaveStatus('error')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      }
+    onError: () => {
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     },
   })
 
@@ -101,15 +95,6 @@ export default function EditLyricsPage() {
   }, [lyricsData])
 
   function handleSave() {
-    if (!isAuthenticated) {
-      setShowPasswordModal(true)
-      return
-    }
-    saveMutation.mutate()
-  }
-
-  function handlePasswordSuccess() {
-    setShowPasswordModal(false)
     saveMutation.mutate()
   }
 
@@ -122,12 +107,12 @@ export default function EditLyricsPage() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         if (showMacros) { setShowMacros(false); return }
-        if (!showPasswordModal) handleClose()
+        handleClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showPasswordModal, showMacros])
+  }, [showMacros])
 
   if (songLoading || lyricsLoading) {
     return (
@@ -184,7 +169,7 @@ export default function EditLyricsPage() {
         <div className="flex items-center gap-4 mt-4">
           <button
             onClick={handleSave}
-            disabled={saveMutation.isPending}
+            disabled={!isAuthenticated || saveMutation.isPending}
             className={`px-6 py-3 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed ${
               saveStatus === 'success' ? 'bg-green-600' :
               saveStatus === 'error' ? 'bg-red-600' :
@@ -223,11 +208,6 @@ export default function EditLyricsPage() {
         )}
       </div>
 
-      <PasswordModal
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        onSuccess={handlePasswordSuccess}
-      />
     </div>
   )
 }

@@ -44,3 +44,7 @@ kill-frontend:
 
 reindex:
 	curl -s -X POST -H "X-Write-Password: $(WRITE_PASSWORD)" http://localhost:8080/api/world
+
+prod-reindex:
+	curl -sk -X POST -H "X-Write-Password: $(WRITE_PASSWORD)" https://move-the-line.org/api/world
+
