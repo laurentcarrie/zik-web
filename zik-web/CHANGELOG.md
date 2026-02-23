@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.25.3] - 2026-02-23
+
+### Added
+- HtmlSong banner: sound toggle (speaker icon) and flash toggle (lightning icon)
+- HtmlSong banner: configurable visual lead (+/- 10ms) and audio click offset (+/- 10ms)
+- HtmlSong banner: highlight toggle to disable bar/lyrics highlighting while keeping scroll
+- HtmlSong banner: current bar count display
+- HtmlSong banner: previous/next bar buttons (‹/›) and reset beat button (●)
+- HtmlSong banner: moved Start/Stop, Grid, Lyrics, All Lyrics buttons from sections to banner
+- HtmlSong: clickable chord grid cells to jump to any bar
+- HtmlSong: tap tempo button with −/+ tempo controls
+- HtmlSong: CSS hover tooltips on all banner buttons with i18n (en/fr)
+- HtmlSong: auto-reset bar count when song ends
+
+### Fixed
+- HtmlSong: prev section button now navigates to previous section (was jumping to current section start)
+- HtmlSong: visual/audio beat sync with scheduler restart on bar jumps
+- HtmlSong: scroll tracking works independently of highlight toggle
+
 ## [0.25.2] - 2026-02-22
 
 ### Added
