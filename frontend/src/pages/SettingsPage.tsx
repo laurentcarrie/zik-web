@@ -216,11 +216,12 @@ export default function SettingsPage() {
   })
   const [clickSyncSession, setClickSyncSession] = useState(() => {
     const saved = getCookie('clickSyncSession')
+    if (!saved) return ''
     const bandSessions = CLICK_SYNC_SESSIONS[BAND_NAME]
     if (bandSessions) {
-      return saved && bandSessions.includes(saved) ? saved : bandSessions[0]
+      return bandSessions.includes(saved) ? saved : ''
     }
-    return saved || ''
+    return saved
   })
   const [clickSyncSessions, setClickSyncSessions] = useState<Array<{ name: string; bpm: number; running: boolean; client_count: number; song: string }>>([])
   const [showSessionModal, setShowSessionModal] = useState(false)
