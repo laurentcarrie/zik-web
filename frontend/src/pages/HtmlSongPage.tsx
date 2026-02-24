@@ -257,13 +257,21 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
   }, [sessionName, send])
 
   const resetToBarStart = useCallback(() => {
-    stopScheduler()
-    originRef.current = Date.now() + 30
-    scheduledUpToRef.current = 0
-    setBeatNumber(0)
-    visualBeatRef.current = 0
-    if (runningRef.current) startScheduler()
-  }, [stopScheduler, startScheduler])
+    if (sessionName && wsRef.current?.readyState === WebSocket.OPEN) {
+      // Connected to session: don't override origin, server state drives sync.
+      // Just restart scheduler to pick up the new barOffset immediately.
+      stopScheduler()
+      if (runningRef.current) startScheduler()
+    } else {
+      // Local-only mode: reset origin so beat restarts from 0
+      stopScheduler()
+      originRef.current = Date.now() + 30
+      scheduledUpToRef.current = 0
+      setBeatNumber(0)
+      visualBeatRef.current = 0
+      if (runningRef.current) startScheduler()
+    }
+  }, [sessionName, stopScheduler, startScheduler])
 
   const disconnect = useCallback(() => {
     wsRef.current?.close()
