@@ -44,10 +44,10 @@ kill-frontend:
 	-kill $$(lsof -ti :3000) 2>/dev/null || true
 
 reindex:
-	curl -s -X POST -H "X-Write-Password: $(WRITE_PASSWORD)" http://localhost:8080/api/world
+	curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST -H "X-Write-Password: $(WRITE_PASSWORD)" http://localhost:8080/api/world
 
 prod-reindex:
-	curl -sk -X POST -H "X-Write-Password: $(WRITE_PASSWORD)" https://move-the-line.org/api/world
+	curl -sk -o /dev/null -w "HTTP %{http_code}\n" -X POST -H "X-Write-Password: $(WRITE_PROD_PASSWORD)" https://move-the-line.org/api/world
 
 refresh-and-reset:
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \

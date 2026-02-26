@@ -99,6 +99,8 @@ async fn main() {
         .route("/song/{id}/lyrics/{section_id}", get(api_lyrics))
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
+        .route("/mp3/{id}", get(api_mp3))
+        .route("/clicks/{id}", get(api_clicks))
         .route("/press-book/photos", get(api_press_book_photos))
         .route("/press-book/photo/{*key}", get(api_press_book_photo))
         .route("/press-book/videos", get(api_press_book_videos))
@@ -224,6 +226,10 @@ struct ApiSongDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     tempo_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    mp3_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clicks_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
 
@@ -348,6 +354,19 @@ async fn api_song(
         None
     };
 
+    // Check for song.mp3 and clicks.yml in song directory
+    let song_dir = key.trim_end_matches("/song.yml");
+    let mp3_url = match state.s3_client.head_object()
+        .bucket(song::BUCKET.as_str()).key(&format!("{song_dir}/song.mp3")).send().await {
+        Ok(_) => Some(format!("/api/mp3/{id}")),
+        Err(_) => None,
+    };
+    let clicks_url = match state.s3_client.head_object()
+        .bucket(song::BUCKET.as_str()).key(&format!("{song_dir}/clicks.yml")).send().await {
+        Ok(_) => Some(format!("/api/clicks/{id}")),
+        Err(_) => None,
+    };
+
     Ok(Json(ApiSongDetail {
         id,
         title,
@@ -359,6 +378,8 @@ async fn api_song(
         key,
         tempo,
         tempo_url,
+        mp3_url,
+        clicks_url,
         error,
     }))
 }
@@ -787,6 +808,96 @@ async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Respo
                 .into_response()
         }
         Err(e) => (StatusCode::NOT_FOUND, format!("PDF not found: {e}")).into_response(),
+    }
+}
+
+async fn api_mp3(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let items = match get_all_songs(&state.s3_client).await {
+        Ok(s) => s,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+
+    let s = match items.into_iter().find(|s| s.id == id) {
+        Some(s) => s,
+        None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
+    };
+
+    let song_dir = s.key.trim_end_matches("/song.yml");
+    let mp3_key = format!("{song_dir}/song.mp3");
+
+    match state
+        .s3_client
+        .get_object()
+        .bucket(song::BUCKET.as_str())
+        .key(&mp3_key)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let bytes = match resp.body.collect().await {
+                Ok(b) => b.into_bytes(),
+                Err(_) => {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read MP3")
+                        .into_response()
+                }
+            };
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "audio/mpeg")],
+                bytes.to_vec(),
+            )
+                .into_response()
+        }
+        Err(e) => (StatusCode::NOT_FOUND, format!("MP3 not found: {e}")).into_response(),
+    }
+}
+
+async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let items = match get_all_songs(&state.s3_client).await {
+        Ok(s) => s,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+
+    let s = match items.into_iter().find(|s| s.id == id) {
+        Some(s) => s,
+        None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
+    };
+
+    let song_dir = s.key.trim_end_matches("/song.yml");
+    let clicks_key = format!("{song_dir}/clicks.yml");
+
+    match state
+        .s3_client
+        .get_object()
+        .bucket(song::BUCKET.as_str())
+        .key(&clicks_key)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let bytes = match resp.body.collect().await {
+                Ok(b) => b.into_bytes(),
+                Err(_) => {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read clicks.yml")
+                        .into_response()
+                }
+            };
+            // Parse YAML with ticks field and return as JSON array
+            let content = String::from_utf8_lossy(&bytes);
+            #[derive(serde::Deserialize)]
+            struct ClickData { ticks: Vec<f64> }
+            match serde_yaml::from_str::<ClickData>(&content) {
+                Ok(data) => Json(data.ticks).into_response(),
+                Err(e) => {
+                    (StatusCode::BAD_REQUEST, format!("Invalid clicks.yml: {e}")).into_response()
+                }
+            }
+        }
+        Err(e) => (StatusCode::NOT_FOUND, format!("clicks.yml not found: {e}")).into_response(),
     }
 }
 

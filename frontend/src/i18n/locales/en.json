@@ -131,7 +131,9 @@
     "tipAudioOffset": "Click offset (ms)",
     "tipIncreaseAudioOffset": "Click later",
     "tipSound": "Toggle click sound",
-    "tipFlash": "Toggle flash on downbeat"
+    "tipFlash": "Toggle flash on downbeat",
+    "tipAudioTrack": "Toggle audio track",
+    "audioLoading": "Loading audio..."
   },
   "home": {
     "songs": "Songs",

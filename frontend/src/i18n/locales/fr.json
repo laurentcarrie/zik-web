@@ -131,7 +131,9 @@
     "tipAudioOffset": "Décalage du clic (ms)",
     "tipIncreaseAudioOffset": "Clic plus tard",
     "tipSound": "Activer/désactiver le son du clic",
-    "tipFlash": "Activer/désactiver le flash sur temps fort"
+    "tipFlash": "Activer/désactiver le flash sur temps fort",
+    "tipAudioTrack": "Activer/désactiver la piste audio",
+    "audioLoading": "Chargement audio..."
   },
   "home": {
     "songs": "Chansons",

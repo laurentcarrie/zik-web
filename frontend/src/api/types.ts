@@ -14,6 +14,8 @@ export interface SongDetail extends Song {
   pdf_url?: string
   pdf_lyrics_url?: string
   tempo_url?: string
+  mp3_url?: string
+  clicks_url?: string
 }
 
 export interface SongYml {

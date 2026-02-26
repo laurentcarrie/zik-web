@@ -6,6 +6,7 @@ import { fetchSong, fetchSongs, fetchSongStructure } from '../api/songs'
 import type { ParsedSection, ParsedChordRow, ChordGlyph } from '../api/songs'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
+import { useAudioClickTrack } from '../hooks/useAudioClickTrack'
 
 function Tip({ text, children, side }: { text: string; children: React.ReactNode; side?: 'bottom' | 'right' }) {
   const pos = side === 'right'
@@ -278,7 +279,7 @@ function useClickSync(sessionName: string | null, initialBpm?: number, initialSo
     stopScheduler()
   }, [stopScheduler])
 
-  return { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs: (ms: number) => { visualLeadRef.current = ms; setVisualLeadMs(ms) }, audioOffsetMs, setAudioOffsetMs: (ms: number) => { audioOffsetRef.current = ms; setAudioOffsetMs(ms) }, muteRef, disconnect }
+  return { bpm, running, beatNumber, setBeatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs: (ms: number) => { visualLeadRef.current = ms; setVisualLeadMs(ms) }, audioOffsetMs, setAudioOffsetMs: (ms: number) => { audioOffsetRef.current = ms; setAudioOffsetMs(ms) }, muteRef, disconnect, setRunning, stopScheduler }
 }
 
 const FONT_MAP: Record<string, string> = {
@@ -612,8 +613,21 @@ export default function HtmlSongPage() {
 
   const songTempo = song?.tempo && song.tempo > 0 ? song.tempo : undefined
   const navigate = useNavigate()
-  const { bpm, running, beatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs, muteRef } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
+  const { bpm, running, beatNumber, setBeatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs, muteRef, setRunning: setClickSyncRunning, stopScheduler } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
   muteRef.current = !highlight
+
+  // Audio click track
+  const audioTrack = useAudioClickTrack(song?.mp3_url ?? null, song?.clicks_url ?? null, { bpm })
+  const hasAudioTrack = !!song?.mp3_url && audioTrack.loaded
+  const [audioTrackEnabled, setAudioTrackEnabled] = useState(false)
+  const useAudioForBeats = hasAudioTrack && audioTrackEnabled && audioTrack.playing && audioTrack.hasClicks
+
+  // Drive beatNumber from audio click detection (detectedBeatNumber is -1 until first click)
+  useEffect(() => {
+    if (useAudioForBeats && audioTrack.detectedBeatNumber >= 0) {
+      setBeatNumber(audioTrack.detectedBeatNumber)
+    }
+  }, [useAudioForBeats, audioTrack.detectedBeatNumber, setBeatNumber])
 
   // Update BPM when song tempo loads (async query resolves after hook init)
   const songTempoAppliedRef = useRef(false)
@@ -639,7 +653,37 @@ export default function HtmlSongPage() {
     }
   }, [changeBpm])
 
+  // Audio-aware toggle for start/stop
+  const handleToggleRunning = useCallback(() => {
+    if (audioTrackEnabled && hasAudioTrack) {
+      if (audioTrack.playing) {
+        audioTrack.pause()
+        setClickSyncRunning(false)
+      } else {
+        stopScheduler()
+        setBeatNumber(0)
+        if (audioTrack.hasClicks) setBarOffset(1)
+        audioTrack.play()
+        setClickSyncRunning(true)
+      }
+    } else {
+      if (audioTrack.playing) audioTrack.stop()
+      toggleRunning()
+    }
+  }, [audioTrackEnabled, hasAudioTrack, audioTrack, toggleRunning, setClickSyncRunning, stopScheduler, setBeatNumber])
+
+  // Audio-aware seek to bar
+  const seekToBar = useCallback((barNumber: number) => {
+    if (audioTrackEnabled && hasAudioTrack) {
+      const time = (barNumber - 1) * 4 * 60 / bpm
+      audioTrack.seek(time)
+      setBarOffset(barNumber)
+      setBeatNumber(0)
+    }
+  }, [audioTrackEnabled, hasAudioTrack, bpm, audioTrack, setBarOffset, setBeatNumber])
+
   const currentBar = Math.floor(beatNumber / 4) + barOffset
+  useEffect(() => { if (useAudioForBeats) console.log(`beat=${beatNumber} bar=${currentBar} offset=${barOffset}`) }, [beatNumber, currentBar, barOffset, useAudioForBeats])
 
   const sections = structure?.sections ?? []
   const lastBar = Math.max(...sections.flatMap(s =>
@@ -659,7 +703,15 @@ export default function HtmlSongPage() {
     const s = sections[sectionIndex]
     const firstBar = s.rows.length > 0 ? s.rows[0].bar_number : 0
     if (firstBar <= 0) return
-    if (running) {
+    if (audioTrackEnabled && hasAudioTrack) {
+      seekToBar(firstBar)
+      if (!audioTrack.playing) {
+        stopScheduler()
+        audioTrack.play()
+        setClickSyncRunning(true)
+      }
+      sendBar(firstBar)
+    } else if (running) {
       setBarOffset(firstBar)
       resetToBarStart()
       sendBar(firstBar)
@@ -668,7 +720,7 @@ export default function HtmlSongPage() {
       toggleRunning()
       sendBar(firstBar - 1)
     }
-  }, [sections, running, beatNumber, setBarOffset, sendBar, resetToBarStart, toggleRunning])
+  }, [sections, running, beatNumber, setBarOffset, sendBar, resetToBarStart, toggleRunning, audioTrackEnabled, hasAudioTrack, seekToBar, audioTrack, stopScheduler, setClickSyncRunning])
 
   // When changing song locally (prev/next buttons): stop metronome, reset bar, push to session
   const prevIdRef = useRef(id)
@@ -677,6 +729,7 @@ export default function HtmlSongPage() {
       prevIdRef.current = id
       songTempoAppliedRef.current = false
       setBarOffset(0)
+      if (audioTrack.playing) audioTrack.stop()
       if (running) toggleRunning()
       // Push song change to session (only when user navigates, not on initial mount)
       if (connected && id) {
@@ -684,7 +737,7 @@ export default function HtmlSongPage() {
         sendBar(0)
       }
     }
-  }, [id, connected, running, sendSong, sendBar, toggleRunning])
+  }, [id, connected, running, sendSong, sendBar, toggleRunning, audioTrack])
 
   // Follow song changes from other clients (or adopt session song on connect)
   const prevSessionSongRef = useRef<string | null>(null)
@@ -727,10 +780,15 @@ export default function HtmlSongPage() {
   // Stop metronome after the last bar
   useEffect(() => {
     if (running && lastBar > 0 && currentBar > lastBar) {
-      toggleRunning()
+      if (audioTrackEnabled && audioTrack.playing) {
+        audioTrack.stop()
+        setClickSyncRunning(false)
+      } else {
+        toggleRunning()
+      }
       setBarOffset(0)
     }
-  }, [currentBar, running, lastBar, toggleRunning])
+  }, [currentBar, running, lastBar, toggleRunning, audioTrackEnabled, audioTrack, setClickSyncRunning])
 
 
   // Redirect to songs list if song doesn't exist
@@ -792,7 +850,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipPrevBar')}>
           <button
-            onClick={() => { const b = currentBar - 1; if (b >= 1) { setBarOffset(b); resetToBarStart(); sendBar(b) } }}
+            onClick={() => { const b = currentBar - 1; if (b >= 1) { if (audioTrackEnabled && hasAudioTrack) { seekToBar(b) } else { setBarOffset(b); resetToBarStart() }; sendBar(b) } }}
             disabled={currentBar <= 1}
             className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
@@ -801,7 +859,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipResetBeat')}>
           <button
-            onClick={() => { setBarOffset(currentBar); resetToBarStart(); sendBar(currentBar) }}
+            onClick={() => { if (audioTrackEnabled && hasAudioTrack) { seekToBar(currentBar) } else { setBarOffset(currentBar); resetToBarStart() }; sendBar(currentBar) }}
             className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
             ●
@@ -809,7 +867,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipNextBar')}>
           <button
-            onClick={() => { const b = currentBar + 1; setBarOffset(b); resetToBarStart(); sendBar(b) }}
+            onClick={() => { const b = currentBar + 1; if (audioTrackEnabled && hasAudioTrack) { seekToBar(b) } else { setBarOffset(b); resetToBarStart() }; sendBar(b) }}
             className={`px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
             &rsaquo;
@@ -826,7 +884,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={running ? t('htmlSong.tipStop') : t('htmlSong.tipStart')}>
           <button
-            onClick={toggleRunning}
+            onClick={handleToggleRunning}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
           >
             <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">{running ? <path d="M6 6h12v12H6z" /> : <path d="M8 5v14l11-7z" />}</svg>
@@ -849,6 +907,23 @@ export default function HtmlSongPage() {
             </svg>
           </button>
         </Tip>
+        {song?.mp3_url && (
+          <Tip side={tipSide} text={t('htmlSong.tipAudioTrack')}>
+            <button
+              onClick={() => setAudioTrackEnabled(!audioTrackEnabled)}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer relative ${audioTrackEnabled ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+            >
+              {audioTrack.loading && (
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </span>
+              )}
+              <svg viewBox="0 0 24 24" fill="currentColor" className={`w-4 h-4 ${audioTrack.loading ? 'opacity-30' : ''}`}>
+                <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z" />
+              </svg>
+            </button>
+          </Tip>
+        )}
         <Tip side={tipSide} text={t('htmlSong.tipFlash')}>
           <button
             onClick={() => setFlashEnabled(!flashEnabled)}
@@ -950,6 +1025,14 @@ export default function HtmlSongPage() {
           <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">{bannerVertical ? <path d="M4 4h16v2H4zm0 9h16v2H4zm0 9h16v2H4z" /> : <path d="M4 4h2v16H4zm9 0h2v16h-2zm9 0h2v16h-2z" />}</svg>
         </button>
       </div>
+      {audioTrackEnabled && hasAudioTrack && audioTrack.duration > 0 && !bannerVertical && (
+        <div className="fixed z-50 left-0 right-0" style={{ top: '44px' }}>
+          <div
+            className="h-1 bg-purple-500 transition-all duration-200"
+            style={{ width: `${(audioTrack.currentTime / audioTrack.duration) * 100}%` }}
+          />
+        </div>
+      )}
       {!bannerVertical && <div className="h-20 sm:h-12" />}
       <div className={`max-w-3xl mx-auto rounded-2xl p-4 md:p-8 shadow-2xl ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'}`}>
         <div className="flex items-center justify-between">
@@ -1030,6 +1113,12 @@ export default function HtmlSongPage() {
             <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
             {connected ? sessionFromParams : t('htmlSong.notConnected')}
           </span>
+          {hasAudioTrack && (
+            <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${audioTrack.hasClicks ? 'text-green-400' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              <span className={`inline-block w-2 h-2 rounded-full ${audioTrack.hasClicks ? 'bg-green-400' : 'bg-gray-400'}`} />
+              clicks.yml {audioTrack.hasClicks ? '✓' : '✗'}
+            </span>
+          )}
         </div>
 
         {sections.length === 0 ? (
@@ -1042,13 +1131,21 @@ export default function HtmlSongPage() {
               const scrollBar = running ? currentBar : -1
               return sections.map((s, i) => (
                 <SectionView key={`${s.id}-${i}`} section={s} nextSection={sections[i + 1]} maxBars={maxBars} dark={darkMode} activeBar={activeBar} scrollBar={scrollBar} beatNumber={beatNumber} songId={id!} showGrid={showGrid} showLyrics={showLyrics} showAllLyrics={showAllLyrics} nextLabel={t('htmlSong.next')} running={running} flash={flash} lyricsFontSize={lyricsFontSize} editLyrics={editLyrics} bpm={bpm} onTitleClick={(barNumber) => {
-                  if (running) {
+                  if (audioTrackEnabled && hasAudioTrack) {
+                    seekToBar(barNumber)
+                    if (!audioTrack.playing) {
+                      stopScheduler()
+                      audioTrack.play()
+                      setClickSyncRunning(true)
+                    }
+                    sendBar(barNumber)
+                  } else if (running) {
                     setBarOffset(barNumber)
                     resetToBarStart()
                     sendBar(barNumber)
                   } else {
                     setBarOffset(barNumber - 1)
-                    toggleRunning()
+                    handleToggleRunning()
                     sendBar(barNumber - 1)
                   }
                 }} />
