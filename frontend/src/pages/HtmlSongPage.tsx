@@ -777,8 +777,10 @@ export default function HtmlSongPage() {
   }, [running, beatNumber, flashEnabled])
 
   // Stop metronome after the last bar
+  const stoppedAtEndRef = useRef(false)
   useEffect(() => {
-    if (running && lastBar > 0 && currentBar > lastBar) {
+    if (running && lastBar > 0 && currentBar > lastBar && !stoppedAtEndRef.current) {
+      stoppedAtEndRef.current = true
       if (audioTrackEnabled && audioTrack.playing) {
         audioTrack.stop()
         setClickSyncRunning(false)
@@ -786,6 +788,9 @@ export default function HtmlSongPage() {
         toggleRunning()
       }
       setBarOffset(0)
+    }
+    if (running && currentBar <= lastBar) {
+      stoppedAtEndRef.current = false
     }
   }, [currentBar, running, lastBar, toggleRunning, audioTrackEnabled, audioTrack, setClickSyncRunning])
 
