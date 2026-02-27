@@ -356,13 +356,25 @@ async fn api_song(
 
     // Check for song.mp3 and clicks.yml in song directory
     let song_dir = key.trim_end_matches("/song.yml");
-    let mp3_url = match state.s3_client.head_object()
-        .bucket(song::BUCKET.as_str()).key(&format!("{song_dir}/song.mp3")).send().await {
+    let mp3_url = match state
+        .s3_client
+        .head_object()
+        .bucket(song::BUCKET.as_str())
+        .key(&format!("{song_dir}/song.mp3"))
+        .send()
+        .await
+    {
         Ok(_) => Some(format!("/api/mp3/{id}")),
         Err(_) => None,
     };
-    let clicks_url = match state.s3_client.head_object()
-        .bucket(song::BUCKET.as_str()).key(&format!("{song_dir}/clicks.yml")).send().await {
+    let clicks_url = match state
+        .s3_client
+        .head_object()
+        .bucket(song::BUCKET.as_str())
+        .key(&format!("{song_dir}/clicks.yml"))
+        .send()
+        .await
+    {
         Ok(_) => Some(format!("/api/clicks/{id}")),
         Err(_) => None,
     };
@@ -840,7 +852,7 @@ async fn api_mp3(State(state): State<AppState>, Path(id): Path<String>) -> Respo
                 Ok(b) => b.into_bytes(),
                 Err(_) => {
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read MP3")
-                        .into_response()
+                        .into_response();
                 }
             };
             (
@@ -882,14 +894,19 @@ async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Re
             let bytes = match resp.body.collect().await {
                 Ok(b) => b.into_bytes(),
                 Err(_) => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read clicks.yml")
-                        .into_response()
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Failed to read clicks.yml",
+                    )
+                        .into_response();
                 }
             };
             // Parse YAML with ticks field and return as JSON array
             let content = String::from_utf8_lossy(&bytes);
             #[derive(serde::Deserialize)]
-            struct ClickData { ticks: Vec<f64> }
+            struct ClickData {
+                ticks: Vec<f64>,
+            }
             match serde_yaml::from_str::<ClickData>(&content) {
                 Ok(data) => Json(data.ticks).into_response(),
                 Err(e) => {

@@ -260,6 +260,7 @@ export function useAudioClickTrack(
 
     if (playingRef.current) {
       if (sourceRef.current) {
+        sourceRef.current.onended = null  // prevent stale callback after play() restarts
         try { sourceRef.current.stop() } catch { /* ignore */ }
         sourceRef.current = null
       }
