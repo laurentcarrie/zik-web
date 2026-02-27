@@ -591,8 +591,6 @@ export default function HtmlSongPage() {
   const [rangeEnd, setRangeEnd] = useState(0)
   const [loopEnabled, setLoopEnabled] = useState(false)
   const [showSectionPicker, setShowSectionPicker] = useState(false)
-  const loopCountdownRef = useRef(false)
-  const loopTimerRef = useRef<number | null>(null)
   const tapTimesRef = useRef<number[]>([])
   const [lyricsFontSize] = useState(() => {
     const m = document.cookie.match(/(^| )htmlSongLyricsFontSize=([^;]+)/)
@@ -753,23 +751,8 @@ export default function HtmlSongPage() {
     }
   }, [sections, running, beatNumber, setBarOffset, sendBar, resetToBarStart, toggleRunning, audioTrackEnabled, hasAudioTrack, seekToBar, audioTrack, stopScheduler, setClickSyncRunning])
 
-  const cancelLoopCountdown = useCallback(() => {
-    if (loopTimerRef.current !== null) {
-      clearTimeout(loopTimerRef.current)
-      loopTimerRef.current = null
-    }
-    loopCountdownRef.current = false
-  }, [])
-
   // Audio-aware toggle for start/stop
   const handleToggleRunning = useCallback(() => {
-    if (loopCountdownRef.current) {
-      cancelLoopCountdown()
-      if (audioTrackEnabled) audioTrack.stop()
-      setClickSyncRunning(false)
-      setBarOffset(0)
-      return
-    }
     if (audioTrackEnabled && hasAudioTrack) {
       if (sessionFromParams) {
         // In session: go through WebSocket — audio starts reactively from running state change
@@ -795,7 +778,7 @@ export default function HtmlSongPage() {
         toggleRunning()
       }
     }
-  }, [audioTrackEnabled, hasAudioTrack, audioTrack, toggleRunning, setClickSyncRunning, stopScheduler, sessionFromParams, sections, rangeStart, seekToBar, running, jumpToSection, cancelLoopCountdown])
+  }, [audioTrackEnabled, hasAudioTrack, audioTrack, toggleRunning, setClickSyncRunning, stopScheduler, sessionFromParams, sections, rangeStart, seekToBar, running, jumpToSection])
 
   // When changing song locally (prev/next buttons): stop metronome, reset bar, push to session
   const prevIdRef = useRef(id)
@@ -805,7 +788,6 @@ export default function HtmlSongPage() {
       songTempoAppliedRef.current = false
       setBarOffset(0)
       setShowSectionPicker(false)
-      cancelLoopCountdown()
       if (audioTrack.playing) audioTrack.stop()
       if (running) toggleRunning()
       // Push song change to session (only when user navigates, not on initial mount)
@@ -854,41 +836,9 @@ export default function HtmlSongPage() {
     }
   }, [running, beatNumber, flashEnabled])
 
-  // Loop countdown: 2 bars of click before restarting
-  const startLoopCountdown = useCallback(() => {
-    loopCountdownRef.current = true
-    if (audioTrackEnabled && audioTrack.playing) {
-      audioTrack.pause()
-    }
-    stopScheduler()
-
-    // Show the first bar of the next loop during countdown
-    const startBar = sections[rangeStart]?.rows[0]?.bar_number ?? 1
-    setBarOffset(startBar)
-    setBeatNumber(0)
-
-    let remaining = 8
-    const intervalMs = 60000 / bpm
-    const tick = () => {
-      if (remaining <= 0) {
-        loopTimerRef.current = null
-        loopCountdownRef.current = false
-        jumpToSection(rangeStart)
-        return
-      }
-      const beat = 8 - remaining
-      playClickNow(beat % 4 === 0)
-      remaining--
-      loopTimerRef.current = window.setTimeout(tick, intervalMs)
-    }
-    tick()
-  }, [audioTrackEnabled, audioTrack, stopScheduler, bpm, playClickNow, jumpToSection, rangeStart, sections, setBarOffset, setBeatNumber])
-
-  // Clean up loop countdown on unmount
-  useEffect(() => cancelLoopCountdown, [cancelLoopCountdown])
-
   // Stop metronome after the last bar in the range (or loop)
   const stoppedAtEndRef = useRef(false)
+  const loopingRef = useRef(false)
   const rangeLastBar = useMemo(() => {
     let max = 0
     for (let i = rangeStart; i <= rangeEnd && i < sections.length; i++) {
@@ -900,9 +850,19 @@ export default function HtmlSongPage() {
     return max
   }, [sections, rangeStart, rangeEnd])
   useEffect(() => {
-    if (running && rangeLastBar > 0 && currentBar > rangeLastBar && !stoppedAtEndRef.current && !loopCountdownRef.current) {
+    if (running && rangeLastBar > 0 && currentBar > rangeLastBar && !stoppedAtEndRef.current && !loopingRef.current) {
       if (loopEnabled) {
-        startLoopCountdown()
+        loopingRef.current = true
+        const firstBar = sections[rangeStart]?.rows[0]?.bar_number ?? 1
+        const loopBar = Math.max(1, firstBar - 1)
+        if (audioTrackEnabled && hasAudioTrack) {
+          seekToBar(loopBar)
+          sendBar(loopBar)
+        } else if (running) {
+          setBarOffset(loopBar)
+          resetToBarStart()
+          sendBar(loopBar)
+        }
       } else {
         stoppedAtEndRef.current = true
         if (audioTrackEnabled && audioTrack.playing) {
@@ -916,8 +876,9 @@ export default function HtmlSongPage() {
     }
     if (running && currentBar <= rangeLastBar) {
       stoppedAtEndRef.current = false
+      loopingRef.current = false
     }
-  }, [currentBar, running, rangeLastBar, toggleRunning, audioTrackEnabled, audioTrack, setClickSyncRunning, loopEnabled, startLoopCountdown])
+  }, [currentBar, running, rangeLastBar, toggleRunning, audioTrackEnabled, audioTrack, setClickSyncRunning, loopEnabled, rangeStart, sections, hasAudioTrack, seekToBar, stopScheduler, sendBar, setBarOffset, resetToBarStart])
 
 
   // Redirect to songs list if song doesn't exist
