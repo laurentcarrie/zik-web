@@ -717,10 +717,6 @@ export default function HtmlSongPage() {
 
   const currentBar = Math.floor(beatNumber / 4) + barOffset
 
-  const lastBar = Math.max(...sections.flatMap(s =>
-    s.rows.map(r => r.bar_number + r.bars.length * (r.repeat > 1 ? r.repeat : 1) - 1)
-  ), 0)
-
   // Re-initialize range when song changes or sections load
   useEffect(() => {
     setRangeStart(0)
