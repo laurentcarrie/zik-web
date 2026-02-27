@@ -683,7 +683,6 @@ export default function HtmlSongPage() {
   }, [audioTrackEnabled, hasAudioTrack, bpm, audioTrack, setBarOffset, setBeatNumber])
 
   const currentBar = Math.floor(beatNumber / 4) + barOffset
-  useEffect(() => { if (useAudioForBeats) console.log(`beat=${beatNumber} bar=${currentBar} offset=${barOffset}`) }, [beatNumber, currentBar, barOffset, useAudioForBeats])
 
   const sections = structure?.sections ?? []
   const lastBar = Math.max(...sections.flatMap(s =>
@@ -910,7 +909,13 @@ export default function HtmlSongPage() {
         {song?.mp3_url && (
           <Tip side={tipSide} text={t('htmlSong.tipAudioTrack')}>
             <button
-              onClick={() => setAudioTrackEnabled(!audioTrackEnabled)}
+              onClick={() => {
+                if (audioTrackEnabled && audioTrack.playing) {
+                  audioTrack.stop()
+                  setClickSyncRunning(false)
+                }
+                setAudioTrackEnabled(!audioTrackEnabled)
+              }}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer relative ${audioTrackEnabled ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
             >
               {audioTrack.loading && (

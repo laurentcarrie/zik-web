@@ -105,7 +105,7 @@ export function useAudioClickTrack(
           // clicks.yml: absolute timestamps in seconds
           clickTimesRef.current = clicks
           setHasClicks(true)
-          console.log(`Audio click track: ${clicks.length} clicks from clicks.yml`)
+
         } else {
           clickTimesRef.current = []
           setHasClicks(false)
