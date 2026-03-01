@@ -117,8 +117,12 @@
     "tipResetBeat": "Revenir au temps 1",
     "tipNextBar": "Mesure suivante",
     "tipNextSection": "Section suivante",
+    "tipSectionRange": "Plage de sections",
+    "sectionRangeFrom": "De",
+    "sectionRangeTo": "À",
     "tipStart": "Démarrer le métronome",
     "tipStop": "Arrêter le métronome",
+    "tipLoop": "Boucle",
     "tipGrid": "Afficher/masquer la grille",
     "tipLyrics": "Afficher/masquer les paroles",
     "tipAllLyrics": "Paroles de toutes les sections",
@@ -131,7 +135,9 @@
     "tipAudioOffset": "Décalage du clic (ms)",
     "tipIncreaseAudioOffset": "Clic plus tard",
     "tipSound": "Activer/désactiver le son du clic",
-    "tipFlash": "Activer/désactiver le flash sur temps fort"
+    "tipFlash": "Activer/désactiver le flash sur temps fort",
+    "tipAudioTrack": "Activer/désactiver la piste audio",
+    "audioLoading": "Chargement audio..."
   },
   "home": {
     "songs": "Chansons",

@@ -117,8 +117,12 @@
     "tipResetBeat": "Reset to beat 1",
     "tipNextBar": "Next bar",
     "tipNextSection": "Next section",
+    "tipSectionRange": "Section range",
+    "sectionRangeFrom": "From",
+    "sectionRangeTo": "To",
     "tipStart": "Start metronome",
     "tipStop": "Stop metronome",
+    "tipLoop": "Loop",
     "tipGrid": "Toggle chord grid",
     "tipLyrics": "Toggle lyrics",
     "tipAllLyrics": "Show lyrics for all sections",
@@ -131,7 +135,9 @@
     "tipAudioOffset": "Click offset (ms)",
     "tipIncreaseAudioOffset": "Click later",
     "tipSound": "Toggle click sound",
-    "tipFlash": "Toggle flash on downbeat"
+    "tipFlash": "Toggle flash on downbeat",
+    "tipAudioTrack": "Toggle audio track",
+    "audioLoading": "Loading audio..."
   },
   "home": {
     "songs": "Songs",
