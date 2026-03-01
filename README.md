@@ -8,6 +8,14 @@ The main application is in the `zik-web/` subdirectory - a Rust web server built
 
 See [zik-web/README.md](zik-web/README.md) for details.
 
+
+
+## Demo
+
+See it in action: [Dani California – Red Hot Chili Peppers](https://move-the-line.org/mtl/htmlsong/red_hot_chili_peppers--dani_california)
+
+When the song is playing, the current bar is highlighted in real time so the whole band stays in sync. PDF sheet music is also generated for offline use.
+
 ## Quick Start
 
 ```bash
