@@ -637,9 +637,11 @@ export default function HtmlSongPage() {
   const { bpm, running, beatNumber, setBeatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs, muteRef, setRunning: setClickSyncRunning, stopScheduler, setNoScheduler, getElapsedSeconds, playClickNow } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
   muteRef.current = !highlight
 
-  // Audio click track
-  const audioTrack = useAudioClickTrack(song?.mp3_url ?? null, song?.clicks_url ?? null, { bpm })
-  const hasAudioTrack = !!song?.mp3_url && audioTrack.loaded
+  // Audio click track: switch to song-with-click.mp3 when metronome is on
+  const hasClicksMp3 = !!song?.mp3_with_clicks_url
+  const effectiveMp3Url = (soundOn && hasClicksMp3 ? song?.mp3_with_clicks_url : song?.mp3_url) ?? null
+  const audioTrack = useAudioClickTrack(effectiveMp3Url, song?.clicks_url ?? null, { bpm })
+  const hasAudioTrack = !!effectiveMp3Url && audioTrack.loaded
   const audioTrackEnabled = hasAudioTrack
   const [audioMuted, setAudioMuted] = useState(false)
   const useAudioForBeats = hasAudioTrack && audioTrack.playing && audioTrack.hasClicks
@@ -658,9 +660,12 @@ export default function HtmlSongPage() {
   useEffect(() => {
     if (useAudioForBeats && audioTrack.detectedBeatNumber >= 0) {
       setBeatNumber(audioTrack.detectedBeatNumber)
-      playClickNow(audioTrack.detectedBeatNumber % 4 === 0)
+      // Skip generated beeps when ticks are baked into the MP3
+      if (!hasClicksMp3) {
+        playClickNow(audioTrack.detectedBeatNumber % 4 === 0)
+      }
     }
-  }, [useAudioForBeats, audioTrack.detectedBeatNumber, setBeatNumber, playClickNow])
+  }, [useAudioForBeats, audioTrack.detectedBeatNumber, setBeatNumber, playClickNow, hasClicksMp3])
 
   // Tell useClickSync to skip scheduler when audio track will drive beats
   useEffect(() => {
@@ -992,27 +997,27 @@ export default function HtmlSongPage() {
             </svg>
           </button>
         </Tip>
-        {hasAudioTrack && (
-          <Tip side={tipSide} text={t('htmlSong.tipAudioTrack')}>
-            <button
-              onClick={() => {
-                const next = !audioMuted
-                setAudioMuted(next)
-                audioTrack.setVolume(next ? 0 : 1)
-              }}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer relative ${!audioMuted ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-            >
-              {audioTrack.loading && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                </span>
-              )}
-              <svg viewBox="0 0 24 24" fill="currentColor" className={`w-4 h-4 ${audioTrack.loading ? 'opacity-30' : ''}`}>
-                <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z" />
-              </svg>
-            </button>
-          </Tip>
-        )}
+        <Tip side={tipSide} text={song?.mp3_url ? t('htmlSong.tipAudioTrack') : 'No song.mp3'}>
+          <button
+            onClick={() => {
+              if (!hasAudioTrack) return
+              const next = !audioMuted
+              setAudioMuted(next)
+              audioTrack.setVolume(next ? 0 : 1)
+            }}
+            disabled={!song?.mp3_url}
+            className={`p-1.5 rounded-lg transition-colors relative ${!song?.mp3_url ? (darkMode ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-300 text-gray-400 cursor-not-allowed') : hasAudioTrack && !audioMuted ? 'bg-purple-600 text-white cursor-pointer' : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 cursor-pointer' : 'bg-gray-200 hover:bg-gray-300 text-gray-700 cursor-pointer'}`}
+          >
+            {audioTrack.loading && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </span>
+            )}
+            <svg viewBox="0 0 24 24" fill="currentColor" className={`w-4 h-4 ${audioTrack.loading ? 'opacity-30' : ''}`}>
+              <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z" />
+            </svg>
+          </button>
+        </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipFlash')}>
           <button
             onClick={() => setFlashEnabled(!flashEnabled)}
@@ -1202,12 +1207,20 @@ export default function HtmlSongPage() {
             <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
             {connected ? sessionFromParams : t('htmlSong.notConnected')}
           </span>
-          {hasAudioTrack && (
-            <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${audioTrack.hasClicks ? 'text-green-400' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-              <span className={`inline-block w-2 h-2 rounded-full ${audioTrack.hasClicks ? 'bg-green-400' : 'bg-gray-400'}`} />
-              clicks.yml {audioTrack.hasClicks ? '✓' : '✗'}
+          <span className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <span className="flex items-center gap-1" title="song.mp3">
+              <span className={`inline-block w-2 h-2 rounded-full ${song?.mp3_url ? 'bg-green-400' : 'bg-gray-600'}`} />
+              mp3
             </span>
-          )}
+            <span className="flex items-center gap-1" title="clicks.yml">
+              <span className={`inline-block w-2 h-2 rounded-full ${song?.clicks_url ? 'bg-green-400' : 'bg-gray-600'}`} />
+              clicks
+            </span>
+            <span className="flex items-center gap-1" title="song-with-click.mp3">
+              <span className={`inline-block w-2 h-2 rounded-full ${song?.mp3_with_clicks_url ? 'bg-green-400' : 'bg-gray-600'}`} />
+              mp3/click
+            </span>
+          </span>
         </div>
 
         {sections.length === 0 ? (

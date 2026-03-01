@@ -12,6 +12,7 @@ const EditLyricsPage = lazy(() => import('./pages/EditLyricsPage'))
 const EditLilypondPage = lazy(() => import('./pages/EditLilypondPage'))
 const EditTexPage = lazy(() => import('./pages/EditTexPage'))
 const EditDrumsPage = lazy(() => import('./pages/EditDrumsPage'))
+const EditClicksPage = lazy(() => import('./pages/EditClicksPage'))
 const EditDrumsGlobalPage = lazy(() => import('./pages/EditDrumsGlobalPage'))
 const MasterPage = lazy(() => import('./pages/MasterPage'))
 const UpdatePage = lazy(() => import('./pages/UpdatePage'))
@@ -173,6 +174,7 @@ function App() {
           <Route path="/edit-lyrics/:id/:sectionId" element={<EditLyricsPage />} />
           <Route path="/edit-lilypond/:id/:filename" element={<EditLilypondPage />} />
           <Route path="/edit-tex/:id/:filename" element={<EditTexPage />} />
+          <Route path="/edit-clicks/:id" element={<EditClicksPage />} />
           <Route path="/edit-drums/:id/:filename" element={<EditDrumsPage />} />
           <Route path="/edit-drums-global/:name" element={<EditDrumsGlobalPage />} />
           <Route path="/master/:id" element={<MasterPage />} />

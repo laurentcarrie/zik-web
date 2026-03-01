@@ -240,6 +240,26 @@ export default function EditYmlPage() {
             </svg>
             Master
           </a>
+          {song.clicks_url ? (
+            <a
+              href={`${ROUTE_PREFIX}/edit-clicks/${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+              </svg>
+              clicks.yml
+            </a>
+          ) : (
+            <span className="inline-flex items-center gap-2 px-6 py-3 bg-gray-700 text-gray-500 rounded-lg font-medium cursor-not-allowed">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+              </svg>
+              clicks.yml
+            </span>
+          )}
         </div>
 
         <div className="pt-4 border-t border-gray-700">
