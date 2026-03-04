@@ -962,6 +962,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipSectionRange')}>
           <button
+            data-testid="btn-section-range"
             onClick={() => setShowSectionPicker(!showSectionPicker)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${rangeStart > 0 || rangeEnd < sections.length - 1 ? 'bg-orange-600 text-white' : showSectionPicker ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
@@ -970,6 +971,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={running ? t('htmlSong.tipStop') : t('htmlSong.tipStart')}>
           <button
+            data-testid="btn-play-stop"
             onClick={handleToggleRunning}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${running ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
           >
@@ -978,6 +980,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipLoop')}>
           <button
+            data-testid="btn-loop"
             onClick={() => setLoopEnabled(!loopEnabled)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${loopEnabled ? 'bg-green-600 text-white' : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
           >
@@ -986,6 +989,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipSound')}>
           <button
+            data-testid="btn-sound"
             onClick={toggleSound}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${soundOn ? 'bg-green-500/70 hover:bg-green-500/90' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
           >
@@ -999,6 +1003,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={song?.mp3_url ? t('htmlSong.tipAudioTrack') : 'No song.mp3'}>
           <button
+            data-testid="btn-audio-track"
             onClick={() => {
               if (!hasAudioTrack) return
               const next = !audioMuted
@@ -1020,6 +1025,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipFlash')}>
           <button
+            data-testid="btn-flash"
             onClick={() => setFlashEnabled(!flashEnabled)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${flashEnabled ? 'bg-yellow-500/70 hover:bg-yellow-500/90' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
           >
@@ -1030,6 +1036,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipGrid')}>
           <button
+            data-testid="btn-grid"
             onClick={() => setShowGrid(!showGrid)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showGrid ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
@@ -1038,6 +1045,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipLyrics')}>
           <button
+            data-testid="btn-lyrics"
             onClick={() => setShowLyrics(!showLyrics)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showLyrics ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
@@ -1046,6 +1054,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipAllLyrics')}>
           <button
+            data-testid="btn-all-lyrics"
             onClick={() => setShowAllLyrics(!showAllLyrics)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showAllLyrics ? 'bg-purple-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
@@ -1054,6 +1063,7 @@ export default function HtmlSongPage() {
         </Tip>
         <Tip side={tipSide} text={t('htmlSong.tipHighlight')}>
           <button
+            data-testid="btn-highlight"
             onClick={() => setHighlight(!highlight)}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${highlight ? 'bg-yellow-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
           >
@@ -1138,6 +1148,7 @@ export default function HtmlSongPage() {
               &larr; {t('nav.back')}
             </Link>
             <button
+              data-testid="btn-prev-song"
               onClick={() => prevSong && navigate(`/htmlsong/${prevSong.id}`)}
               disabled={!prevSong}
               className={`px-2 py-1 text-xs rounded-lg border transition-colors ${darkMode ? 'text-gray-200 border-gray-600 hover:bg-gray-700' : 'text-gray-700 border-gray-300 hover:bg-gray-200'} disabled:opacity-30 disabled:cursor-not-allowed`}
@@ -1146,6 +1157,7 @@ export default function HtmlSongPage() {
               &larr; {t('nav.prev')}
             </button>
             <button
+              data-testid="btn-next-song"
               onClick={() => nextSong && navigate(`/htmlsong/${nextSong.id}`)}
               disabled={!nextSong}
               className={`px-2 py-1 text-xs rounded-lg border transition-colors ${darkMode ? 'text-gray-200 border-gray-600 hover:bg-gray-700' : 'text-gray-700 border-gray-300 hover:bg-gray-200'} disabled:opacity-30 disabled:cursor-not-allowed`}
@@ -1208,15 +1220,15 @@ export default function HtmlSongPage() {
             {connected ? sessionFromParams : t('htmlSong.notConnected')}
           </span>
           <span className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            <span className="flex items-center gap-1" title="song.mp3">
+            <span data-testid="status-mp3" className="flex items-center gap-1" title="song.mp3">
               <span className={`inline-block w-2 h-2 rounded-full ${song?.mp3_url ? 'bg-green-400' : 'bg-gray-600'}`} />
               mp3
             </span>
-            <span className="flex items-center gap-1" title="clicks.yml">
+            <span data-testid="status-clicks" className="flex items-center gap-1" title="clicks.yml">
               <span className={`inline-block w-2 h-2 rounded-full ${song?.clicks_url ? 'bg-green-400' : 'bg-gray-600'}`} />
               clicks
             </span>
-            <span className="flex items-center gap-1" title="song-with-click.mp3">
+            <span data-testid="status-mp3-click" className="flex items-center gap-1" title="song-with-click.mp3">
               <span className={`inline-block w-2 h-2 rounded-full ${song?.mp3_with_clicks_url ? 'bg-green-400' : 'bg-gray-600'}`} />
               mp3/click
             </span>
@@ -1265,7 +1277,7 @@ export default function HtmlSongPage() {
       </div>
       {showSectionPicker && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowSectionPicker(false)}>
-          <div className="bg-gray-900 rounded-2xl p-4 max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div data-testid="modal-section-range" className="bg-gray-900 rounded-2xl p-4 max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-white font-bold text-lg">Section range</h3>
               <div className="flex items-center gap-2">
