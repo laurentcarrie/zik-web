@@ -23,6 +23,8 @@ pub struct SongItem {
     pub key: String,
     pub tempo: u16,
     pub tags: Vec<String>,
+    pub has_song: bool,
+    pub has_clicks: bool,
     pub error: Option<String>,
 }
 
@@ -63,6 +65,8 @@ pub async fn get_all_songs(
                     key,
                     tempo: song.info.tempo,
                     tags: song.info.tags,
+                    has_song: song.files.has_mp3,
+                    has_clicks: song.files.has_clicks,
                     error: None,
                 });
             }
@@ -81,6 +85,8 @@ pub async fn get_all_songs(
                     key,
                     tempo: 0,
                     tags: vec![],
+                    has_song: false,
+                    has_clicks: false,
                     error: Some(msg),
                 });
             }

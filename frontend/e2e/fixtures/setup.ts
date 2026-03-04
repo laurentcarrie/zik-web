@@ -1,6 +1,37 @@
 import { Page } from '@playwright/test'
 import { SONG_ID, mockSongDetail, mockStructure, mockSongs } from './mock-data'
 
+/** Generate a silent WAV file as a Buffer. */
+export function createSilentWav(durationSeconds: number, sampleRate = 44100): Buffer {
+  const numSamples = Math.ceil(sampleRate * durationSeconds)
+  const dataSize = numSamples * 2 // 16-bit mono
+  const buffer = Buffer.alloc(44 + dataSize)
+  buffer.write('RIFF', 0)
+  buffer.writeUInt32LE(36 + dataSize, 4)
+  buffer.write('WAVE', 8)
+  buffer.write('fmt ', 12)
+  buffer.writeUInt32LE(16, 16)
+  buffer.writeUInt16LE(1, 20) // PCM
+  buffer.writeUInt16LE(1, 22) // mono
+  buffer.writeUInt32LE(sampleRate, 24)
+  buffer.writeUInt32LE(sampleRate * 2, 28)
+  buffer.writeUInt16LE(2, 32)
+  buffer.writeUInt16LE(16, 34)
+  buffer.write('data', 36)
+  buffer.writeUInt32LE(dataSize, 40)
+  return buffer
+}
+
+/** Generate click timestamps: one beat every (60/bpm) seconds for the given duration. */
+export function generateClickTimes(bpm: number, durationSeconds: number): number[] {
+  const interval = 60 / bpm
+  const clicks: number[] = []
+  for (let t = 0; t < durationSeconds; t += interval) {
+    clicks.push(Math.round(t * 1000) / 1000)
+  }
+  return clicks
+}
+
 export async function setupMockRoutes(page: Page) {
   // Mock song detail
   await page.route(`**/api/song/${SONG_ID}`, async (route) => {
