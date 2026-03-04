@@ -1,4 +1,4 @@
-.PHONY: help start stop restart backend frontend build check test kill-backend kill-frontend reindex refresh-and-reset
+.PHONY: help start stop restart backend frontend build check test test-frontend kill-backend kill-frontend reindex refresh-and-reset
 
 help:
 	@echo "make start           Start backend + frontend"
@@ -9,6 +9,7 @@ help:
 	@echo "make build-frontend  TypeScript check + Vite build"
 	@echo "make check           cargo check"
 	@echo "make test            cargo test"
+	@echo "make test-frontend   Playwright e2e tests"
 	@echo "make reindex         Re-index songs on localhost"
 	@echo "make refresh-and-reset  Reset work branch to main (fetch, reset, force push)"
 
@@ -36,6 +37,9 @@ check:
 
 test:
 	cd zik-web && AWS_PROFILE=$(AWS_PROFILE) rtk cargo test
+
+test-frontend:
+	cd frontend && npx playwright test
 
 kill-backend:
 	-kill $$(lsof -ti :8080) 2>/dev/null || true

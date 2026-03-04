@@ -7,6 +7,8 @@ export interface Song {
   key: string
   tempo: number
   tags: string[]
+  has_song: boolean
+  has_clicks: boolean
   error?: string
 }
 

@@ -168,24 +168,26 @@ export default function SongsPage() {
         </label>
 
         {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-2">
             {allTags.map(tag => (
-              <label key={tag} className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedTags.has(tag)}
-                  onChange={() => {
-                    setSelectedTags(prev => {
-                      const next = new Set(prev)
-                      if (next.has(tag)) next.delete(tag)
-                      else next.add(tag)
-                      return next
-                    })
-                  }}
-                  className="w-3.5 h-3.5 accent-[#667eea]"
-                />
-                <span className="text-sm text-gray-400">{tag}</span>
-              </label>
+              <button
+                key={tag}
+                onClick={() => {
+                  setSelectedTags(prev => {
+                    const next = new Set(prev)
+                    if (next.has(tag)) next.delete(tag)
+                    else next.add(tag)
+                    return next
+                  })
+                }}
+                className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                  selectedTags.has(tag)
+                    ? 'bg-[#667eea] text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                }`}
+              >
+                {tag}
+              </button>
             ))}
           </div>
         )}

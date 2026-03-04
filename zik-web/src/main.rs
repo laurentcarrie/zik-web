@@ -207,6 +207,8 @@ struct ApiSong {
     key: String,
     tempo: u16,
     tags: Vec<String>,
+    has_song: bool,
+    has_clicks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
@@ -266,6 +268,8 @@ async fn api_songs(
                         key: s.key,
                         tempo: s.tempo,
                         tags: s.tags,
+                        has_song: s.has_song,
+                        has_clicks: s.has_clicks,
                         error: s.error,
                     }
                 })
@@ -303,6 +307,8 @@ async fn api_song(
         key,
         tempo,
         tags: _,
+        has_song: _,
+        has_clicks: _,
         error,
     } = s;
     let deezer_url = make_deezer_url(&title, &author);
