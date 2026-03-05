@@ -649,12 +649,11 @@ export default function HtmlSongPage() {
   // Audio-aware seek to bar
   const seekToBar = useCallback((barNumber: number) => {
     if (audioTrackEnabled && hasAudioTrack) {
-      const time = (barNumber - 1) * 4 * 60 / bpm
-      audioTrack.seek(time)
+      audioTrack.seek(audioTrack.timeOfBar(barNumber))
       setBarOffset(barNumber)
       setBeatNumber(0)
     }
-  }, [audioTrackEnabled, hasAudioTrack, bpm, audioTrack, setBarOffset, setBeatNumber])
+  }, [audioTrackEnabled, hasAudioTrack, audioTrack, setBarOffset, setBeatNumber])
 
   // Drive beatNumber from audio click detection (detectedBeatNumber is -1 until first click)
   useEffect(() => {

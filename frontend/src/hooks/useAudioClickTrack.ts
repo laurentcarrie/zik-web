@@ -20,6 +20,7 @@ interface AudioClickTrackResult {
   stop: () => void
   seek: (time: number) => void
   setVolume: (v: number) => void
+  timeOfBar: (bar: number) => number
 }
 
 export function useAudioClickTrack(
@@ -286,6 +287,16 @@ export function useAudioClickTrack(
     }
   }, [])
 
+  /** Start time (seconds) of a 1-based bar, using clicks if available. */
+  const timeOfBar = useCallback((bar: number) => {
+    const clicks = clickTimesRef.current
+    if (clicks.length > 0) {
+      const tickIndex = (bar - 1) * 4
+      if (tickIndex < clicks.length) return clicks[tickIndex]
+    }
+    return (bar - 1) * 4 * 60 / bpm
+  }, [bpm])
+
   return {
     loading,
     loaded,
@@ -301,5 +312,6 @@ export function useAudioClickTrack(
     stop,
     seek,
     setVolume,
+    timeOfBar,
   }
 }
