@@ -55,9 +55,14 @@ reindex:
 prod-reindex:
 	curl -sk -o /dev/null -w "HTTP %{http_code}\n" -X POST -H "X-Write-Password: $(WRITE_PROD_PASSWORD)" https://move-the-line.org/api/world
 
+deploy-fargate:
+	gh workflow run $(YML) --ref main
+	@while true ; do gh run list --workflow="$(YML)" -L 1 ; sleep 15 ; done
+
 deploy-fargate-dev:
-	gh workflow run deploy-dev-fargate.yml --ref main
-	@echo "Deploy triggered. Run 'gh run list --workflow=deploy-dev-fargate.yml -L 1' to check status."
+	make deploy-fargate YML="deploy-dev-fargate.yml"
+
+
 
 deploy-fargate-prod:
 	gh workflow run deploy-prod-fargate.yml --ref main

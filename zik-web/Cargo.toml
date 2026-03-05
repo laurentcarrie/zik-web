@@ -19,7 +19,7 @@ serde_yaml = "0.9"
 urlencoding = "2.1"
 uuid = { version = "1.0", features = ["v4"] }
 strudel-of-lilypond = "0.4.0"
-band-songbook = "0.0.25"
+band-songbook = "0.0.27"
 circles-sketch = "0.4.0"
 tempfile = "3"
 chrono = "0.4"
