@@ -1,4 +1,4 @@
-.PHONY: help start stop restart backend frontend build check test test-frontend kill-backend kill-frontend reindex refresh-and-reset
+.PHONY: help start stop restart backend frontend build check test test-frontend kill-backend kill-frontend reindex refresh-and-reset deploy-fargate-dev deploy-fargate-prod
 
 help:
 	@echo "make start           Start backend + frontend"
@@ -11,7 +11,9 @@ help:
 	@echo "make test            cargo test"
 	@echo "make test-frontend   Playwright e2e tests"
 	@echo "make reindex         Re-index songs on localhost"
-	@echo "make refresh-and-reset  Reset work branch to main (fetch, reset, force push)"
+	@echo "make deploy-fargate-dev  Deploy to Fargate dev via GitHub Actions"
+	@echo "make deploy-fargate-prod Deploy to Fargate prod via GitHub Actions"
+	@echo "make refresh-and-reset Reset work branch to main (fetch, reset, force push)"
 
 BACKEND_ENV = BUCKET=$(BUCKET) BUCKET_ROOT=$(BUCKET_ROOT) AWS_PROFILE=$(AWS_PROFILE) WRITE_PASSWORD=$(WRITE_PASSWORD) FAVICON=favicon-dev-32x32.png
 
@@ -52,6 +54,14 @@ reindex:
 
 prod-reindex:
 	curl -sk -o /dev/null -w "HTTP %{http_code}\n" -X POST -H "X-Write-Password: $(WRITE_PROD_PASSWORD)" https://move-the-line.org/api/world
+
+deploy-fargate-dev:
+	gh workflow run deploy-dev-fargate.yml --ref main
+	@echo "Deploy triggered. Run 'gh run list --workflow=deploy-dev-fargate.yml -L 1' to check status."
+
+deploy-fargate-prod:
+	gh workflow run deploy-prod-fargate.yml --ref main
+	@echo "Deploy triggered. Run 'gh run list --workflow=deploy-prod-fargate.yml -L 1' to check status."
 
 refresh-and-reset:
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
