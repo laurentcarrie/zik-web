@@ -582,7 +582,7 @@ export default function HtmlSongPage() {
   const [flash, setFlash] = useState(false)
   const [flashEnabled, setFlashEnabled] = useState(() => cookieBool('htmlSongFlash', true))
   const [showAllLyrics, setShowAllLyrics] = useState(() => cookieBool('htmlSongAllLyrics', false))
-  const [initialSoundOn] = useState(() => cookieBool('htmlSongSound', false))
+  const [initialSoundOn] = useState(false)
   const [editLyrics] = useState(() => cookieBool('htmlSongEditLyrics', false))
   const [highlight, setHighlight] = useState(true)
   const [showOffsets, setShowOffsets] = useState(false)
@@ -637,9 +637,8 @@ export default function HtmlSongPage() {
   const { bpm, running, beatNumber, setBeatNumber, connected, soundOn, sessionSong, sessionBar, toggleSound, toggleRunning, changeBpm, sendSong, sendBar, resetToBarStart, visualLeadMs, setVisualLeadMs, audioOffsetMs, setAudioOffsetMs, muteRef, setRunning: setClickSyncRunning, stopScheduler, setNoScheduler, getElapsedSeconds, playClickNow } = useClickSync(sessionFromParams, songTempo, initialSoundOn)
   muteRef.current = !highlight
 
-  // Audio click track: switch to song-with-click.mp3 when metronome is on
-  const hasClicksMp3 = !!song?.mp3_with_clicks_url
-  const effectiveMp3Url = (soundOn && hasClicksMp3 ? song?.mp3_with_clicks_url : song?.mp3_url) ?? null
+  // Audio click track: always use song.mp3 (never mp3-with-clicks)
+  const effectiveMp3Url = song?.mp3_url ?? null
   const audioTrack = useAudioClickTrack(effectiveMp3Url, song?.clicks_url ?? null, { bpm })
   const hasAudioTrack = !!effectiveMp3Url && audioTrack.loaded
   const audioTrackEnabled = hasAudioTrack
@@ -659,12 +658,9 @@ export default function HtmlSongPage() {
   useEffect(() => {
     if (useAudioForBeats && audioTrack.detectedBeatNumber >= 0) {
       setBeatNumber(audioTrack.detectedBeatNumber)
-      // Skip generated beeps when ticks are baked into the MP3
-      if (!hasClicksMp3) {
-        playClickNow(audioTrack.detectedBeatNumber % 4 === 0)
-      }
+      playClickNow(audioTrack.detectedBeatNumber % 4 === 0)
     }
-  }, [useAudioForBeats, audioTrack.detectedBeatNumber, setBeatNumber, playClickNow, hasClicksMp3])
+  }, [useAudioForBeats, audioTrack.detectedBeatNumber, setBeatNumber, playClickNow])
 
   // Tell useClickSync to skip scheduler when audio track will drive beats
   useEffect(() => {
