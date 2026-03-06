@@ -11,7 +11,7 @@ pub struct SaveYmlForm {
 }
 
 pub async fn save_yml(State(state): State<AppState>, Form(form): Form<SaveYmlForm>) -> Redirect {
-    match save_song_yml(&state.s3_client, &form.key, &form.content).await {
+    match save_song_yml(&state.storage, &form.key, &form.content).await {
         Ok(_) => Redirect::to(&format!("/edit-yml?key={}", urlencoding::encode(&form.key))),
         Err(_) => Redirect::to(&format!(
             "/edit-yml?key={}&error=1",

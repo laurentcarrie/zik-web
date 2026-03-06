@@ -1,11 +1,9 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use aws_sdk_s3::Client;
-use aws_sdk_s3::primitives::ByteStream;
 use circles_sketch::model::EmbedOptions;
 
-use super::songs::{BUCKET, make_cloudfront_url, s3_key};
+use super::storage::Storage;
 
 type AnimResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -95,7 +93,7 @@ fn contour_of_animation_enum(
 }
 
 pub async fn write_animation_embed_to_s3(
-    client: &Client,
+    storage: &Storage,
     band: &str,
     animations: &Animations,
     index: usize,
@@ -160,16 +158,15 @@ pub async fn write_animation_embed_to_s3(
     let mut hasher = DefaultHasher::new();
     html.hash(&mut hasher);
     let hash = hasher.finish();
-    let key = s3_key(&format!("delivery/animation-embed-{index}-{hash:x}.html"));
-    client
-        .put_object()
-        .bucket(BUCKET.as_str())
-        .key(&key)
-        .body(ByteStream::from(html.into_bytes()))
-        .content_type("text/html")
-        .cache_control("no-cache, no-store, must-revalidate")
-        .send()
+    let key = storage.full_key(&format!("delivery/animation-embed-{index}-{hash:x}.html"));
+    storage
+        .put_bytes_with_cache_control(
+            &key,
+            html.into_bytes(),
+            Some("text/html"),
+            "no-cache, no-store, must-revalidate",
+        )
         .await?;
 
-    Ok(make_cloudfront_url(&key))
+    Ok(storage.content_url(&key))
 }
