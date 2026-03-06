@@ -912,6 +912,7 @@ export default function HtmlSongPage() {
       <div className={`fixed z-50 flex items-center justify-center ${bannerVertical ? 'top-0 left-0 bottom-0 flex-col gap-1.5 py-2 px-1.5' : 'top-0 left-0 right-0 flex-wrap gap-1.5 sm:gap-3 py-1.5 sm:py-2 px-2 sm:px-4'} ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'} ${bannerVertical ? (darkMode ? 'border-r border-gray-700' : 'border-r border-gray-200') : (darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200')}`}>
         <span className={`text-sm font-mono font-bold tabular-nums ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
           {currentBar}
+          {running && <span className={`font-thin text-xs ml-1 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{(() => { const s = Math.max(0, Math.floor(audioTrack.timeOfBar(currentBar))); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()}</span>}
         </span>
         <Tip side={tipSide} text={t('htmlSong.tipDecreaseTempo')}>
           <button
@@ -1167,16 +1168,16 @@ export default function HtmlSongPage() {
             >
               {t('nav.next')} &rarr;
             </button>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               data-testid="btn-reload"
               onClick={reloadSong}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
               title="Reload song"
             >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" /></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" /></svg>
             </button>
-          </div>
-          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 const match = document.cookie.match(/(^| )animationEnabled=([^;]+)/)
