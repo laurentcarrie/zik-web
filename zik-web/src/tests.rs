@@ -1,7 +1,6 @@
-use super::song::{BUCKET, get_all_songs, make_deezer_url, s3_key, write_all_songs_to_s3};
+use super::song::{Storage, get_all_songs, make_deezer_url, write_all_songs_to_s3};
 use super::*;
 use aws_config::Region;
-use aws_sdk_s3::primitives::ByteStream;
 
 const TEST_WORLD_YML: &str = r#"items:
 - - Alannah Myles/Black Velvet/song.yml
@@ -37,42 +36,46 @@ const TEST_WORLD_YML: &str = r#"items:
     structure: []
 "#;
 
-async fn setup_test_data(client: &Client) {
-    let key = s3_key("songs/world.yml");
-    client
-        .put_object()
-        .bucket(BUCKET.as_str())
-        .key(&key)
-        .body(ByteStream::from(TEST_WORLD_YML.as_bytes().to_vec()))
-        .content_type("text/yaml")
-        .send()
-        .await
-        .expect("Failed to upload test world.yml");
-}
-
-async fn teardown_test_data(client: &Client) {
-    let key = s3_key("songs/world.yml");
-    let _ = client
-        .delete_object()
-        .bucket(BUCKET.as_str())
-        .key(&key)
-        .send()
-        .await;
-}
-
-#[tokio::test]
-async fn test_get_all_songs() {
+async fn test_storage() -> Storage {
+    let bucket = std::env::var("BUCKET").expect("BUCKET env var must be set for tests");
+    let root = std::env::var("BUCKET_ROOT").expect("BUCKET_ROOT env var must be set for tests");
     let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
         .region(Region::new("eu-west-3"))
         .load()
         .await;
     let client = Client::new(&config);
+    Storage::S3 {
+        client,
+        bucket,
+        root,
+    }
+}
 
-    setup_test_data(&client).await;
+async fn setup_test_data(storage: &Storage) {
+    let key = storage.full_key("songs/world.yml");
+    storage
+        .put_string(&key, TEST_WORLD_YML, Some("text/yaml"))
+        .await
+        .expect("Failed to upload test world.yml");
+}
 
-    let result = get_all_songs(&client).await;
+async fn teardown_test_data(storage: &Storage) {
+    // For S3 mode, delete the test file. For local mode, just remove the file.
+    if let Storage::S3 { client, bucket, .. } = storage {
+        let key = storage.full_key("songs/world.yml");
+        let _ = client.delete_object().bucket(bucket).key(&key).send().await;
+    }
+}
 
-    teardown_test_data(&client).await;
+#[tokio::test]
+async fn test_get_all_songs() {
+    let storage = test_storage().await;
+
+    setup_test_data(&storage).await;
+
+    let result = get_all_songs(&storage).await;
+
+    teardown_test_data(&storage).await;
 
     let songs = result.expect("Failed to get songs");
 
@@ -100,13 +103,9 @@ async fn test_get_all_songs() {
 #[tokio::test]
 #[ignore] // Legacy: all-songs.yml replaced by world.yml
 async fn test_write_all_songs_to_s3() {
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-        .region(Region::new("eu-west-3"))
-        .load()
-        .await;
-    let client = Client::new(&config);
+    let storage = test_storage().await;
 
-    write_all_songs_to_s3(&client)
+    write_all_songs_to_s3(&storage)
         .await
         .expect("Failed to write songs to S3");
 }

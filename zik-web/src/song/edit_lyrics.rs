@@ -19,14 +19,9 @@ pub async fn edit_lyrics(
     State(state): State<AppState>,
     Query(query): Query<LyricsQuery>,
 ) -> Html<String> {
-    let content = get_lyrics(
-        &state.s3_client,
-        &query.author,
-        &query.title,
-        &query.section,
-    )
-    .await
-    .unwrap_or_default();
+    let content = get_lyrics(&state.storage, &query.author, &query.title, &query.section)
+        .await
+        .unwrap_or_default();
 
     Html(format!(
         r#"<!DOCTYPE html>
@@ -155,7 +150,7 @@ pub async fn save_lyrics_handler(
     Form(form): Form<SaveLyricsForm>,
 ) -> Redirect {
     let _ = save_lyrics(
-        &state.s3_client,
+        &state.storage,
         &form.author,
         &form.title,
         &form.section,

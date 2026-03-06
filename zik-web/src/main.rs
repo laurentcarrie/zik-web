@@ -21,11 +21,11 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
-    Animations, SongItem, drum_pattern_to_html, edit_lyrics, get_all_songs, get_lyrics_by_key,
-    get_song_pdf, get_song_yml, lilypond_to_html, load_animations, make_cloudfront_url,
-    make_deezer_app_url, make_deezer_url, read_from_s3, save_animations, save_lyrics_by_key,
-    save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_tempo_html_to_s3,
-    write_to_s3,
+    Animations, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
+    get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, load_animations,
+    make_deezer_app_url, make_deezer_url, read_data, save_animations, save_lyrics_by_key,
+    save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_data,
+    write_tempo_html_to_s3,
 };
 
 #[derive(Clone)]
@@ -36,7 +36,7 @@ use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct AppState {
-    s3_client: Client,
+    storage: Storage,
     logs_client: CloudWatchLogsClient,
     lambda_client: LambdaClient,
     ses_client: SesClient,
@@ -56,22 +56,46 @@ async fn main() {
         .region(Region::new("eu-west-3"))
         .load()
         .await;
-    let s3_client = Client::new(&config);
     let logs_client = CloudWatchLogsClient::new(&config);
     let lambda_client = LambdaClient::new(&config);
     let ses_client = SesClient::new(&config);
 
-    let bucket = &*song::BUCKET;
-    let root = &*song::BUCKET_ROOT;
-    let srcdir_prefix =
-        std::env::var("SRCDIR_PREFIX").unwrap_or_else(|_| format!("s3://{bucket}/{root}"));
-    let delivery =
-        std::env::var("DELIVERY").unwrap_or_else(|_| format!("s3://{bucket}/{root}/delivery"));
-    let settings = std::env::var("SETTINGS")
-        .unwrap_or_else(|_| format!("s3://{bucket}/{root}/songs/settings.yml"));
+    let (storage, srcdir_prefix, delivery, settings) =
+        if let Ok(local_dir) = std::env::var("LOCAL_DIR") {
+            let root = std::path::PathBuf::from(&local_dir);
+            println!("Using local filesystem storage: {local_dir}");
+            (
+                Storage::Local { root },
+                local_dir.clone(),
+                format!("{local_dir}/delivery"),
+                format!("{local_dir}/songs/settings.yml"),
+            )
+        } else {
+            let s3_client = Client::new(&config);
+            let bucket =
+                std::env::var("BUCKET").expect("BUCKET env var must be set (or use LOCAL_DIR)");
+            let root = std::env::var("BUCKET_ROOT")
+                .expect("BUCKET_ROOT env var must be set (or use LOCAL_DIR)");
+            let srcdir_prefix =
+                std::env::var("SRCDIR_PREFIX").unwrap_or_else(|_| format!("s3://{bucket}/{root}"));
+            let delivery_val = std::env::var("DELIVERY")
+                .unwrap_or_else(|_| format!("s3://{bucket}/{root}/delivery"));
+            let settings_val = std::env::var("SETTINGS")
+                .unwrap_or_else(|_| format!("s3://{bucket}/{root}/songs/settings.yml"));
+            (
+                Storage::S3 {
+                    client: s3_client,
+                    bucket,
+                    root,
+                },
+                srcdir_prefix,
+                delivery_val,
+                settings_val,
+            )
+        };
 
     let state = AppState {
-        s3_client,
+        storage,
         logs_client,
         lambda_client,
         ses_client,
@@ -250,7 +274,7 @@ async fn api_songs(
     State(state): State<AppState>,
     Extension(BandName(band)): Extension<BandName>,
 ) -> Response {
-    match get_all_songs(&state.s3_client).await {
+    match get_all_songs(&state.storage).await {
         Ok(items) => {
             let tag_filter = band_tag(&band);
             let api_songs: Vec<ApiSong> = items
@@ -291,7 +315,7 @@ async fn api_song(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiSongDetail>, StatusCode> {
-    let items = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -325,38 +349,28 @@ async fn api_song(
     let pdf_name = song_info.file_stem_of_song();
 
     // Check main PDF
-    let pdf_key = song::s3_key(&format!("delivery/pdf/{pdf_name}.pdf"));
-    let pdf_url = match state
-        .s3_client
-        .head_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&pdf_key)
-        .send()
-        .await
-    {
-        Ok(_) => Some(format!("/api/pdf/{id}")),
-        Err(_) => None,
+    let pdf_key = state
+        .storage
+        .full_key(&format!("delivery/pdf/{pdf_name}.pdf"));
+    let pdf_url = if state.storage.exists(&pdf_key).await.unwrap_or(false) {
+        Some(format!("/api/pdf/{id}"))
+    } else {
+        None
     };
 
     // Check lyrics PDF
-    let lyrics_key = song::s3_key(&format!(
+    let lyrics_key = state.storage.full_key(&format!(
         "delivery/pdf-lyrics-1-column/{pdf_name}-lyrics.pdf"
     ));
-    let pdf_lyrics_url = match state
-        .s3_client
-        .head_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&lyrics_key)
-        .send()
-        .await
-    {
-        Ok(_) => Some(format!("/api/pdf-lyrics/{id}")),
-        Err(_) => None,
+    let pdf_lyrics_url = if state.storage.exists(&lyrics_key).await.unwrap_or(false) {
+        Some(format!("/api/pdf-lyrics/{id}"))
+    } else {
+        None
     };
 
-    // Generate tempo HTML and upload to S3
+    // Generate tempo HTML and upload
     let tempo_url = if error.is_none() && tempo > 0 {
-        write_tempo_html_to_s3(&state.s3_client, &author, &title, tempo)
+        write_tempo_html_to_s3(&state.storage, &author, &title, tempo)
             .await
             .ok()
     } else {
@@ -365,38 +379,35 @@ async fn api_song(
 
     // Check for song.mp3 and clicks.yml in song directory
     let song_dir = key.trim_end_matches("/song.yml");
-    let mp3_url = match state
-        .s3_client
-        .head_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&format!("{song_dir}/song.mp3"))
-        .send()
+    let mp3_url = if state
+        .storage
+        .exists(&format!("{song_dir}/song.mp3"))
         .await
+        .unwrap_or(false)
     {
-        Ok(_) => Some(format!("/api/mp3/{id}")),
-        Err(_) => None,
+        Some(format!("/api/mp3/{id}"))
+    } else {
+        None
     };
-    let mp3_with_clicks_url = match state
-        .s3_client
-        .head_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&format!("{song_dir}/song-with-click.mp3"))
-        .send()
+    let mp3_with_clicks_url = if state
+        .storage
+        .exists(&format!("{song_dir}/song-with-click.mp3"))
         .await
+        .unwrap_or(false)
     {
-        Ok(_) => Some(format!("/api/mp3-with-clicks/{id}")),
-        Err(_) => None,
+        Some(format!("/api/mp3-with-clicks/{id}"))
+    } else {
+        None
     };
-    let clicks_url = match state
-        .s3_client
-        .head_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&format!("{song_dir}/clicks.yml"))
-        .send()
+    let clicks_url = if state
+        .storage
+        .exists(&format!("{song_dir}/clicks.yml"))
         .await
+        .unwrap_or(false)
     {
-        Ok(_) => Some(format!("/api/clicks/{id}")),
-        Err(_) => None,
+        Some(format!("/api/clicks/{id}"))
+    } else {
+        None
     };
 
     Ok(Json(ApiSongDetail {
@@ -426,7 +437,7 @@ async fn api_song_yml(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiSongYml>, StatusCode> {
-    let items = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -435,7 +446,7 @@ async fn api_song_yml(
         .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let content = get_song_yml(&state.s3_client, &s.key)
+    let content = get_song_yml(&state.storage, &s.key)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -611,7 +622,7 @@ async fn api_song_structure(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ParsedSongStructure>, StatusCode> {
-    let items = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -620,7 +631,7 @@ async fn api_song_structure(
         .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let content = get_song_yml(&state.s3_client, &s.key)
+    let content = get_song_yml(&state.storage, &s.key)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -730,7 +741,7 @@ async fn api_save_song_yml(
         ));
     }
 
-    let items = get_all_songs(&state.s3_client).await.map_err(|_| {
+    let items = get_all_songs(&state.storage).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
@@ -746,7 +757,7 @@ async fn api_save_song_yml(
         }),
     ))?;
 
-    save_song_yml(&state.s3_client, &s.key, &body.content)
+    save_song_yml(&state.storage, &s.key, &body.content)
         .await
         .map_err(|_| {
             (
@@ -769,7 +780,7 @@ async fn api_lyrics(
     State(state): State<AppState>,
     Path((id, section_id)): Path<(String, String)>,
 ) -> Result<Json<ApiLyrics>, StatusCode> {
-    let items = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -778,7 +789,7 @@ async fn api_lyrics(
         .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let content = get_lyrics_by_key(&state.s3_client, &s.key, &section_id)
+    let content = get_lyrics_by_key(&state.storage, &s.key, &section_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -795,7 +806,7 @@ async fn api_save_lyrics(
     Path((id, section_id)): Path<(String, String)>,
     Json(body): Json<SaveLyricsBody>,
 ) -> Result<StatusCode, StatusCode> {
-    let items = get_all_songs(&state.s3_client)
+    let items = get_all_songs(&state.storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -804,7 +815,7 @@ async fn api_save_lyrics(
         .find(|s| s.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    save_lyrics_by_key(&state.s3_client, &s.key, &section_id, &body.content)
+    save_lyrics_by_key(&state.storage, &s.key, &section_id, &body.content)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -812,7 +823,7 @@ async fn api_save_lyrics(
 }
 
 async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let items = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.storage).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
@@ -824,7 +835,7 @@ async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Respo
         None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
     };
 
-    match get_song_pdf(&state.s3_client, &s.author, &s.title).await {
+    match get_song_pdf(&state.storage, &s.author, &s.title).await {
         Ok(pdf_bytes) => {
             let filename = format!("{} - {}.pdf", s.author, s.title);
             (
@@ -845,7 +856,7 @@ async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Respo
 }
 
 async fn api_mp3(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let items = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.storage).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
@@ -860,35 +871,19 @@ async fn api_mp3(State(state): State<AppState>, Path(id): Path<String>) -> Respo
     let song_dir = s.key.trim_end_matches("/song.yml");
     let mp3_key = format!("{song_dir}/song.mp3");
 
-    match state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&mp3_key)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            let bytes = match resp.body.collect().await {
-                Ok(b) => b.into_bytes(),
-                Err(_) => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read MP3")
-                        .into_response();
-                }
-            };
-            (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, "audio/mpeg")],
-                bytes.to_vec(),
-            )
-                .into_response()
-        }
+    match state.storage.get_bytes(&mp3_key).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "audio/mpeg")],
+            bytes,
+        )
+            .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, format!("MP3 not found: {e}")).into_response(),
     }
 }
 
 async fn api_mp3_with_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let items = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.storage).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
@@ -903,35 +898,19 @@ async fn api_mp3_with_clicks(State(state): State<AppState>, Path(id): Path<Strin
     let song_dir = s.key.trim_end_matches("/song.yml");
     let mp3_key = format!("{song_dir}/song-with-click.mp3");
 
-    match state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&mp3_key)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            let bytes = match resp.body.collect().await {
-                Ok(b) => b.into_bytes(),
-                Err(_) => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read MP3")
-                        .into_response();
-                }
-            };
-            (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, "audio/mpeg")],
-                bytes.to_vec(),
-            )
-                .into_response()
-        }
+    match state.storage.get_bytes(&mp3_key).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "audio/mpeg")],
+            bytes,
+        )
+            .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, format!("MP3 not found: {e}")).into_response(),
     }
 }
 
 async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let items = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.storage).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
@@ -946,27 +925,8 @@ async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Re
     let song_dir = s.key.trim_end_matches("/song.yml");
     let clicks_key = format!("{song_dir}/clicks.yml");
 
-    match state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&clicks_key)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            let bytes = match resp.body.collect().await {
-                Ok(b) => b.into_bytes(),
-                Err(_) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Failed to read clicks.yml",
-                    )
-                        .into_response();
-                }
-            };
-            // Parse YAML with ticks field and return as JSON array
-            let content = String::from_utf8_lossy(&bytes);
+    match state.storage.get_string(&clicks_key).await {
+        Ok(content) => {
             match serde_yaml::from_str::<band_songbook::model::ClicksDefinition>(&content) {
                 Ok(data) => Json(data.ticks).into_response(),
                 Err(e) => {
@@ -988,7 +948,7 @@ async fn api_pdf_lyrics(
     Path(id): Path<String>,
     Query(query): Query<PdfLyricsQuery>,
 ) -> Response {
-    let items = match get_all_songs(&state.s3_client).await {
+    let items = match get_all_songs(&state.storage).await {
         Ok(s) => s,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
@@ -1013,24 +973,12 @@ async fn api_pdf_lyrics(
         Some("2") => "pdf-lyrics-2-column",
         _ => "pdf-lyrics-1-column",
     };
-    let key = song::s3_key(&format!("delivery/{folder}/{pdf_name}-lyrics.pdf"));
+    let key = state
+        .storage
+        .full_key(&format!("delivery/{folder}/{pdf_name}-lyrics.pdf"));
 
-    match state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&key)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            let bytes = match resp.body.collect().await {
-                Ok(b) => b.into_bytes().to_vec(),
-                Err(_) => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read PDF")
-                        .into_response();
-                }
-            };
+    match state.storage.get_bytes(&key).await {
+        Ok(bytes) => {
             let filename = format!("{} - {} (Lyrics).pdf", s.author, s.title);
             (
                 StatusCode::OK,
@@ -1064,47 +1012,25 @@ fn press_book_videos_path() -> String {
 async fn api_press_book_photos(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    let mut photos = Vec::new();
-    let mut continuation_token: Option<String> = None;
-    let prefix = song::s3_key(&press_book_photos_path());
+    let prefix = state.storage.full_key(&press_book_photos_path());
+    let keys = state
+        .storage
+        .list_keys(&prefix)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    loop {
-        let mut request = state
-            .s3_client
-            .list_objects_v2()
-            .bucket(song::BUCKET.as_str())
-            .prefix(&prefix);
-
-        if let Some(token) = continuation_token {
-            request = request.continuation_token(token);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        for object in response.contents() {
-            if let Some(key) = object.key() {
-                // Only include image files
-                let lower_key = key.to_lowercase();
-                if lower_key.ends_with(".jpg")
-                    || lower_key.ends_with(".jpeg")
-                    || lower_key.ends_with(".png")
-                    || lower_key.ends_with(".gif")
-                    || lower_key.ends_with(".webp")
-                {
-                    photos.push(make_cloudfront_url(key));
-                }
-            }
-        }
-
-        if response.is_truncated() == Some(true) {
-            continuation_token = response.next_continuation_token().map(|s| s.to_string());
-        } else {
-            break;
-        }
-    }
+    let mut photos: Vec<String> = keys
+        .iter()
+        .filter(|k| {
+            let lower = k.to_lowercase();
+            lower.ends_with(".jpg")
+                || lower.ends_with(".jpeg")
+                || lower.ends_with(".png")
+                || lower.ends_with(".gif")
+                || lower.ends_with(".webp")
+        })
+        .map(|k| state.storage.content_url(k))
+        .collect();
 
     photos.sort();
     Ok(Json(photos))
@@ -1112,36 +1038,24 @@ async fn api_press_book_photos(
 
 async fn api_press_book_photo(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book photos folder
-    let photos_prefix = song::s3_key(&press_book_photos_path());
+    let photos_prefix = state.storage.full_key(&press_book_photos_path());
     if !key.starts_with(&photos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
-    match state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&key)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            let content_type = resp
-                .content_type()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "image/jpeg".to_string());
-
-            match resp.body.collect().await {
-                Ok(bytes) => (
-                    StatusCode::OK,
-                    [(header::CONTENT_TYPE, content_type)],
-                    bytes.into_bytes().to_vec(),
-                )
-                    .into_response(),
-                Err(_) => {
-                    (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read image").into_response()
-                }
-            }
+    match state.storage.get_bytes(&key).await {
+        Ok(bytes) => {
+            let content_type = if key.to_lowercase().ends_with(".png") {
+                "image/png"
+            } else {
+                "image/jpeg"
+            };
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, content_type)],
+                bytes,
+            )
+                .into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "Photo not found").into_response(),
     }
@@ -1150,47 +1064,24 @@ async fn api_press_book_photo(State(state): State<AppState>, Path(key): Path<Str
 async fn api_press_book_videos(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    let mut videos = Vec::new();
-    let mut continuation_token: Option<String> = None;
+    let prefix = state.storage.full_key(&press_book_videos_path());
+    let keys = state
+        .storage
+        .list_keys(&prefix)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let prefix = song::s3_key(&press_book_videos_path());
-
-    loop {
-        let mut request = state
-            .s3_client
-            .list_objects_v2()
-            .bucket(song::BUCKET.as_str())
-            .prefix(&prefix);
-
-        if let Some(token) = continuation_token {
-            request = request.continuation_token(token);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        for object in response.contents() {
-            if let Some(key) = object.key() {
-                // Only include video files
-                let lower_key = key.to_lowercase();
-                if lower_key.ends_with(".mp4")
-                    || lower_key.ends_with(".mov")
-                    || lower_key.ends_with(".webm")
-                    || lower_key.ends_with(".avi")
-                {
-                    videos.push(make_cloudfront_url(key));
-                }
-            }
-        }
-
-        if response.is_truncated() == Some(true) {
-            continuation_token = response.next_continuation_token().map(|s| s.to_string());
-        } else {
-            break;
-        }
-    }
+    let mut videos: Vec<String> = keys
+        .iter()
+        .filter(|k| {
+            let lower = k.to_lowercase();
+            lower.ends_with(".mp4")
+                || lower.ends_with(".mov")
+                || lower.ends_with(".webm")
+                || lower.ends_with(".avi")
+        })
+        .map(|k| state.storage.content_url(k))
+        .collect();
 
     videos.sort();
     Ok(Json(videos))
@@ -1198,37 +1089,13 @@ async fn api_press_book_videos(
 
 async fn api_press_book_video(State(state): State<AppState>, Path(key): Path<String>) -> Response {
     // Validate the key is within the press-book videos folder
-    let videos_prefix = song::s3_key(&press_book_videos_path());
+    let videos_prefix = state.storage.full_key(&press_book_videos_path());
     if !key.starts_with(&videos_prefix) {
         return (StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
-    match state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&key)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            let content_type = resp
-                .content_type()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "video/mp4".to_string());
-
-            match resp.body.collect().await {
-                Ok(bytes) => (
-                    StatusCode::OK,
-                    [(header::CONTENT_TYPE, content_type)],
-                    bytes.into_bytes().to_vec(),
-                )
-                    .into_response(),
-                Err(_) => {
-                    (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read video").into_response()
-                }
-            }
-        }
+    match state.storage.get_bytes(&key).await {
+        Ok(bytes) => (StatusCode::OK, [(header::CONTENT_TYPE, "video/mp4")], bytes).into_response(),
         Err(_) => (StatusCode::NOT_FOUND, "Video not found").into_response(),
     }
 }
@@ -1269,8 +1136,8 @@ async fn api_read_from_s3(
     State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> Result<Json<ReadS3Response>, StatusCode> {
-    println!("read from s3 {key:?}");
-    let data = read_from_s3(&state.s3_client, &key)
+    println!("read from storage {key:?}");
+    let data = read_data(&state.storage, &key)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -1280,27 +1147,12 @@ async fn api_read_from_s3(
 async fn api_make_report(
     State(state): State<AppState>,
 ) -> Result<Json<MakeReportResponse>, StatusCode> {
-    let key = song::s3_key("sandbox/make-report.yml");
-    let resp = state
-        .s3_client
-        .get_object()
-        .bucket(song::BUCKET.as_str())
-        .key(&key)
-        .send()
+    let key = state.storage.full_key("sandbox/make-report.yml");
+    let (bytes, last_modified) = state
+        .storage
+        .get_bytes_with_last_modified(&key)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let last_modified = resp.last_modified().map(|dt| {
-        dt.fmt(aws_sdk_s3::primitives::DateTimeFormat::DateTime)
-            .unwrap_or_default()
-    });
-
-    let bytes = resp
-        .body
-        .collect()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .into_bytes();
 
     let report: MakeReportYml =
         serde_yaml::from_slice(&bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -1455,7 +1307,7 @@ async fn api_write_to_s3(
     Path(key): Path<String>,
     Json(body): Json<WriteS3Body>,
 ) -> Result<StatusCode, StatusCode> {
-    write_to_s3(&state.s3_client, &key, &body.data)
+    write_data(&state.storage, &key, &body.data)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1515,7 +1367,7 @@ async fn api_guitar_embed(
         load_animations(&band).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let names: Vec<&str> = animations.items.iter().map(|a| a.name.as_str()).collect();
     let count = animations.items.len();
-    let url = write_animation_embed_to_s3(&state.s3_client, &band, &animations, index)
+    let url = write_animation_embed_to_s3(&state.storage, &band, &animations, index)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(
@@ -1657,12 +1509,29 @@ async fn api_make(
     State(state): State<AppState>,
     Json(req): Json<MakeRequest>,
 ) -> Result<Json<MakeResponse>, (StatusCode, Json<MakeResponse>)> {
+    if state.storage.is_local() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(MakeResponse {
+                success: false,
+                message: "Build not available in local mode".to_string(),
+                report: None,
+            }),
+        ));
+    }
+
+    // Extract bucket/root from Storage::S3
+    let (bucket, root) = match &state.storage {
+        Storage::S3 { bucket, root, .. } => (bucket.clone(), root.clone()),
+        _ => unreachable!(),
+    };
+
     // Extract directory from song path (e.g., "songs/author/title/song.yml" -> "songs/author/title")
     let dir = req.path.trim_end_matches("/song.yml");
 
     // Build S3 URLs for srcdir and sandbox
-    let srcdir = format!("s3://{}/{}", &*song::BUCKET, dir);
-    let sandbox = format!("s3://{}/{}/sandbox", &*song::BUCKET, &*song::BUCKET_ROOT);
+    let srcdir = format!("s3://{bucket}/{dir}");
+    let sandbox = format!("s3://{bucket}/{root}/sandbox");
 
     // Create a temporary local sandbox directory
     let local_sandbox = tempfile::tempdir().map_err(|e| {
@@ -1689,9 +1558,9 @@ async fn api_make(
     )
     .await;
 
-    // Try to read the make-report.yml from S3
-    let report_key = song::s3_key("sandbox/make-report.yml");
-    let report = read_from_s3(&state.s3_client, &report_key).await.ok();
+    // Try to read the make-report.yml
+    let report_key = state.storage.full_key("sandbox/make-report.yml");
+    let report = read_data(&state.storage, &report_key).await.ok();
 
     match result {
         Ok((success, _graph)) => {
@@ -1788,6 +1657,16 @@ async fn api_invoke_build(
     State(state): State<AppState>,
     Json(body): Json<InvokeBuildRequest>,
 ) -> Result<Json<InvokeBuildResponse>, (StatusCode, Json<InvokeBuildResponse>)> {
+    if state.storage.is_local() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(InvokeBuildResponse {
+                success: false,
+                message: "Lambda builds not available in local mode".to_string(),
+            }),
+        ));
+    }
+
     use aws_sdk_lambda::primitives::Blob;
 
     // song_key is like "songs/author/title/song.yml", extract the directory
@@ -1855,44 +1734,56 @@ struct WorldResponse {
 async fn api_world(
     State(state): State<AppState>,
 ) -> Result<Json<WorldResponse>, (StatusCode, Json<WorldResponse>)> {
-    use band_songbook::storage::{StoragePath, download_to_local};
+    let songs_dir = if state.storage.is_local() {
+        // Local mode: songs are already on disk
+        let Storage::Local { ref root } = state.storage else {
+            unreachable!()
+        };
+        root.join("songs")
+    } else {
+        // S3 mode: download songs to temp directory
+        use band_songbook::storage::{StoragePath, download_to_local};
 
-    let srcdir = format!("{}/songs", state.srcdir_prefix);
-    let srcdir_path = StoragePath::parse(&srcdir).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(WorldResponse {
-                success: false,
-                message: format!("Invalid srcdir: {e}"),
-            }),
-        )
-    })?;
-
-    // Download songs from S3 to a temp directory
-    let temp_dir = tempfile::tempdir().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(WorldResponse {
-                success: false,
-                message: format!("Failed to create temp directory: {e}"),
-            }),
-        )
-    })?;
-
-    download_to_local(&srcdir_path, temp_dir.path())
-        .await
-        .map_err(|e| {
+        let srcdir = format!("{}/songs", state.srcdir_prefix);
+        let srcdir_path = StoragePath::parse(&srcdir).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(WorldResponse {
                     success: false,
-                    message: format!("Failed to download songs: {e}"),
+                    message: format!("Invalid srcdir: {e}"),
                 }),
             )
         })?;
 
-    // Call world_of_srcdir on the local temp directory
-    let world = band_songbook::world_of_srcdir(temp_dir.path());
+        let temp_dir = tempfile::tempdir().map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(WorldResponse {
+                    success: false,
+                    message: format!("Failed to create temp directory: {e}"),
+                }),
+            )
+        })?;
+
+        download_to_local(&srcdir_path, temp_dir.path())
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(WorldResponse {
+                        success: false,
+                        message: format!("Failed to download songs: {e}"),
+                    }),
+                )
+            })?;
+
+        // Leak the tempdir so it doesn't get cleaned up before world_of_srcdir finishes
+        let path = temp_dir.path().to_path_buf();
+        std::mem::forget(temp_dir);
+        path
+    };
+
+    let world = band_songbook::world_of_srcdir(&songs_dir);
 
     // Serialize to YAML
     let yaml_content = serde_yaml::to_string(&world).map_err(|e| {
@@ -1905,22 +1796,19 @@ async fn api_world(
         )
     })?;
 
-    // Write world.yml to S3
-    write_to_s3(
-        &state.s3_client,
-        &song::s3_key("songs/world.yml"),
-        &yaml_content,
-    )
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(WorldResponse {
-                success: false,
-                message: format!("Failed to write world.yml: {e}"),
-            }),
-        )
-    })?;
+    // Write world.yml
+    let world_key = state.storage.full_key("songs/world.yml");
+    write_data(&state.storage, &world_key, &yaml_content)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(WorldResponse {
+                    success: false,
+                    message: format!("Failed to write world.yml: {e}"),
+                }),
+            )
+        })?;
 
     Ok(Json(WorldResponse {
         success: true,
@@ -1935,7 +1823,7 @@ struct PdfQuery {
 }
 
 async fn serve_pdf(State(state): State<AppState>, Query(query): Query<PdfQuery>) -> Response {
-    match get_song_pdf(&state.s3_client, &query.author, &query.title).await {
+    match get_song_pdf(&state.storage, &query.author, &query.title).await {
         Ok(pdf_bytes) => {
             let filename = format!("{} - {}.pdf", query.author, query.title);
             (

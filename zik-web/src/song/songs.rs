@@ -1,21 +1,9 @@
-use aws_sdk_s3::Client;
-use aws_sdk_s3::primitives::ByteStream;
 use band_songbook::model::{SongInfo, World, WorldItem};
-use std::sync::LazyLock;
 use uuid::Uuid;
 
+use super::storage::Storage;
 use super::{SongEntry, SongYml};
 
-pub static BUCKET: LazyLock<String> =
-    LazyLock::new(|| std::env::var("BUCKET").expect("BUCKET env var must be set"));
-pub static BUCKET_ROOT: LazyLock<String> =
-    LazyLock::new(|| std::env::var("BUCKET_ROOT").expect("BUCKET_ROOT env var must be set"));
-pub const CLOUDFRONT_URL: &str = "https://dtuq2blkj3udo.cloudfront.net";
-
-/// Prefix an S3 key with the BUCKET_ROOT, e.g. "songs/world.yml" -> "prod/songs/world.yml"
-pub fn s3_key(key: &str) -> String {
-    format!("{}/{}", &*BUCKET_ROOT, key)
-}
 pub struct SongItem {
     pub id: String,
     pub title: String,
@@ -29,23 +17,22 @@ pub struct SongItem {
 }
 
 pub async fn get_all_songs(
-    client: &Client,
+    storage: &Storage,
 ) -> Result<Vec<SongItem>, Box<dyn std::error::Error + Send + Sync>> {
-    let resp = client
-        .get_object()
-        .bucket(BUCKET.as_str())
-        .key(s3_key("songs/world.yml"))
-        .send()
-        .await
-        .map_err(|e| {
-            if e.to_string().contains("NoSuchKey") {
-                format!("{} not found in S3 bucket '{}'. Run 'Re-index' from the Settings page to generate it.", s3_key("songs/world.yml"), &*BUCKET).into()
-            } else {
-                Box::new(e) as Box<dyn std::error::Error + Send + Sync>
-            }
-        })?;
+    let world_key = storage.full_key("songs/world.yml");
+    let bytes = storage.get_bytes(&world_key).await.map_err(|e| {
+        let debug_str = format!("{e:?}");
+        if debug_str.contains("NoSuchKey") || e.to_string().contains("No such file") {
+            format!(
+                "{} not found. Run 'Re-index' from the Settings page to generate it.",
+                world_key
+            )
+            .into()
+        } else {
+            e
+        }
+    })?;
 
-    let bytes = resp.body.collect().await?.into_bytes();
     let world: World = serde_yaml::from_slice(&bytes)?;
 
     let mut items = Vec::new();
@@ -54,7 +41,7 @@ pub async fn get_all_songs(
         let path_str = rel_path.display().to_string();
         let dir = path_str.trim_end_matches("/song.yml");
         let id = dir.replace('/', "--");
-        let key = s3_key(&format!("songs/{path_str}"));
+        let key = storage.full_key(&format!("songs/{path_str}"));
 
         match item {
             WorldItem::Song(song) => {
@@ -97,111 +84,62 @@ pub async fn get_all_songs(
 }
 
 pub async fn write_all_songs_to_s3(
-    client: &Client,
+    storage: &Storage,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut songs = Vec::new();
-    let mut continuation_token: Option<String> = None;
+    let songs_prefix = storage.full_key("songs/");
     println!("run write_all_songs_to_s3");
 
-    loop {
-        let songs_prefix = s3_key("songs/");
-        let mut request = client
-            .list_objects_v2()
-            .bucket(BUCKET.as_str())
-            .prefix(&songs_prefix);
-
-        if let Some(token) = continuation_token {
-            request = request.continuation_token(token);
-        }
-
-        let response = request.send().await?;
-
-        for object in response.contents() {
-            if let Some(key) = object.key()
-                && key.ends_with("/song.yml")
-            {
-                println!("found song");
-
-                match client
-                    .get_object()
-                    .bucket(BUCKET.as_str())
-                    .key(key)
-                    .send()
-                    .await
-                {
-                    Ok(resp) => {
-                        let bytes = resp.body.collect().await?.into_bytes();
-                        if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
-                            songs.push(SongEntry {
-                                id: Uuid::new_v4().to_string(),
-                                title: song_yml.info.title.clone(),
-                                author: song_yml.info.author.clone(),
-                                key: key.to_string(),
-                                deezer_url: make_deezer_url(
-                                    &song_yml.info.title,
-                                    &song_yml.info.author,
-                                ),
-                            });
-                        } else {
-                            println!("problem with {key}");
-                            return Err(format!("could not load song.yml with key {key}").into());
-                        }
+    let keys = storage.list_keys(&songs_prefix).await?;
+    for key in &keys {
+        if key.ends_with("/song.yml") {
+            println!("found song");
+            match storage.get_bytes(key).await {
+                Ok(bytes) => {
+                    if let Ok(song_yml) = serde_yaml::from_slice::<SongYml>(&bytes) {
+                        songs.push(SongEntry {
+                            id: Uuid::new_v4().to_string(),
+                            title: song_yml.info.title.clone(),
+                            author: song_yml.info.author.clone(),
+                            key: key.to_string(),
+                            deezer_url: make_deezer_url(
+                                &song_yml.info.title,
+                                &song_yml.info.author,
+                            ),
+                        });
+                    } else {
+                        println!("problem with {key}");
+                        return Err(format!("could not load song.yml with key {key}").into());
                     }
-                    Err(e) => return Err(e.into()),
                 }
+                Err(e) => return Err(e),
             }
         }
-        println!("nb songs : {}", &songs.len());
-        if response.is_truncated() == Some(true) {
-            continuation_token = response.next_continuation_token().map(|s| s.to_string());
-        } else {
-            break;
-        }
     }
+    println!("nb songs : {}", &songs.len());
 
     let yaml = serde_yaml::to_string(&songs)?;
-    client
-        .put_object()
-        .bucket(BUCKET.as_str())
-        .key(s3_key("all-songs.yml"))
-        .body(ByteStream::from(yaml.into_bytes()))
-        .content_type("text/yaml")
-        .send()
+    let all_songs_key = storage.full_key("all-songs.yml");
+    storage
+        .put_string(&all_songs_key, &yaml, Some("text/yaml"))
         .await?;
 
     Ok(())
 }
 
 pub async fn get_song_yml(
-    client: &Client,
+    storage: &Storage,
     key: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let resp = client
-        .get_object()
-        .bucket(BUCKET.as_str())
-        .key(key)
-        .send()
-        .await?;
-
-    let bytes = resp.body.collect().await?.into_bytes();
-    Ok(String::from_utf8(bytes.to_vec())?)
+    storage.get_string(key).await
 }
 
 pub async fn save_song_yml(
-    client: &Client,
+    storage: &Storage,
     key: &str,
     content: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    client
-        .put_object()
-        .bucket(BUCKET.as_str())
-        .key(key)
-        .body(ByteStream::from(content.as_bytes().to_vec()))
-        .content_type("text/yaml")
-        .send()
-        .await?;
-
-    Ok(())
+    storage.put_string(key, content, Some("text/yaml")).await
 }
 
 pub fn make_deezer_url(title: &str, author: &str) -> String {
@@ -218,12 +156,8 @@ pub fn make_deezer_app_url(title: &str, author: &str) -> String {
     )
 }
 
-pub fn make_cloudfront_url(key: &str) -> String {
-    format!("{CLOUDFRONT_URL}/{key}")
-}
-
 pub async fn get_song_pdf(
-    client: &Client,
+    storage: &Storage,
     author: &str,
     title: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
@@ -235,45 +169,21 @@ pub async fn get_song_pdf(
         tags: vec![],
     };
     let pdf_name = song_info.file_stem_of_song();
-    let key = s3_key(&format!("delivery/pdf/{pdf_name}.pdf"));
-    let resp = client
-        .get_object()
-        .bucket(BUCKET.as_str())
-        .key(&key)
-        .send()
-        .await?;
-
-    let bytes = resp.body.collect().await?.into_bytes();
-    Ok(bytes.to_vec())
+    let key = storage.full_key(&format!("delivery/pdf/{pdf_name}.pdf"));
+    storage.get_bytes(&key).await
 }
 
-pub async fn write_to_s3(
-    client: &Client,
+pub async fn write_data(
+    storage: &Storage,
     key: &str,
     data: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    client
-        .put_object()
-        .bucket(BUCKET.as_str())
-        .key(key)
-        .body(ByteStream::from(data.as_bytes().to_vec()))
-        .send()
-        .await?;
-
-    Ok(())
+    storage.put_string(key, data, None).await
 }
 
-pub async fn read_from_s3(
-    client: &Client,
+pub async fn read_data(
+    storage: &Storage,
     key: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let resp = client
-        .get_object()
-        .bucket(BUCKET.as_str())
-        .key(key)
-        .send()
-        .await?;
-
-    let bytes = resp.body.collect().await?.into_bytes();
-    Ok(String::from_utf8(bytes.to_vec())?)
+    storage.get_string(key).await
 }
