@@ -740,9 +740,9 @@ dependencies = [
 
 [[package]]
 name = "band-songbook"
-version = "0.0.27"
+version = "0.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86737de58824022a6f3d4fcbba32fd008116c0c180bcb311af740beb406168eb"
+checksum = "8ed87e645007a35e51bd45883ed58ae7772f069147e9401c7ccf5b896ae49b0a"
 dependencies = [
  "argh",
  "aws-config",

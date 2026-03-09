@@ -21,6 +21,7 @@ interface AudioClickTrackResult {
   seek: (time: number) => void
   setVolume: (v: number) => void
   timeOfBar: (bar: number) => number
+  reload: () => void
 }
 
 export function useAudioClickTrack(
@@ -39,6 +40,7 @@ export function useAudioClickTrack(
   const [volume, setVolumeState] = useState(1)
   const [hasClicks, setHasClicks] = useState(false)
   const [detectedBeatNumber, setDetectedBeatNumber] = useState(-1)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const audioCtxRef = useRef<AudioContext | null>(null)
   const bufferRef = useRef<AudioBuffer | null>(null)
@@ -50,7 +52,6 @@ export function useAudioClickTrack(
   const pollRef = useRef<number | null>(null)
   const volumeRef = useRef(1)
   const timeUpdateRef = useRef<number | null>(null)
-  const prevUrlRef = useRef<string | null>(null)
 
   // Click timestamps (absolute, in seconds)
   const clickTimesRef = useRef<number[]>([])
@@ -68,11 +69,8 @@ export function useAudioClickTrack(
       setLoaded(false)
       setLoading(false)
       setError(null)
-      prevUrlRef.current = null
       return
     }
-    if (mp3Url === prevUrlRef.current) return
-    prevUrlRef.current = mp3Url
 
     setLoading(true)
     setLoaded(false)
@@ -92,9 +90,13 @@ export function useAudioClickTrack(
     const clicksPromise = clicksUrl
       ? fetch(`${API_BASE}${clicksUrl}`)
           .then(res => {
-            if (!res.ok) throw new Error(`Clicks: HTTP ${res.status}`)
+            if (!res.ok) {
+              setError(`clicks.yml: HTTP ${res.status}`)
+              return [] as number[]
+            }
             return res.json() as Promise<number[]>
           })
+          .catch(() => [] as number[])
       : Promise.resolve([] as number[])
 
     Promise.all([mp3Promise, clicksPromise])
@@ -119,7 +121,7 @@ export function useAudioClickTrack(
         setError(err.message || 'Failed to load audio')
         setLoading(false)
       })
-  }, [mp3Url, clicksUrl])
+  }, [mp3Url, clicksUrl, reloadKey])
 
   // Clean up on URL change or unmount
   useEffect(() => {
@@ -287,6 +289,26 @@ export function useAudioClickTrack(
     }
   }, [])
 
+  /** Force re-fetch of MP3 + clicks (e.g. after editing clicks.yml). */
+  const reload = useCallback(() => {
+    // Stop playback
+    if (sourceRef.current) {
+      try { sourceRef.current.stop() } catch { /* ignore */ }
+      sourceRef.current = null
+    }
+    playingRef.current = false
+    setPlaying(false)
+    stopTracking()
+    if (timeUpdateRef.current) clearInterval(timeUpdateRef.current)
+    offsetRef.current = 0
+    beatCountRef.current = 0
+    nextClickIdxRef.current = 0
+    setDetectedBeatNumber(-1)
+    setCurrentTime(0)
+    // Bump reloadKey to trigger the load effect
+    setReloadKey(k => k + 1)
+  }, [stopTracking])
+
   /** Start time (seconds) of a 1-based bar, using clicks if available. */
   const timeOfBar = useCallback((bar: number) => {
     const clicks = clickTimesRef.current
@@ -313,5 +335,6 @@ export function useAudioClickTrack(
     seek,
     setVolume,
     timeOfBar,
+    reload,
   }
 }
