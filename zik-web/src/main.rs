@@ -258,8 +258,18 @@ struct ApiSongDetail {
     mp3_with_clicks_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     clicks_url: Option<String>,
+    has_song: bool,
+    has_clicks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bar_times: Option<Vec<BarTimeEntry>>,
+}
+
+#[derive(Serialize, Clone)]
+struct BarTimeEntry {
+    bar: i32,
+    time: f64,
 }
 
 fn band_tag(band: &str) -> Option<&str> {
@@ -331,8 +341,8 @@ async fn api_song(
         key,
         tempo,
         tags: _,
-        has_song: _,
-        has_clicks: _,
+        has_song,
+        has_clicks,
         error,
     } = s;
     let deezer_url = make_deezer_url(&title, &author);
@@ -399,15 +409,41 @@ async fn api_song(
     } else {
         None
     };
-    let clicks_url = if state
+    let clicks_key = state
         .storage
-        .exists(&format!("{song_dir}/clicks.yml"))
-        .await
-        .unwrap_or(false)
-    {
+        .full_key(&format!("delivery/clicks/{pdf_name}-clicks.yml"));
+    let clicks_url = if state.storage.exists(&clicks_key).await.unwrap_or(false) {
         Some(format!("/api/clicks/{id}"))
     } else {
         None
+    };
+
+    // Try to read clicks-def.yml from song directory for bar→time mapping
+    let clicks_def_key = format!("{song_dir}/clicks-def.yml");
+    let bar_times = match state.storage.get_string(&clicks_def_key).await {
+        Ok(content) => {
+            if let Ok(def) =
+                serde_yaml::from_str::<band_songbook::model::ClicksDefinition>(&content)
+            {
+                let entries: Vec<BarTimeEntry> = def
+                    .clicks
+                    .iter()
+                    .filter(|click| click.beat_in_bar_number == 1)
+                    .map(|click| BarTimeEntry {
+                        bar: click.bar_number as i32,
+                        time: click.time,
+                    })
+                    .collect();
+                if entries.is_empty() {
+                    None
+                } else {
+                    Some(entries)
+                }
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
     };
 
     Ok(Json(ApiSongDetail {
@@ -424,7 +460,10 @@ async fn api_song(
         mp3_url,
         mp3_with_clicks_url,
         clicks_url,
+        has_song,
+        has_clicks,
         error,
+        bar_times,
     }))
 }
 
@@ -922,20 +961,62 @@ async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Re
         None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
     };
 
-    let song_dir = s.key.trim_end_matches("/song.yml");
-    let clicks_key = format!("{song_dir}/clicks.yml");
+    let song_info = band_songbook::model::SongInfo {
+        title: s.title,
+        author: s.author,
+        tempo: 0,
+        time_signature: None,
+        tags: vec![],
+    };
+    let pdf_name = song_info.file_stem_of_song();
+    let clicks_key = state
+        .storage
+        .full_key(&format!("delivery/clicks/{pdf_name}-clicks.yml"));
 
     match state.storage.get_string(&clicks_key).await {
         Ok(content) => {
-            match serde_yaml::from_str::<band_songbook::model::ClicksDefinition>(&content) {
-                Ok(data) => Json(data.ticks).into_response(),
-                Err(e) => {
-                    (StatusCode::BAD_REQUEST, format!("Invalid clicks.yml: {e}")).into_response()
-                }
+            // Try new format (ClicksDefinition with Click structs) first,
+            // then fall back to old format (Clicks with plain f64 list)
+            if let Ok(def) =
+                serde_yaml::from_str::<band_songbook::model::ClicksDefinition>(&content)
+            {
+                let times: Vec<f64> = interpolate_clicks(&def);
+                Json(times).into_response()
+            } else if let Ok(data) = serde_yaml::from_str::<band_songbook::model::Clicks>(&content)
+            {
+                Json(data.clicks).into_response()
+            } else {
+                (StatusCode::BAD_REQUEST, "Invalid clicks.yml format").into_response()
             }
         }
         Err(e) => (StatusCode::NOT_FOUND, format!("clicks.yml not found: {e}")).into_response(),
     }
+}
+
+/// Compute the absolute beat index (0-based) for a Click, assuming 4 beats per bar.
+fn absolute_beat(click: &band_songbook::model::Click) -> u32 {
+    (click.bar_number - 1) * 4 + (click.beat_in_bar_number - 1)
+}
+
+fn interpolate_clicks(def: &band_songbook::model::ClicksDefinition) -> Vec<f64> {
+    if def.clicks.is_empty() {
+        return vec![];
+    }
+    if def.clicks.len() == 1 {
+        return vec![def.clicks[0].time];
+    }
+    let mut result = Vec::new();
+    for window in def.clicks.windows(2) {
+        let from = &window[0];
+        let to = &window[1];
+        let n_beats = absolute_beat(to) - absolute_beat(from);
+        for i in 0..n_beats {
+            let t = from.time + (to.time - from.time) * (i as f64) / (n_beats as f64);
+            result.push(t);
+        }
+    }
+    result.push(def.clicks.last().unwrap().time);
+    result
 }
 
 #[derive(Deserialize)]
