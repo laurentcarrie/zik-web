@@ -11,20 +11,20 @@ import { API_BASE } from '../config'
 
 async function fetchClicks(songKey: string): Promise<{ data: string }> {
   const dir = songKey.substring(0, songKey.lastIndexOf('/'))
-  const s3Key = `${dir}/clicks.yml`
+  const s3Key = `${dir}/clicks-def.yml`
   const res = await fetch(`${API_BASE}/api/s3/${s3Key}`)
   if (!res.ok) {
     if (res.status === 404) {
       return { data: '' }
     }
-    throw new Error('Failed to fetch clicks.yml')
+    throw new Error('Failed to fetch clicks-def.yml')
   }
   return res.json()
 }
 
 async function saveClicks(songKey: string, data: string): Promise<void> {
   const dir = songKey.substring(0, songKey.lastIndexOf('/'))
-  const s3Key = `${dir}/clicks.yml`
+  const s3Key = `${dir}/clicks-def.yml`
   const password = getStoredPassword()
   const headers: HeadersInit = { 'Content-Type': 'application/json' }
   if (password) {
@@ -39,7 +39,7 @@ async function saveClicks(songKey: string, data: string): Promise<void> {
     if (res.status === 401) {
       throw new Error('Unauthorized')
     }
-    throw new Error('Failed to save clicks.yml')
+    throw new Error('Failed to save clicks-def.yml')
   }
 }
 
@@ -150,7 +150,7 @@ export default function EditClicksPage() {
         </button>
 
         <h1 className="font-[Fontskrivan] font-black text-2xl md:text-3xl text-[#2563eb] mb-1">
-          Edit clicks.yml
+          Edit clicks-def.yml
         </h1>
         <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-2">
           {song.title} - {song.author}

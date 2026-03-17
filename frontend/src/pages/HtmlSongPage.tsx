@@ -662,11 +662,27 @@ export default function HtmlSongPage() {
   }, [barTimes, audioTrack])
 
   const reloadSong = useCallback(() => {
+    // Stop playback
+    if (running) {
+      stopScheduler()
+      setClickSyncRunning(false)
+    }
+    // Reset bar to start of current section
+    const bar = Math.floor(beatNumber / 4) + barOffset
+    const currentSection = sections.find(s => s.rows.some(r => {
+      const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
+      return r.bar_number > 0 && bar >= r.bar_number && bar < r.bar_number + total
+    }))
+    if (currentSection && currentSection.rows.length > 0) {
+      const firstBar = currentSection.rows[0].bar_number
+      setBarOffset(firstBar > 1 ? firstBar - 2 : 0)
+      setBeatNumber(0)
+    }
     queryClient.invalidateQueries({ queryKey: ['song', id] })
     queryClient.invalidateQueries({ queryKey: ['songStructure', id] })
     queryClient.invalidateQueries({ queryKey: ['lyricsHtml', id] })
     audioTrack.reload()
-  }, [queryClient, id, audioTrack])
+  }, [queryClient, id, audioTrack, beatNumber, barOffset, sections, setBarOffset, setBeatNumber, running, stopScheduler, setClickSyncRunning])
 
   // Audio-aware seek to bar
   const seekToBar = useCallback((barNumber: number) => {

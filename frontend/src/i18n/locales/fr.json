@@ -25,6 +25,8 @@
   "buttons": {
     "pdf": "PDF",
     "lyrics": "Paroles",
+    "lyrics1Col": "Paroles 1col",
+    "lyrics2Col": "Paroles 2col",
     "web": "Web",
     "app": "App",
     "edit": "Éditer",
