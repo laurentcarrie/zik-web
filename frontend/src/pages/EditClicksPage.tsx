@@ -9,22 +9,29 @@ import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
 import { API_BASE } from '../config'
 
-async function fetchClicks(songKey: string): Promise<{ data: string }> {
+async function fetchClicks(songKey: string, hasClicks: boolean): Promise<{ data: string }> {
   const dir = songKey.substring(0, songKey.lastIndexOf('/'))
-  const s3Key = `${dir}/clicks.yml`
+  const s3Key = `${dir}/clicks-def.yml`
   const res = await fetch(`${API_BASE}/api/s3/${s3Key}`)
   if (!res.ok) {
     if (res.status === 404) {
+      if (hasClicks) {
+        throw new Error('clicks-def.yml not found but has_clicks is true — file may be missing from S3')
+      }
       return { data: '' }
     }
-    throw new Error('Failed to fetch clicks.yml')
+    throw new Error('Failed to fetch clicks-def.yml')
   }
-  return res.json()
+  const json = await res.json()
+  if (hasClicks && !json.data?.trim()) {
+    throw new Error('clicks-def.yml is empty but has_clicks is true')
+  }
+  return json
 }
 
 async function saveClicks(songKey: string, data: string): Promise<void> {
   const dir = songKey.substring(0, songKey.lastIndexOf('/'))
-  const s3Key = `${dir}/clicks.yml`
+  const s3Key = `${dir}/clicks-def.yml`
   const password = getStoredPassword()
   const headers: HeadersInit = { 'Content-Type': 'application/json' }
   if (password) {
@@ -39,7 +46,7 @@ async function saveClicks(songKey: string, data: string): Promise<void> {
     if (res.status === 401) {
       throw new Error('Unauthorized')
     }
-    throw new Error('Failed to save clicks.yml')
+    throw new Error('Failed to save clicks-def.yml')
   }
 }
 
@@ -59,9 +66,9 @@ export default function EditClicksPage() {
     enabled: !!id,
   })
 
-  const { data: clicksData, isLoading: clicksLoading } = useQuery({
+  const { data: clicksData, isLoading: clicksLoading, error: clicksError } = useQuery({
     queryKey: ['clicks', id],
-    queryFn: () => fetchClicks(song!.key),
+    queryFn: () => fetchClicks(song!.key, song!.has_clicks),
     enabled: !!song?.key,
   })
 
@@ -139,6 +146,22 @@ export default function EditClicksPage() {
     )
   }
 
+  if (clicksError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-red-400">{(clicksError as Error).message}</p>
+          <button
+            onClick={handleClose}
+            className="inline-block mt-4 text-[#667eea] hover:underline"
+          >
+            &larr; Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto bg-gray-900/95 rounded-2xl p-4 md:p-8 shadow-2xl">
@@ -150,7 +173,7 @@ export default function EditClicksPage() {
         </button>
 
         <h1 className="font-[Fontskrivan] font-black text-2xl md:text-3xl text-[#2563eb] mb-1">
-          Edit clicks.yml
+          Edit clicks-def.yml
         </h1>
         <p className="font-[Fontskrivan] font-black text-xl md:text-2xl text-[#ea580c] mb-2">
           {song.title} - {song.author}

@@ -662,11 +662,27 @@ export default function HtmlSongPage() {
   }, [barTimes, audioTrack])
 
   const reloadSong = useCallback(() => {
+    // Stop playback
+    if (running) {
+      stopScheduler()
+      setClickSyncRunning(false)
+    }
+    // Reset bar to start of current section
+    const bar = Math.floor(beatNumber / 4) + barOffset
+    const currentSection = sections.find(s => s.rows.some(r => {
+      const total = r.bars.length * (r.repeat > 1 ? r.repeat : 1)
+      return r.bar_number > 0 && bar >= r.bar_number && bar < r.bar_number + total
+    }))
+    if (currentSection && currentSection.rows.length > 0) {
+      const firstBar = currentSection.rows[0].bar_number
+      setBarOffset(firstBar > 1 ? firstBar - 2 : 0)
+      setBeatNumber(0)
+    }
     queryClient.invalidateQueries({ queryKey: ['song', id] })
     queryClient.invalidateQueries({ queryKey: ['songStructure', id] })
     queryClient.invalidateQueries({ queryKey: ['lyricsHtml', id] })
     audioTrack.reload()
-  }, [queryClient, id, audioTrack])
+  }, [queryClient, id, audioTrack, beatNumber, barOffset, sections, setBarOffset, setBeatNumber, running, stopScheduler, setClickSyncRunning])
 
   // Audio-aware seek to bar
   const seekToBar = useCallback((barNumber: number) => {
@@ -928,7 +944,7 @@ export default function HtmlSongPage() {
     <div className={`min-h-screen p-4 md:p-8 relative ${bannerVertical ? 'ml-12' : ''}`}>
       <div className={`fixed z-50 flex items-center justify-center ${bannerVertical ? 'top-0 left-0 bottom-0 flex-col gap-1.5 py-2 px-1.5' : 'top-0 left-0 right-0 flex-wrap gap-1.5 sm:gap-3 py-1.5 sm:py-2 px-2 sm:px-4'} ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'} ${bannerVertical ? (darkMode ? 'border-r border-gray-700' : 'border-r border-gray-200') : (darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200')}`}>
         <span className={`text-sm font-mono font-bold tabular-nums ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-          {currentBar}
+          <span data-testid="bar-counter">{currentBar}</span>
           {running && <span className={`font-thin text-xs ml-1 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{(() => { const s = Math.max(0, Math.floor(timeOfBar(currentBar))); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()}</span>}
         </span>
         <button

@@ -46,7 +46,7 @@ test('loop with audio track replays section range (un monde nouveau)', async ({ 
   await expect(page.getByTestId('btn-play-stop')).toHaveClass(/bg-red-600/)
 
   // Wait for bar counter to reach the "final" section area (bar >= 85)
-  const barDisplay = page.locator('.font-mono.font-bold.tabular-nums').first()
+  const barDisplay = page.getByTestId('bar-counter')
   await expect(barDisplay).toHaveText(/^(8[5-9]|9[0-2])$/, { timeout: 60000 })
 
   // Now wait for loop: bar should go back to ~68 (pre-roll before interlude)
@@ -97,7 +97,7 @@ test('clicking section title seeks audio to correct position (un monde nouveau)'
   await expect(page.getByTestId('btn-play-stop')).toHaveClass(/bg-red-600/)
 
   // Bar counter should show 68 or 69
-  const barDisplay = page.locator('.font-mono.font-bold.tabular-nums').first()
+  const barDisplay = page.getByTestId('bar-counter')
   await expect(barDisplay).toHaveText(/^(6[89]|70)$/, { timeout: 5000 })
 
   // Wait for progress bar to appear and stabilize

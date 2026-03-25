@@ -468,17 +468,26 @@ export default function SongDetailPage() {
             <PdfIcon className="w-5 h-5" /> {t('buttons.pdf')}
           </ActionButton>
 
-          {(settings.lyricsMode ?? '1-column') !== 'none' && (
+          <div className="grid grid-cols-2 gap-1">
             <ActionButton
-              href={song.pdf_lyrics_url ? `${song.pdf_lyrics_url}?columns=${(settings.lyricsMode ?? '1-column') === '2-columns' ? '2' : '1'}` : undefined}
+              href={song.pdf_lyrics_url ? `${song.pdf_lyrics_url}?columns=1` : undefined}
               variant="pdf"
               target="_blank"
               disabled={!song.pdf_lyrics_url}
               title={!song.pdf_lyrics_url ? t('song.lyricsMissing') : undefined}
             >
-              <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics')}
+              <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics1Col')}
             </ActionButton>
-          )}
+            <ActionButton
+              href={song.pdf_lyrics_url ? `${song.pdf_lyrics_url}?columns=2` : undefined}
+              variant="pdf"
+              target="_blank"
+              disabled={!song.pdf_lyrics_url}
+              title={!song.pdf_lyrics_url ? t('song.lyricsMissing') : undefined}
+            >
+              <PdfIcon className="w-5 h-5" /> {t('buttons.lyrics2Col')}
+            </ActionButton>
+          </div>
 
           <ActionButton
             href={`/edit-yml/${song.id}`}
