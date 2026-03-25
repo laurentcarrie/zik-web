@@ -88,7 +88,7 @@ test('clicking play starts the metronome and activates first section', async ({ 
   await expect(playBtn).toHaveClass(/bg-red-600/)
 
   // Bar counter advances beyond 0
-  const barDisplay = page.locator('.font-mono.font-bold.tabular-nums').first()
+  const barDisplay = page.getByTestId('bar-counter')
   await expect(barDisplay).not.toHaveText('0', { timeout: 5000 })
 
   // First section (Intro) becomes active — title grows to text-4xl
@@ -138,7 +138,7 @@ test('loop mode replays section range after reaching the end', async ({ page }) 
   await expect(page.getByTestId('btn-play-stop')).toHaveClass(/bg-red-600/)
 
   // Wait for bar to reach Chorus (bar 3)
-  const barDisplay = page.locator('.font-mono.font-bold.tabular-nums').first()
+  const barDisplay = page.getByTestId('bar-counter')
   await expect(barDisplay).toHaveText('3', { timeout: 10000 })
 
   // If loop works, bar should go back to 1 (start of Verse range) while still running.

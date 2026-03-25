@@ -944,7 +944,7 @@ export default function HtmlSongPage() {
     <div className={`min-h-screen p-4 md:p-8 relative ${bannerVertical ? 'ml-12' : ''}`}>
       <div className={`fixed z-50 flex items-center justify-center ${bannerVertical ? 'top-0 left-0 bottom-0 flex-col gap-1.5 py-2 px-1.5' : 'top-0 left-0 right-0 flex-wrap gap-1.5 sm:gap-3 py-1.5 sm:py-2 px-2 sm:px-4'} ${darkMode ? 'bg-gray-900/95' : 'bg-white/95'} ${bannerVertical ? (darkMode ? 'border-r border-gray-700' : 'border-r border-gray-200') : (darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200')}`}>
         <span className={`text-sm font-mono font-bold tabular-nums ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-          {currentBar}
+          <span data-testid="bar-counter">{currentBar}</span>
           {running && <span className={`font-thin text-xs ml-1 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{(() => { const s = Math.max(0, Math.floor(timeOfBar(currentBar))); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()}</span>}
         </span>
         <button

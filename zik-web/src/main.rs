@@ -1217,9 +1217,8 @@ async fn api_read_from_s3(
     State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> Result<Json<ReadS3Response>, StatusCode> {
-    let full_key = state.storage.full_key(&key);
-    println!("read from storage {full_key:?}");
-    let data = read_data(&state.storage, &full_key)
+    println!("read from storage {key:?}");
+    let data = read_data(&state.storage, &key)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -1389,8 +1388,7 @@ async fn api_write_to_s3(
     Path(key): Path<String>,
     Json(body): Json<WriteS3Body>,
 ) -> Result<StatusCode, StatusCode> {
-    let full_key = state.storage.full_key(&key);
-    write_data(&state.storage, &full_key, &body.data)
+    write_data(&state.storage, &key, &body.data)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

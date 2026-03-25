@@ -63,7 +63,7 @@ test('loop mode with audio track replays section range after reaching the end', 
   await expect(page.getByTestId('btn-play-stop')).toHaveClass(/bg-red-600/)
 
   // Wait for bar to reach Chorus (bar 3)
-  const barDisplay = page.locator('.font-mono.font-bold.tabular-nums').first()
+  const barDisplay = page.getByTestId('bar-counter')
   await expect(barDisplay).toHaveText('3', { timeout: 10000 })
 
   // If loop works: bar goes back to 1-2 (start of range) while still running.
@@ -89,7 +89,7 @@ test('clicking section title with audio track seeks audio to the correct positio
   await expect(page.getByTestId('btn-play-stop')).toHaveClass(/bg-red-600/)
 
   // Bar counter should show 2 or 3 (pre-roll bar 2, then chorus bar 3)
-  const barDisplay = page.locator('.font-mono.font-bold.tabular-nums').first()
+  const barDisplay = page.getByTestId('bar-counter')
   await expect(barDisplay).toHaveText(/^[23]$/, { timeout: 5000 })
 
   // Check progress bar: audio should be near bar 2 position (~8% of 10s),

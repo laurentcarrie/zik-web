@@ -9,17 +9,24 @@ import { useAuth, getStoredPassword } from '../context/AuthContext'
 import PasswordModal from '../components/PasswordModal'
 import { API_BASE } from '../config'
 
-async function fetchClicks(songKey: string): Promise<{ data: string }> {
+async function fetchClicks(songKey: string, hasClicks: boolean): Promise<{ data: string }> {
   const dir = songKey.substring(0, songKey.lastIndexOf('/'))
   const s3Key = `${dir}/clicks-def.yml`
   const res = await fetch(`${API_BASE}/api/s3/${s3Key}`)
   if (!res.ok) {
     if (res.status === 404) {
+      if (hasClicks) {
+        throw new Error('clicks-def.yml not found but has_clicks is true — file may be missing from S3')
+      }
       return { data: '' }
     }
     throw new Error('Failed to fetch clicks-def.yml')
   }
-  return res.json()
+  const json = await res.json()
+  if (hasClicks && !json.data?.trim()) {
+    throw new Error('clicks-def.yml is empty but has_clicks is true')
+  }
+  return json
 }
 
 async function saveClicks(songKey: string, data: string): Promise<void> {
@@ -59,9 +66,9 @@ export default function EditClicksPage() {
     enabled: !!id,
   })
 
-  const { data: clicksData, isLoading: clicksLoading } = useQuery({
+  const { data: clicksData, isLoading: clicksLoading, error: clicksError } = useQuery({
     queryKey: ['clicks', id],
-    queryFn: () => fetchClicks(song!.key),
+    queryFn: () => fetchClicks(song!.key, song!.has_clicks),
     enabled: !!song?.key,
   })
 
@@ -128,6 +135,22 @@ export default function EditClicksPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
           <p className="text-red-400">Song not found</p>
+          <button
+            onClick={handleClose}
+            className="inline-block mt-4 text-[#667eea] hover:underline"
+          >
+            &larr; Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (clicksError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-gray-900/95 rounded-2xl p-8 shadow-2xl">
+          <p className="text-red-400">{(clicksError as Error).message}</p>
           <button
             onClick={handleClose}
             className="inline-block mt-4 text-[#667eea] hover:underline"
