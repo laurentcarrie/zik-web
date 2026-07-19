@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const backendPaths = ['/api', '/static', '/pdf', '/version', '/save-yml', '/save-lyrics', '/update']
-const bands = ['/mtl', '/sunny-bd']
+const bands = ['/mtl', '/sunny-bd', '/dadrock']
 
 function buildProxy() {
   const proxy: Record<string, { target: string; changeOrigin: boolean; ws?: boolean }> = {}

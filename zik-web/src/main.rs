@@ -200,12 +200,20 @@ async fn main() {
             ServeDir::new("static/sunny-bd").fallback(ServeDir::new("static")),
         )
         .layer(Extension(BandName("sunny-bd".to_string())));
+    let dadrock = inner
+        .clone()
+        .nest_service(
+            "/static",
+            ServeDir::new("static/dadrock").fallback(ServeDir::new("static")),
+        )
+        .layer(Extension(BandName("dadrock".to_string())));
 
     let app = Router::new()
         .route("/", get(root_landing))
         .route("/root", get(band_picker))
         .nest("/mtl", mtl)
         .nest("/sunny-bd", sunny)
+        .nest("/dadrock", dadrock)
         .merge(inner.layer(Extension(BandName(String::new()))))
         .nest_service("/static", ServeDir::new("static"))
         .layer(middleware::from_fn(websocket_header_fix))
@@ -277,6 +285,7 @@ fn band_tag(band: &str) -> Option<&str> {
     match band {
         "mtl" => Some("move-the-line"),
         "sunny-bd" => Some("sunny-bd"),
+        "dadrock" => Some("dadrock"),
         _ => None,
     }
 }
@@ -1543,12 +1552,14 @@ async fn band_picker() -> impl IntoResponse {
   a:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
   .mtl { background: linear-gradient(135deg, #2563eb, #7c3aed); }
   .sunny { background: linear-gradient(135deg, #ea580c, #eab308); }
+  .dadrock { background: linear-gradient(135deg, #dc2626, #4b5563); }
 </style>
 </head>
 <body>
 <div class="buttons">
   <a class="mtl" href="/mtl">Move The Line</a>
   <a class="sunny" href="/sunny-bd">Sunny Bd</a>
+  <a class="dadrock" href="/dadrock">Dadrock</a>
 </div>
 </body>
 </html>"#,
