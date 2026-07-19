@@ -1,4 +1,4 @@
-.PHONY: help start stop restart backend frontend build check test test-frontend kill-backend kill-frontend reindex refresh-and-reset deploy-fargate-dev deploy-fargate-prod
+.PHONY: help start stop restart backend frontend build check test test-frontend kill-backend kill-frontend fonts reindex refresh-and-reset deploy-fargate-dev deploy-fargate-prod
 
 help:
 	@echo "make start           Start backend + frontend"
@@ -7,6 +7,7 @@ help:
 	@echo "make backend         Start backend on :8080"
 	@echo "make frontend        Build + start Vite dev on :3000"
 	@echo "make build-frontend  TypeScript check + Vite build"
+	@echo "make fonts           Install bundled fonts for circles-sketch text rendering"
 	@echo "make check           cargo check"
 	@echo "make test            cargo test"
 	@echo "make test-frontend   Playwright e2e tests"
@@ -24,8 +25,15 @@ stop: kill-backend kill-frontend
 
 restart: stop start
 
-backend: kill-backend
+backend: kill-backend fonts
 	cd zik-web && $(BACKEND_ENV) rtk cargo run &
+
+# Install the bundled fonts locally so circles-sketch text animations render.
+# Mirrors Dockerfile.production; user-space (no sudo), idempotent.
+fonts:
+	@mkdir -p $$HOME/.local/share/fonts
+	@cp zik-web/static/*.ttf $$HOME/.local/share/fonts/ 2>/dev/null || true
+	@fc-cache -f $$HOME/.local/share/fonts >/dev/null 2>&1 || true
 
 frontend: kill-frontend build-frontend
 	cd frontend && npx vite --port 3000 &

@@ -176,11 +176,14 @@ impl Storage {
     }
 
     /// Build a public URL for a given key.
-    /// S3: CloudFront URL. Local: served through the /api/s3/ endpoint.
+    /// S3: CloudFront URL serving the raw object. Local: served raw (with a
+    /// content-type inferred from the extension) through the /api/content/ endpoint.
+    /// Note: this must serve the file as-is (for `<img>`, `<video>`, `<iframe>` src),
+    /// unlike /api/s3/ which wraps the content in a JSON envelope for the editors.
     pub fn content_url(&self, key: &str) -> String {
         match self {
             Storage::S3 { .. } => format!("{CLOUDFRONT_URL}/{key}"),
-            Storage::Local { .. } => format!("/api/s3/{key}"),
+            Storage::Local { .. } => format!("/api/content/{key}"),
         }
     }
 

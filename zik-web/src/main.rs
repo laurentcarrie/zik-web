@@ -131,6 +131,7 @@ async fn main() {
         .route("/press-book/videos", get(api_press_book_videos))
         .route("/press-book/video/{*key}", get(api_press_book_video))
         .route("/s3/{*key}", get(api_read_from_s3))
+        .route("/content/{*key}", get(api_serve_content))
         .route("/make-report", get(api_make_report))
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
@@ -1223,6 +1224,42 @@ async fn api_read_from_s3(
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
     Ok(Json(ReadS3Response { data }))
+}
+
+/// Guess a content-type from a key's file extension for raw content serving.
+fn content_type_of_key(key: &str) -> &'static str {
+    match key.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+        Some("html") | Some("htm") => "text/html; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("css") => "text/css; charset=utf-8",
+        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
+        Some("json") => "application/json",
+        Some("txt") => "text/plain; charset=utf-8",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("png") => "image/png",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("mp4") => "video/mp4",
+        Some("mov") => "video/quicktime",
+        Some("webm") => "video/webm",
+        Some("avi") => "video/x-msvideo",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Serve a stored object raw (local-storage equivalent of the CloudFront URL).
+/// Unlike `api_read_from_s3`, this returns the bytes as-is with an inferred
+/// content-type so the result works directly as an `<img>`/`<video>`/`<iframe>` src.
+async fn api_serve_content(State(state): State<AppState>, Path(key): Path<String>) -> Response {
+    match state.storage.get_bytes(&key).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, content_type_of_key(&key))],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "Not found").into_response(),
+    }
 }
 
 async fn api_make_report(
