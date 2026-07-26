@@ -131,6 +131,7 @@ async fn main() {
         .route("/press-book/videos", get(api_press_book_videos))
         .route("/press-book/video/{*key}", get(api_press_book_video))
         .route("/s3/{*key}", get(api_read_from_s3))
+        .route("/content/{*key}", get(api_serve_content))
         .route("/make-report", get(api_make_report))
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
@@ -199,12 +200,20 @@ async fn main() {
             ServeDir::new("static/sunny-bd").fallback(ServeDir::new("static")),
         )
         .layer(Extension(BandName("sunny-bd".to_string())));
+    let dadrock = inner
+        .clone()
+        .nest_service(
+            "/static",
+            ServeDir::new("static/dadrock").fallback(ServeDir::new("static")),
+        )
+        .layer(Extension(BandName("dadrock".to_string())));
 
     let app = Router::new()
         .route("/", get(root_landing))
         .route("/root", get(band_picker))
         .nest("/mtl", mtl)
         .nest("/sunny-bd", sunny)
+        .nest("/dadrock", dadrock)
         .merge(inner.layer(Extension(BandName(String::new()))))
         .nest_service("/static", ServeDir::new("static"))
         .layer(middleware::from_fn(websocket_header_fix))
@@ -276,6 +285,7 @@ fn band_tag(band: &str) -> Option<&str> {
     match band {
         "mtl" => Some("move-the-line"),
         "sunny-bd" => Some("sunny-bd"),
+        "dadrock" => Some("dadrock"),
         _ => None,
     }
 }
@@ -1225,6 +1235,42 @@ async fn api_read_from_s3(
     Ok(Json(ReadS3Response { data }))
 }
 
+/// Guess a content-type from a key's file extension for raw content serving.
+fn content_type_of_key(key: &str) -> &'static str {
+    match key.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+        Some("html") | Some("htm") => "text/html; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("css") => "text/css; charset=utf-8",
+        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
+        Some("json") => "application/json",
+        Some("txt") => "text/plain; charset=utf-8",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("png") => "image/png",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("mp4") => "video/mp4",
+        Some("mov") => "video/quicktime",
+        Some("webm") => "video/webm",
+        Some("avi") => "video/x-msvideo",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Serve a stored object raw (local-storage equivalent of the CloudFront URL).
+/// Unlike `api_read_from_s3`, this returns the bytes as-is with an inferred
+/// content-type so the result works directly as an `<img>`/`<video>`/`<iframe>` src.
+async fn api_serve_content(State(state): State<AppState>, Path(key): Path<String>) -> Response {
+    match state.storage.get_bytes(&key).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, content_type_of_key(&key))],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "Not found").into_response(),
+    }
+}
+
 async fn api_make_report(
     State(state): State<AppState>,
 ) -> Result<Json<MakeReportResponse>, StatusCode> {
@@ -1506,12 +1552,14 @@ async fn band_picker() -> impl IntoResponse {
   a:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
   .mtl { background: linear-gradient(135deg, #2563eb, #7c3aed); }
   .sunny { background: linear-gradient(135deg, #ea580c, #eab308); }
+  .dadrock { background: linear-gradient(135deg, #dc2626, #4b5563); }
 </style>
 </head>
 <body>
 <div class="buttons">
   <a class="mtl" href="/mtl">Move The Line</a>
   <a class="sunny" href="/sunny-bd">Sunny Bd</a>
+  <a class="dadrock" href="/dadrock">Dadrock</a>
 </div>
 </body>
 </html>"#,

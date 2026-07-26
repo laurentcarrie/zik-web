@@ -50,7 +50,7 @@ export default function SongsPage() {
     queryFn: fetchSongs,
   })
 
-  const bandTags: Record<string, string> = { mtl: 'move-the-line', 'sunny-bd': 'sunny-bd' }
+  const bandTags: Record<string, string> = { mtl: 'move-the-line', 'sunny-bd': 'sunny-bd', dadrock: 'dadrock' }
   const hiddenTag = bandTags[BAND_NAME]
 
   const allTags = useMemo(() => {

@@ -25,7 +25,7 @@ for (const [name, file] of songbookFonts) {
 }
 document.body.style.background = `url(${ROUTE_PREFIX}/static/background.jpg) repeat center center fixed`
 document.body.style.backgroundSize = BAND_NAME === 'mtl' ? 'contain' : '480px'
-const bandDisplayNames: Record<string, string> = { mtl: 'Move The Line', 'sunny-bd': 'Sunny Bd' }
+const bandDisplayNames: Record<string, string> = { mtl: 'Move The Line', 'sunny-bd': 'Sunny Bd', dadrock: 'Dadrock' }
 if (bandDisplayNames[BAND_NAME]) {
   document.documentElement.style.setProperty('--band-text', `'${bandDisplayNames[BAND_NAME]}'`)
 }

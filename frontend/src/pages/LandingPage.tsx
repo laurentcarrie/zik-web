@@ -17,6 +17,12 @@ export default function LandingPage() {
           fontWeight: 600, textAlign: 'center',
           background: 'linear-gradient(135deg, #ea580c, #eab308)',
         }}>Sunny Bd</a>
+        <a href="/dadrock" style={{
+          display: 'block', padding: '1.5rem 3rem', borderRadius: 12,
+          textDecoration: 'none', color: 'white', fontSize: '1.5rem',
+          fontWeight: 600, textAlign: 'center',
+          background: 'linear-gradient(135deg, #dc2626, #4b5563)',
+        }}>Dadrock</a>
       </div>
     </div>
   )
