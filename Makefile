@@ -17,7 +17,7 @@ help:
 	@echo "make refresh-and-reset Reset work branch to main (fetch, reset, force push)"
 
 #BACKEND_ENV = BUCKET=$(BUCKET) BUCKET_ROOT=$(BUCKET_ROOT) AWS_PROFILE=$(AWS_PROFILE) WRITE_PASSWORD=$(WRITE_PASSWORD) FAVICON=favicon-dev-32x32.png
-BACKEND_ENV = LOCAL_DIR=../../songbook
+BACKEND_ENV = LOCAL_DIR=$$HOME/perso/songbook
 
 start: backend frontend
 
