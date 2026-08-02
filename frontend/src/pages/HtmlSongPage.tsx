@@ -667,6 +667,9 @@ export default function HtmlSongPage() {
       stopScheduler()
       setClickSyncRunning(false)
     }
+    if (audioTrack.playing) {
+      audioTrack.stop()
+    }
     // Reset bar to start of current section
     const bar = Math.floor(beatNumber / 4) + barOffset
     const currentSection = sections.find(s => s.rows.some(r => {
@@ -819,6 +822,19 @@ export default function HtmlSongPage() {
       }
     }
   }, [audioTrackEnabled, hasAudioTrack, audioTrack, toggleRunning, setClickSyncRunning, stopScheduler, sessionFromParams, sections, rangeStart, seekToBar, running, jumpToSection])
+
+  // Spacebar → play/stop
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.code !== 'Space') return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+      e.preventDefault()
+      handleToggleRunning()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleToggleRunning])
 
   // When changing song locally (prev/next buttons): stop metronome, reset bar, push to session
   const prevIdRef = useRef(id)
@@ -1374,6 +1390,21 @@ export default function HtmlSongPage() {
               )
             })}
           </div>
+        </div>
+      )}
+      {!running && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
+        >
+          <button
+            onClick={handleToggleRunning}
+            className="pointer-events-auto w-32 h-32 rounded-full bg-green-600 hover:bg-green-500 active:bg-green-700 shadow-2xl flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Play"
+          >
+            <svg viewBox="0 0 24 24" fill="white" className="w-16 h-16 ml-2">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </button>
         </div>
       )}
     </div>

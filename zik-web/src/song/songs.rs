@@ -187,3 +187,111 @@ pub async fn read_data(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     storage.get_string(key).await
 }
+
+/// One LilyPond snippet of a song: its section name plus whichever delivered
+/// artifacts exist for it.
+pub struct SnippetItem {
+    pub name: String,
+    pub has_pdf: bool,
+    pub has_mp3: bool,
+}
+
+/// Section names of a song's LilyPond files, mirroring how band-songbook picks
+/// them: everything declared under `files.lilypond`, plus anything `body.tex`
+/// pulls in with `\songly{}` / `\lyfile{}`.
+pub fn snippet_names(song_yml: &str, body_tex: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let mut push = |n: &str| {
+        let n = n.trim().trim_end_matches(".ly").to_string();
+        if !n.is_empty() && !names.contains(&n) {
+            names.push(n);
+        }
+    };
+
+    if let Ok(song) = serde_yaml::from_str::<band_songbook::model::Song>(song_yml) {
+        for declared in &song.files.lilypond {
+            push(declared);
+        }
+    }
+
+    for macro_name in ["\\songly{", "\\lyfile{"] {
+        let mut rest = body_tex;
+        while let Some(start) = rest.find(macro_name) {
+            rest = &rest[start + macro_name.len()..];
+            match rest.find('}') {
+                Some(end) => {
+                    push(&rest[..end]);
+                    rest = &rest[end..];
+                }
+                None => break,
+            }
+        }
+    }
+
+    names
+}
+
+/// List the snippets of a song that actually have delivered artifacts.
+pub async fn get_song_snippets(
+    storage: &Storage,
+    author: &str,
+    title: &str,
+    song_key: &str,
+) -> Vec<SnippetItem> {
+    let song_dir = song_key.trim_end_matches("/song.yml");
+    let song_yml = storage.get_string(song_key).await.unwrap_or_default();
+    let body_tex = storage
+        .get_string(&format!("{song_dir}/body.tex"))
+        .await
+        .unwrap_or_default();
+
+    let song_info = SongInfo {
+        title: title.to_string(),
+        author: author.to_string(),
+        tempo: 0,
+        time_signature: None,
+        tags: vec![],
+    };
+    let stem = song_info.file_stem_of_song();
+
+    let mut snippets = Vec::new();
+    for name in snippet_names(&song_yml, &body_tex) {
+        let pdf_key = storage.full_key(&format!("delivery/pdf-snippets/{stem}-{name}.pdf"));
+        let mp3_key = storage.full_key(&format!("delivery/mp3-renders/{stem}-{name}.mp3"));
+        let has_pdf = storage.exists(&pdf_key).await.unwrap_or(false);
+        let has_mp3 = storage.exists(&mp3_key).await.unwrap_or(false);
+        if has_pdf || has_mp3 {
+            snippets.push(SnippetItem {
+                name,
+                has_pdf,
+                has_mp3,
+            });
+        }
+    }
+    snippets
+}
+
+/// Fetch one delivered snippet artifact. `ext` is `pdf` or `mp3`.
+pub async fn get_snippet_bytes(
+    storage: &Storage,
+    author: &str,
+    title: &str,
+    name: &str,
+    ext: &str,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    let song_info = SongInfo {
+        title: title.to_string(),
+        author: author.to_string(),
+        tempo: 0,
+        time_signature: None,
+        tags: vec![],
+    };
+    let stem = song_info.file_stem_of_song();
+    let dir = if ext == "pdf" {
+        "pdf-snippets"
+    } else {
+        "mp3-renders"
+    };
+    let key = storage.full_key(&format!("delivery/{dir}/{stem}-{name}.{ext}"));
+    storage.get_bytes(&key).await
+}
