@@ -490,6 +490,18 @@ export default function SongDetailPage() {
           </div>
 
           <ActionButton
+            href={`/snippets/${song.id}`}
+            variant="htmlsong"
+            disabled={!song.snippets?.length}
+            title={!song.snippets?.length ? t('snippets.none') : undefined}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+            </svg>
+            {t('buttons.snippets')}
+          </ActionButton>
+
+          <ActionButton
             href={`/edit-yml/${song.id}`}
             variant="edit"
             disabled={!isAuthenticated}

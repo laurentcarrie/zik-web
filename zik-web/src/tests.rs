@@ -146,3 +146,40 @@ fn test_make_deezer_url() {
     );
     println!("Deezer URL: {url}");
 }
+
+#[test]
+fn test_snippet_names_merges_yml_and_body() {
+    let song_yml = r#"
+files:
+  lilypond:
+    - refrain.ly
+    - chordscouplet.ly
+  tex: []
+  mp3: []
+info:
+  title: Shout
+  author: Tears For Fears
+  tempo: 96
+  time_signature: null
+meta:
+  date: "2026-08-02"
+structure: []
+"#;
+    let body_tex = r"\input{song.tikz}
+\songly{chordscouplet}
+\songly{solo}
+\lyfile{intro}
+";
+    let names = crate::song::songs::snippet_names(song_yml, body_tex);
+    // declared first, then the ones only the tex pulls in, without duplicates
+    assert_eq!(names, vec!["refrain", "chordscouplet", "solo", "intro"]);
+}
+
+#[test]
+fn test_snippet_names_tolerates_missing_sources() {
+    assert!(crate::song::songs::snippet_names("", "").is_empty());
+    assert_eq!(
+        crate::song::songs::snippet_names("not: [valid", r"\songly{riff_a}"),
+        vec!["riff_a"]
+    );
+}

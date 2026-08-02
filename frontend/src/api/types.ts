@@ -17,6 +17,12 @@ export interface BarTimeEntry {
   time: number
 }
 
+export interface Snippet {
+  name: string
+  pdf_url?: string
+  mp3_url?: string
+}
+
 export interface SongDetail extends Song {
   pdf_url?: string
   pdf_lyrics_url?: string
@@ -25,6 +31,7 @@ export interface SongDetail extends Song {
   mp3_with_clicks_url?: string
   clicks_url?: string
   bar_times?: BarTimeEntry[]
+  snippets?: Snippet[]
 }
 
 export interface SongYml {

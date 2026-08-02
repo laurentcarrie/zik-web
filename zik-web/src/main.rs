@@ -22,7 +22,8 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
     Animations, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
-    get_lyrics_by_key, get_song_pdf, get_song_yml, lilypond_to_html, load_animations,
+    get_lyrics_by_key, get_snippet_bytes, get_song_pdf, get_song_snippets, get_song_yml,
+    lilypond_to_html, load_animations,
     make_deezer_app_url, make_deezer_url, read_data, save_animations, save_lyrics_by_key,
     save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_data,
     write_tempo_html_to_s3,
@@ -123,6 +124,8 @@ async fn main() {
         .route("/song/{id}/lyrics/{section_id}", get(api_lyrics))
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
+        .route("/pdf-snippet/{id}/{name}", get(api_pdf_snippet))
+        .route("/mp3-render/{id}/{name}", get(api_mp3_render))
         .route("/mp3/{id}", get(api_mp3))
         .route("/mp3-with-clicks/{id}", get(api_mp3_with_clicks))
         .route("/clicks/{id}", get(api_clicks))
@@ -273,6 +276,18 @@ struct ApiSongDetail {
     error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bar_times: Option<Vec<BarTimeEntry>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    snippets: Vec<ApiSnippet>,
+}
+
+/// One LilyPond snippet with the URLs of whichever artifacts were delivered.
+#[derive(Serialize)]
+struct ApiSnippet {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pdf_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mp3_url: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -456,6 +471,20 @@ async fn api_song(
         Err(_) => None,
     };
 
+    let snippets: Vec<ApiSnippet> = get_song_snippets(&state.storage, &author, &title, &key)
+        .await
+        .into_iter()
+        .map(|s| ApiSnippet {
+            pdf_url: s
+                .has_pdf
+                .then(|| format!("/api/pdf-snippet/{id}/{}", s.name)),
+            mp3_url: s
+                .has_mp3
+                .then(|| format!("/api/mp3-render/{id}/{}", s.name)),
+            name: s.name,
+        })
+        .collect();
+
     Ok(Json(ApiSongDetail {
         id,
         title,
@@ -474,6 +503,7 @@ async fn api_song(
         has_clicks,
         error,
         bar_times,
+        snippets,
     }))
 }
 
@@ -869,6 +899,69 @@ async fn api_save_lyrics(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
+}
+
+/// Serve one delivered snippet artifact (`pdf-snippets/` or `mp3-renders/`).
+async fn serve_snippet(
+    state: AppState,
+    id: String,
+    name: String,
+    ext: &str,
+    content_type: &str,
+) -> Response {
+    // The name lands in an object key, so keep it to what a section id can be.
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return (StatusCode::BAD_REQUEST, "Invalid snippet name").into_response();
+    }
+
+    let items = match get_all_songs(&state.storage).await {
+        Ok(s) => s,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+
+    let s = match items.into_iter().find(|s| s.id == id) {
+        Some(s) => s,
+        None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
+    };
+
+    match get_snippet_bytes(&state.storage, &s.author, &s.title, &name, ext).await {
+        Ok(bytes) => {
+            let filename = format!("{} - {} - {name}.{ext}", s.author, s.title);
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, content_type),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        &format!("inline; filename=\"{filename}\""),
+                    ),
+                ],
+                bytes,
+            )
+                .into_response()
+        }
+        Err(e) => (StatusCode::NOT_FOUND, format!("Snippet not found: {e}")).into_response(),
+    }
+}
+
+async fn api_pdf_snippet(
+    State(state): State<AppState>,
+    Path((id, name)): Path<(String, String)>,
+) -> Response {
+    serve_snippet(state, id, name, "pdf", "application/pdf").await
+}
+
+async fn api_mp3_render(
+    State(state): State<AppState>,
+    Path((id, name)): Path<(String, String)>,
+) -> Response {
+    serve_snippet(state, id, name, "mp3", "audio/mpeg").await
 }
 
 async fn api_pdf(State(state): State<AppState>, Path(id): Path<String>) -> Response {
