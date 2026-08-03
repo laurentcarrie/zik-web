@@ -2,6 +2,11 @@ name: Deploy Prod to Fargate
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'zik-web/Cargo.toml'
 
 env:
   AWS_REGION: eu-west-3
@@ -11,7 +16,35 @@ env:
   CONTAINER_NAME: zik-web
 
 jobs:
+  # Same gate as deploy-prod.yml: a push to main only deploys when the crate
+  # version actually changed, so unrelated Cargo.toml edits are no-ops. The
+  # version tag is created by deploy-prod.yml alone -- tagging here too would
+  # fail on the second workflow to run.
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: check
+        run: |
+          CURRENT=$(grep '^version' zik-web/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          PREVIOUS=$(git show HEAD~1:zik-web/Cargo.toml | grep '^version' | head -1 | sed 's/version = "\(.*\)"/\1/' || echo "")
+          echo "Current version: $CURRENT, Previous version: $PREVIOUS"
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy-prod-fargate:
+    needs: check-version
+    if: needs.check-version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
