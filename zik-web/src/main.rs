@@ -222,8 +222,13 @@ async fn main() {
         .layer(middleware::from_fn(websocket_header_fix))
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    println!("Server running at http://0.0.0.0:8080");
+    // Port is configurable so a local run can dodge a busy 8080 (the Makefile
+    // sets BACKEND_PORT); production keeps the default the Dockerfile exposes.
+    let port = std::env::var("BACKEND_PORT").unwrap_or_else(|_| "8080".to_string());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
+        .await
+        .unwrap_or_else(|e| panic!("cannot bind 0.0.0.0:{port}: {e}"));
+    println!("Server running at http://0.0.0.0:{port}");
     axum::serve(listener, app).await.unwrap();
 }
 
