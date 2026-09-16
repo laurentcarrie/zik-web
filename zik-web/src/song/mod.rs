@@ -3,6 +3,7 @@ pub mod edit_lyrics;
 pub mod lilypond;
 pub mod lyrics;
 pub mod model;
+pub mod songbook;
 pub mod songs;
 pub mod storage;
 pub mod tempo;
