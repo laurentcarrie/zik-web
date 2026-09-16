@@ -183,3 +183,60 @@ fn test_snippet_names_tolerates_missing_sources() {
         vec!["riff_a"]
     );
 }
+
+#[test]
+fn test_book_name_of_key() {
+    use crate::song::songs::book_name_of_key;
+    assert_eq!(
+        book_name_of_key("prod/delivery/pdf/book-rock.pdf"),
+        Some("rock")
+    );
+    assert_eq!(
+        book_name_of_key("delivery/pdf/book-concert_mai_2026.pdf"),
+        Some("concert_mai_2026")
+    );
+    assert_eq!(
+        book_name_of_key("delivery/pdf/alannah_myles--@--black_velvet.pdf"),
+        None
+    );
+    assert_eq!(book_name_of_key("delivery/pdf/book-.pdf"), None);
+    assert_eq!(book_name_of_key("delivery/pdf/book-rock.tex"), None);
+}
+
+#[tokio::test]
+async fn test_get_book_names_and_pdf_local() {
+    use crate::song::songs::{get_book_names, get_book_pdf};
+    let dir = tempfile::tempdir().unwrap();
+    let pdf_dir = dir.path().join("delivery/pdf");
+    std::fs::create_dir_all(&pdf_dir).unwrap();
+    std::fs::write(pdf_dir.join("book-rock.pdf"), b"rock").unwrap();
+    std::fs::write(pdf_dir.join("book-ballads.pdf"), b"ballads").unwrap();
+    std::fs::write(pdf_dir.join("alannah_myles--@--black_velvet.pdf"), b"song").unwrap();
+    let storage = Storage::Local {
+        root: dir.path().to_path_buf(),
+    };
+
+    assert_eq!(
+        get_book_names(&storage).await.unwrap(),
+        vec!["ballads", "rock"]
+    );
+    assert_eq!(get_book_pdf(&storage, "rock").await.unwrap(), b"rock");
+    assert!(get_book_pdf(&storage, "missing").await.is_err());
+    assert!(get_book_pdf(&storage, "../secret").await.is_err());
+}
+
+#[tokio::test]
+async fn test_song_pdf_key_matches_delivered_pdfs() {
+    use crate::song::songs::{get_delivered_pdf_keys, song_pdf_key};
+    let dir = tempfile::tempdir().unwrap();
+    let storage = Storage::Local {
+        root: dir.path().to_path_buf(),
+    };
+    let key = song_pdf_key(&storage, "Alannah Myles", "Black Velvet");
+    std::fs::create_dir_all(dir.path().join("delivery/pdf")).unwrap();
+    std::fs::write(dir.path().join(&key), b"pdf").unwrap();
+
+    let keys = get_delivered_pdf_keys(&storage).await.unwrap();
+    assert!(keys.contains(&song_pdf_key(&storage, "Alannah Myles", "Black Velvet")));
+    assert!(!keys.contains(&song_pdf_key(&storage, "Amy Winehouse", "Rehab")));
+}

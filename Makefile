@@ -7,8 +7,8 @@ include .env
 export
 PATH := $(HOME)/.local/node/bin:$(REAL_PATH)
 
-BACKEND_PORT ?= 8080
-FRONTEND_PORT ?= 3000
+BACKEND_PORT ?= 6661
+FRONTEND_PORT ?= 6662
 
 # Wait (up to ~5s) for a port to be released, then fail loudly if it is not.
 # Used after the kill targets, since kill is asynchronous.
@@ -37,6 +37,27 @@ define wait-port-free
 		exit 1; \
 	fi; \
 	echo "port $(1) ($(2)) is free"
+endef
+
+# Wait for a backgrounded server to actually start listening, then fail loudly
+# if it never does. The start targets launch with `&`, so a process that dies
+# during startup (vite hitting an EMFILE on its file watcher, the backend
+# panicking on a bad env) otherwise leaves make reporting success with nothing
+# serving. Polls once a second and returns as soon as the port is up, so the
+# generous backend timeout only costs real time on a cold cargo build.
+# $(1) = port, $(2) = label, $(3) = timeout in seconds
+define wait-port-listening
+	@echo "waiting up to $(3)s for $(2) on port $(1)..."
+	@for i in $$(seq 1 $(3)); do \
+		[ -z "$$(ss -ltnH "sport = :$(1)" 2>/dev/null)" ] || { \
+			echo "$(2) is listening on port $(1)"; \
+			exit 0; \
+		}; \
+		sleep 1; \
+	done; \
+	echo "Error: $(2) never started listening on port $(1) ($(3)s)"; \
+	echo "       it most likely exited during startup -- scroll up for its output"; \
+	exit 1
 endef
 
 help:
@@ -74,6 +95,7 @@ restart: stop start
 
 backend: kill-backend fonts
 	cd zik-web && $(BACKEND_ENV) rtk cargo run &
+	$(call wait-port-listening,$(BACKEND_PORT),backend,300)
 
 # Install the bundled fonts locally so circles-sketch text animations render.
 # Mirrors Dockerfile.production; user-space (no sudo), idempotent.
@@ -84,6 +106,7 @@ fonts:
 
 frontend: kill-frontend build-frontend
 	cd frontend && npx vite --port $(FRONTEND_PORT) &
+	$(call wait-port-listening,$(FRONTEND_PORT),frontend,30)
 
 build-frontend:
 	cd frontend && rtk npx tsc -b

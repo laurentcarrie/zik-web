@@ -60,11 +60,15 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 
 | Endpoint | Description |
 |----------|-------------|
-| `/api/songs` | JSON list of all songs (from world.yml) |
+| `/api/songs` | JSON list of all songs (from world.yml), with `pdf_url` when the PDF is delivered |
 | `/api/song/:id` | Single song detail with PDF/tempo URLs |
 | `/api/song/:id/yml` | Song YAML source |
 | `/api/pdf/:id` | PDF file for song |
 | `/api/pdf-lyrics/:id` | Lyrics PDF file |
+| `/api/pdf-snippet/:id/:name` | PDF file for a song snippet |
+| `/pdf?author=&title=` | PDF file for song, looked up by author and title |
+| `/api/books` | JSON list of delivered books (`name`, `url`) |
+| `/api/book/:name` | PDF file for a book (`delivery/pdf/book-<name>.pdf`) |
 | `/api/invoke-build` | Trigger Lambda build (auth required) |
 | `/api/world` | Re-index songs to world.yml (auth required) |
 | `/api/guitar-embed/:index` | Generate Fourier animation embed HTML |
@@ -72,6 +76,23 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 | `/api/config` | Runtime config (favicon) |
 | `/api/lambda-status` | Lambda build status |
 | `/version` | Current version |
+
+### Fetching PDFs
+
+Song IDs have the form `author--title` (lowercase, underscores) and are listed by `/api/songs`.
+`/api/song/:id` returns `pdf_url`, `pdf_lyrics_url` and a `snippets` array with each snippet's `pdf_url`.
+
+Examples on the live site:
+
+```
+https://move-the-line.org/api/pdf/alannah_myles--black_velvet
+https://move-the-line.org/api/pdf-lyrics/alannah_myles--black_velvet
+https://move-the-line.org/api/pdf-snippet/alannah_myles--black_velvet/solo
+https://move-the-line.org/pdf?author=Alannah%20Myles&title=Black%20Velvet
+```
+
+Books are collections of songs built by band-songbook into `delivery/pdf/book-<name>.pdf`.
+`/api/books` lists them, and `/api/book/<name>` returns the PDF.
 
 ## Project Structure
 
