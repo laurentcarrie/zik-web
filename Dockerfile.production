@@ -21,7 +21,8 @@ RUN cargo build --release
 # Stage 3: Production image
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y ca-certificates fontconfig && rm -rf /var/lib/apt/lists/*
+# poppler-utils provides pdfunite, which merges song PDFs into songbooks
+RUN apt-get update && apt-get install -y ca-certificates fontconfig poppler-utils && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

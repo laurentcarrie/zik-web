@@ -5,6 +5,7 @@ use uuid::Uuid;
 use super::storage::Storage;
 use super::{SongEntry, SongYml};
 
+#[derive(Debug)]
 pub struct SongItem {
     pub id: String,
     pub title: String,

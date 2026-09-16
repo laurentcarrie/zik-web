@@ -11,7 +11,7 @@ use aws_sdk_sesv2::Client as SesClient;
 use axum::{
     Extension, Json, Router,
     extract::{Path, Query, Request, State},
-    http::{Method, StatusCode, header},
+    http::{HeaderMap, Method, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
+use song::songbook::{self, SongbookFilter, merge_pdfs, select_songs};
 use song::{
     Animations, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
     get_book_names, get_book_pdf, get_delivered_pdf_keys, get_lyrics_by_key, get_snippet_bytes,
@@ -126,6 +127,7 @@ async fn main() {
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
         .route("/pdf-snippet/{id}/{name}", get(api_pdf_snippet))
         .route("/books", get(api_books))
+        .route("/songbook", get(api_songbook))
         .route("/book/{name}", get(api_book_pdf))
         .route("/mp3-render/{id}/{name}", get(api_mp3_render))
         .route("/mp3/{id}", get(api_mp3))
@@ -175,6 +177,7 @@ async fn main() {
         .route("/update", get(update::update))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
+        .route("/llms.txt", get(llms_txt))
         .route("/edit-lyrics", get(edit_lyrics))
         .route("/save-lyrics", post(save_lyrics_handler))
         .with_state(state);
@@ -317,7 +320,9 @@ fn band_tag(band: &str) -> Option<&str> {
 async fn api_songs(
     State(state): State<AppState>,
     Extension(BandName(band)): Extension<BandName>,
+    headers: HeaderMap,
 ) -> Response {
+    let base = public_base_url(&headers);
     match get_all_songs(&state.storage).await {
         Ok(items) => {
             let pdf_keys = get_delivered_pdf_keys(&state.storage)
@@ -335,7 +340,7 @@ async fn api_songs(
                     let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
                     let pdf_url = pdf_keys
                         .contains(&song_pdf_key(&state.storage, &s.author, &s.title))
-                        .then(|| format!("/api/pdf/{}", s.id));
+                        .then(|| format!("{base}/api/pdf/{}", s.id));
                     ApiSong {
                         id: s.id,
                         title: s.title,
@@ -1206,7 +1211,11 @@ struct BookEntry {
     url: String,
 }
 
-async fn api_books(State(state): State<AppState>) -> Result<Json<Vec<BookEntry>>, StatusCode> {
+async fn api_books(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<BookEntry>>, StatusCode> {
+    let base = public_base_url(&headers);
     let names = get_book_names(&state.storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -1214,7 +1223,7 @@ async fn api_books(State(state): State<AppState>) -> Result<Json<Vec<BookEntry>>
         names
             .into_iter()
             .map(|name| BookEntry {
-                url: format!("/api/book/{name}"),
+                url: format!("{base}/api/book/{name}"),
                 name,
             })
             .collect(),
@@ -1237,6 +1246,123 @@ async fn api_book_pdf(State(state): State<AppState>, Path(name): Path<String>) -
             .into_response(),
         Err(_) => (StatusCode::NOT_FOUND, "Book not found").into_response(),
     }
+}
+
+/// Scheme and host the request came in on (`https://move-the-line.org` behind
+/// the load balancer), so URLs handed to clients work outside the site.
+fn public_base_url(headers: &HeaderMap) -> String {
+    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    let host = header(header::HOST.as_str())
+        .filter(|h| {
+            !h.is_empty()
+                && h.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
+        })
+        .unwrap_or("move-the-line.org");
+    let scheme = match header("x-forwarded-proto") {
+        Some("https") => "https",
+        Some(_) => "http",
+        None if host.starts_with("localhost") || host.starts_with("127.0.0.1") => "http",
+        None => "https",
+    };
+    format!("{scheme}://{host}")
+}
+
+/// Songs visible to the band the request is scoped to.
+fn songs_of_band(songs: Vec<SongItem>, band: &str) -> Vec<SongItem> {
+    let tag_filter = band_tag(band);
+    songs
+        .into_iter()
+        .filter(|s| tag_filter.is_none_or(|tag| s.tags.iter().any(|t| t == tag)))
+        .collect()
+}
+
+#[derive(Deserialize)]
+struct SongbookQuery {
+    ids: Option<String>,
+    author: Option<String>,
+    tag: Option<String>,
+}
+
+async fn api_songbook(
+    State(state): State<AppState>,
+    Extension(BandName(band)): Extension<BandName>,
+    Query(query): Query<SongbookQuery>,
+) -> Response {
+    let filter = SongbookFilter::from_query(
+        query.ids.as_deref(),
+        query.author.as_deref(),
+        query.tag.as_deref(),
+    );
+    let songs = match get_all_songs(&state.storage).await {
+        Ok(items) => songs_of_band(items, &band),
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+    let selected = match select_songs(&songs, &filter) {
+        Ok(selected) => selected,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+
+    // Songs whose PDF was never delivered are left out rather than failing
+    // the whole songbook.
+    let mut pdfs = Vec::with_capacity(selected.len());
+    for s in &selected {
+        if let Ok(bytes) = get_song_pdf(&state.storage, &s.author, &s.title).await {
+            pdfs.push(bytes);
+        }
+    }
+    if pdfs.is_empty() {
+        return (StatusCode::NOT_FOUND, "No PDF found for the selected songs").into_response();
+    }
+
+    match merge_pdfs(pdfs).await {
+        Ok(pdf_bytes) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "application/pdf"),
+                (
+                    header::CONTENT_DISPOSITION,
+                    &format!("inline; filename=\"songbook-{}.pdf\"", filter.slug()),
+                ),
+            ],
+            pdf_bytes,
+        )
+            .into_response(),
+        Err(e) => {
+            eprintln!("api_songbook: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to build the songbook",
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn llms_txt(
+    State(state): State<AppState>,
+    Extension(BandName(band)): Extension<BandName>,
+    headers: HeaderMap,
+) -> Response {
+    let songs = match get_all_songs(&state.storage).await {
+        Ok(items) => songs_of_band(items, &band),
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+    let pdf_keys = get_delivered_pdf_keys(&state.storage)
+        .await
+        .unwrap_or_default();
+    let books = get_book_names(&state.storage).await.unwrap_or_default();
+    let body = songbook::llms_txt(
+        &public_base_url(&headers),
+        &songs,
+        |s| pdf_keys.contains(&song_pdf_key(&state.storage, &s.author, &s.title)),
+        &books,
+    );
+    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body).into_response()
 }
 
 fn press_book_photos_path() -> String {

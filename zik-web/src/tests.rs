@@ -240,3 +240,192 @@ async fn test_song_pdf_key_matches_delivered_pdfs() {
     assert!(keys.contains(&song_pdf_key(&storage, "Alannah Myles", "Black Velvet")));
     assert!(!keys.contains(&song_pdf_key(&storage, "Amy Winehouse", "Rehab")));
 }
+
+fn songbook_song(id: &str, author: &str, title: &str, tags: &[&str]) -> crate::song::SongItem {
+    crate::song::SongItem {
+        id: id.to_string(),
+        title: title.to_string(),
+        author: author.to_string(),
+        key: String::new(),
+        tempo: 100,
+        tags: tags.iter().map(|t| t.to_string()).collect(),
+        has_song: true,
+        has_clicks: false,
+        error: None,
+    }
+}
+
+fn songbook_songs() -> Vec<crate::song::SongItem> {
+    vec![
+        songbook_song(
+            "rhcp--under",
+            "Red Hot Chili Peppers",
+            "Under The Bridge",
+            &["mtl"],
+        ),
+        songbook_song("amy--rehab", "Amy Winehouse", "Rehab", &["sunny-bd"]),
+        songbook_song(
+            "rhcp--cant",
+            "Red Hot Chili Peppers",
+            "Can't Stop",
+            &["mtl", "rock"],
+        ),
+    ]
+}
+
+#[test]
+fn test_songbook_filter_from_query() {
+    use crate::song::songbook::SongbookFilter;
+    let f = SongbookFilter::from_query(Some(" a, ,b "), Some("  "), Some("mtl"));
+    assert_eq!(f.ids, vec!["a", "b"]);
+    assert_eq!(f.author, None);
+    assert_eq!(f.tag.as_deref(), Some("mtl"));
+    assert_eq!(
+        SongbookFilter::from_query(None, Some("Red Hot Chili Peppers"), None).slug(),
+        "red-hot-chili-peppers"
+    );
+    assert_eq!(
+        SongbookFilter::from_query(Some("x"), None, None).slug(),
+        "selection"
+    );
+}
+
+#[test]
+fn test_select_songs() {
+    use crate::song::songbook::{SongbookFilter, select_songs};
+    let songs = songbook_songs();
+    let ids = |f: SongbookFilter| -> Vec<String> {
+        select_songs(&songs, &f)
+            .unwrap()
+            .iter()
+            .map(|s| s.id.clone())
+            .collect()
+    };
+
+    // author is case-insensitive, and results are sorted by title
+    assert_eq!(
+        ids(SongbookFilter::from_query(
+            None,
+            Some("red hot chili peppers"),
+            None
+        )),
+        vec!["rhcp--cant", "rhcp--under"]
+    );
+    assert_eq!(
+        ids(SongbookFilter::from_query(None, None, Some("MTL"))),
+        vec!["rhcp--cant", "rhcp--under"]
+    );
+    // criteria combine
+    assert_eq!(
+        ids(SongbookFilter::from_query(
+            None,
+            Some("Red Hot Chili Peppers"),
+            Some("rock")
+        )),
+        vec!["rhcp--cant"]
+    );
+    // ids keep the order given
+    assert_eq!(
+        ids(SongbookFilter::from_query(
+            Some("amy--rehab,rhcp--under"),
+            None,
+            None
+        )),
+        vec!["amy--rehab", "rhcp--under"]
+    );
+
+    let err = |f: SongbookFilter| select_songs(&songs, &f).unwrap_err();
+    assert!(err(SongbookFilter::default()).contains("at least one"));
+    assert!(
+        err(SongbookFilter::from_query(
+            Some("amy--rehab,nope"),
+            None,
+            None
+        ))
+        .contains("nope")
+    );
+    assert!(
+        select_songs(
+            &songs,
+            &SongbookFilter::from_query(None, Some("Nobody"), None)
+        )
+        .unwrap()
+        .is_empty()
+    );
+}
+
+#[test]
+fn test_llms_txt_links_songbooks() {
+    let songs = songbook_songs();
+    let txt = crate::song::songbook::llms_txt(
+        "https://move-the-line.org",
+        &songs,
+        |s| s.id != "amy--rehab",
+        &["mtl".to_string()],
+    );
+    assert!(txt.contains(
+        "- [Red Hot Chili Peppers](https://move-the-line.org/api/songbook?author=Red%20Hot%20Chili%20Peppers): Can't Stop, Under The Bridge"
+    ));
+    assert!(txt.contains("- [mtl](https://move-the-line.org/api/songbook?tag=mtl): 2 songs"));
+    assert!(txt.contains("- [mtl](https://move-the-line.org/api/book/mtl)"));
+    assert!(txt.contains("(https://move-the-line.org/api/pdf/rhcp--under)"));
+    // songs without a delivered PDF are not advertised
+    assert!(!txt.contains("Amy Winehouse"));
+}
+
+/// A valid one-page PDF, with the xref offsets computed.
+fn one_page_pdf() -> Vec<u8> {
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>",
+    ];
+    let mut pdf = String::from("%PDF-1.4\n");
+    let mut offsets = Vec::new();
+    for (i, obj) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!("{} 0 obj\n{obj}\nendobj\n", i + 1));
+    }
+    let xref = pdf.len();
+    pdf.push_str(&format!(
+        "xref\n0 {}\n0000000000 65535 f \n",
+        objects.len() + 1
+    ));
+    for offset in offsets {
+        pdf.push_str(&format!("{offset:010} 00000 n \n"));
+    }
+    pdf.push_str(&format!(
+        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+        objects.len() + 1
+    ));
+    pdf.into_bytes()
+}
+
+#[tokio::test]
+async fn test_merge_pdfs() {
+    use crate::song::songbook::merge_pdfs;
+    assert!(merge_pdfs(vec![]).await.is_err());
+    assert_eq!(merge_pdfs(vec![b"only".to_vec()]).await.unwrap(), b"only");
+    assert!(
+        merge_pdfs(vec![b"not a pdf".to_vec(), b"nope".to_vec()])
+            .await
+            .is_err()
+    );
+
+    let merged = merge_pdfs(vec![one_page_pdf(), one_page_pdf(), one_page_pdf()])
+        .await
+        .expect("pdfunite (poppler-utils) must be installed");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("merged.pdf");
+    std::fs::write(&path, merged).unwrap();
+    let info = std::process::Command::new("pdfinfo")
+        .arg(&path)
+        .output()
+        .unwrap();
+    let info = String::from_utf8_lossy(&info.stdout);
+    assert!(
+        info.lines()
+            .any(|l| l.starts_with("Pages:") && l.ends_with(" 3")),
+        "{info}"
+    );
+}

@@ -60,14 +60,16 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 
 | Endpoint | Description |
 |----------|-------------|
-| `/api/songs` | JSON list of all songs (from world.yml), with `pdf_url` when the PDF is delivered |
+| `/api/songs` | JSON list of all songs (from world.yml), with an absolute `pdf_url` when the PDF is delivered |
 | `/api/song/:id` | Single song detail with PDF/tempo URLs |
 | `/api/song/:id/yml` | Song YAML source |
 | `/api/pdf/:id` | PDF file for song |
 | `/api/pdf-lyrics/:id` | Lyrics PDF file |
 | `/api/pdf-snippet/:id/:name` | PDF file for a song snippet |
 | `/pdf?author=&title=` | PDF file for song, looked up by author and title |
-| `/api/books` | JSON list of delivered books (`name`, `url`) |
+| `/api/books` | JSON list of delivered books (`name`, absolute `url`) |
+| `/api/songbook?author=&tag=&ids=` | One PDF merging the selected songs |
+| `/llms.txt` | Guide for AI assistants, with ready songbook links |
 | `/api/book/:name` | PDF file for a book (`delivery/pdf/book-<name>.pdf`) |
 | `/api/invoke-build` | Trigger Lambda build (auth required) |
 | `/api/world` | Re-index songs to world.yml (auth required) |
@@ -93,6 +95,30 @@ https://move-the-line.org/pdf?author=Alannah%20Myles&title=Black%20Velvet
 
 Books are collections of songs built by band-songbook into `delivery/pdf/book-<name>.pdf`.
 `/api/books` lists them, and `/api/book/<name>` returns the PDF.
+
+### Songbooks and AI assistants
+
+`/api/songbook` merges song PDFs on the server with `pdfunite` (poppler-utils, installed in the
+production image and needed locally for the tests). Songs are selected by:
+
+- `author`: every song by that author, case-insensitive
+- `tag`: every song with that tag
+- `ids`: comma-separated song ids, merged in the order given
+
+Criteria combine; without `ids`, songs are sorted by author then title. Songs without a delivered
+PDF are skipped, and a songbook holds at most 100 songs. Under a band prefix (`/mtl/api/songbook`)
+only that band's songs are selectable.
+
+```
+https://move-the-line.org/api/songbook?author=Red%20Hot%20Chili%20Peppers
+https://move-the-line.org/api/songbook?ids=red_hot_chili_peppers--under_the_bridge,alannah_myles--black_velvet
+```
+
+AI assistants usually can't download files into their code sandbox, so they can't merge PDFs
+themselves. `/llms.txt` (see https://llmstxt.org) explains the endpoints and lists a songbook link
+for every author and tag, plus a link to every song PDF. An assistant only has to pick a link and
+hand it to the user. URLs returned by `/api/songs`, `/api/books` and `/llms.txt` are absolute,
+built from the request's `Host` and `X-Forwarded-Proto` headers.
 
 ## Project Structure
 
