@@ -22,10 +22,10 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use song::{
     Animations, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
-    get_lyrics_by_key, get_snippet_bytes, get_song_pdf, get_song_snippets, get_song_yml,
-    lilypond_to_html, load_animations,
+    get_book_names, get_book_pdf, get_delivered_pdf_keys, get_lyrics_by_key, get_snippet_bytes,
+    get_song_pdf, get_song_snippets, get_song_yml, lilypond_to_html, load_animations,
     make_deezer_app_url, make_deezer_url, read_data, save_animations, save_lyrics_by_key,
-    save_lyrics_handler, save_song_yml, write_animation_embed_to_s3, write_data,
+    save_lyrics_handler, save_song_yml, song_pdf_key, write_animation_embed_to_s3, write_data,
     write_tempo_html_to_s3,
 };
 
@@ -125,6 +125,7 @@ async fn main() {
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
         .route("/pdf-snippet/{id}/{name}", get(api_pdf_snippet))
+        .route("/book/{name}", get(api_book_pdf))
         .route("/mp3-render/{id}/{name}", get(api_mp3_render))
         .route("/mp3/{id}", get(api_mp3))
         .route("/mp3-with-clicks/{id}", get(api_mp3_with_clicks))
@@ -173,6 +174,7 @@ async fn main() {
         .route("/update", get(update::update))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
+        .route("/books", get(api_books))
         .route("/edit-lyrics", get(edit_lyrics))
         .route("/save-lyrics", post(save_lyrics_handler))
         .with_state(state);
@@ -251,6 +253,8 @@ struct ApiSong {
     has_song: bool,
     has_clicks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pdf_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
 
@@ -316,6 +320,12 @@ async fn api_songs(
 ) -> Response {
     match get_all_songs(&state.storage).await {
         Ok(items) => {
+            let pdf_keys = get_delivered_pdf_keys(&state.storage)
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("api_songs: failed to list delivered PDFs: {e}");
+                    Default::default()
+                });
             let tag_filter = band_tag(&band);
             let api_songs: Vec<ApiSong> = items
                 .into_iter()
@@ -323,6 +333,9 @@ async fn api_songs(
                 .map(|s| {
                     let deezer_url = make_deezer_url(&s.title, &s.author);
                     let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
+                    let pdf_url = pdf_keys
+                        .contains(&song_pdf_key(&state.storage, &s.author, &s.title))
+                        .then(|| format!("/api/pdf/{}", s.id));
                     ApiSong {
                         id: s.id,
                         title: s.title,
@@ -334,6 +347,7 @@ async fn api_songs(
                         tags: s.tags,
                         has_song: s.has_song,
                         has_clicks: s.has_clicks,
+                        pdf_url,
                         error: s.error,
                     }
                 })
@@ -1186,6 +1200,45 @@ async fn api_pdf_lyrics(
     }
 }
 
+#[derive(Serialize)]
+struct BookEntry {
+    name: String,
+    url: String,
+}
+
+async fn api_books(State(state): State<AppState>) -> Result<Json<Vec<BookEntry>>, StatusCode> {
+    let names = get_book_names(&state.storage)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(
+        names
+            .into_iter()
+            .map(|name| BookEntry {
+                url: format!("/api/book/{name}"),
+                name,
+            })
+            .collect(),
+    ))
+}
+
+async fn api_book_pdf(State(state): State<AppState>, Path(name): Path<String>) -> Response {
+    match get_book_pdf(&state.storage, &name).await {
+        Ok(pdf_bytes) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "application/pdf"),
+                (
+                    header::CONTENT_DISPOSITION,
+                    &format!("inline; filename=\"book-{name}.pdf\""),
+                ),
+            ],
+            pdf_bytes,
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "Book not found").into_response(),
+    }
+}
+
 fn press_book_photos_path() -> String {
     let dir = std::env::var("PRESS_BOOK_DIR")
         .unwrap_or_else(|_| "press-book/truskell-2025-06-06".to_string());
@@ -1335,7 +1388,12 @@ async fn api_read_from_s3(
 
 /// Guess a content-type from a key's file extension for raw content serving.
 fn content_type_of_key(key: &str) -> &'static str {
-    match key.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+    match key
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         Some("html") | Some("htm") => "text/html; charset=utf-8",
         Some("svg") => "image/svg+xml",
         Some("css") => "text/css; charset=utf-8",

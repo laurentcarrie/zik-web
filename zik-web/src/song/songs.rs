@@ -1,4 +1,5 @@
 use band_songbook::model::{SongInfo, World, WorldItem};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use super::storage::Storage;
@@ -156,11 +157,10 @@ pub fn make_deezer_app_url(title: &str, author: &str) -> String {
     )
 }
 
-pub async fn get_song_pdf(
-    storage: &Storage,
-    author: &str,
-    title: &str,
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+const PDF_DIR: &str = "delivery/pdf/";
+
+/// Storage key of the delivered PDF of a song.
+pub fn song_pdf_key(storage: &Storage, author: &str, title: &str) -> String {
     let song_info = SongInfo {
         title: title.to_string(),
         author: author.to_string(),
@@ -169,7 +169,61 @@ pub async fn get_song_pdf(
         tags: vec![],
     };
     let pdf_name = song_info.file_stem_of_song();
-    let key = storage.full_key(&format!("delivery/pdf/{pdf_name}.pdf"));
+    storage.full_key(&format!("{PDF_DIR}{pdf_name}.pdf"))
+}
+
+pub async fn get_song_pdf(
+    storage: &Storage,
+    author: &str,
+    title: &str,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    storage
+        .get_bytes(&song_pdf_key(storage, author, title))
+        .await
+}
+
+/// Keys of every delivered PDF (songs and books), listed in one call.
+pub async fn get_delivered_pdf_keys(
+    storage: &Storage,
+) -> Result<HashSet<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let keys = storage.list_keys(&storage.full_key(PDF_DIR)).await?;
+    Ok(keys.into_iter().collect())
+}
+
+const BOOK_PDF_PREFIX: &str = "book-";
+
+/// Name of the book delivered at `key`, if the key is a book PDF
+/// (`.../delivery/pdf/book-<name>.pdf`).
+pub fn book_name_of_key(key: &str) -> Option<&str> {
+    let file = key.rsplit('/').next()?;
+    let name = file.strip_prefix(BOOK_PDF_PREFIX)?.strip_suffix(".pdf")?;
+    (!name.is_empty()).then_some(name)
+}
+
+/// Names of every delivered book, sorted.
+pub async fn get_book_names(
+    storage: &Storage,
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let prefix = storage.full_key(PDF_DIR);
+    let keys = storage.list_keys(&prefix).await?;
+    let mut names: Vec<String> = keys
+        .iter()
+        .filter_map(|k| book_name_of_key(k))
+        .map(str::to_string)
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+/// PDF of the book with the given (normalized) name.
+pub async fn get_book_pdf(
+    storage: &Storage,
+    name: &str,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    if name.is_empty() || name.contains('/') || name.contains("..") {
+        return Err(format!("Invalid book name: {name}").into());
+    }
+    let key = storage.full_key(&format!("{PDF_DIR}{BOOK_PDF_PREFIX}{name}.pdf"));
     storage.get_bytes(&key).await
 }
 
