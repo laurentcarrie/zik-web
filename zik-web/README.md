@@ -67,7 +67,7 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 | `/api/pdf-lyrics/:id` | Lyrics PDF file |
 | `/api/pdf-snippet/:id/:name` | PDF file for a song snippet |
 | `/pdf?author=&title=` | PDF file for song, looked up by author and title |
-| `/books` | JSON list of delivered books (`name`, `url`) |
+| `/api/books` | JSON list of delivered books (`name`, `url`) |
 | `/api/book/:name` | PDF file for a book (`delivery/pdf/book-<name>.pdf`) |
 | `/api/invoke-build` | Trigger Lambda build (auth required) |
 | `/api/world` | Re-index songs to world.yml (auth required) |
@@ -92,7 +92,7 @@ https://move-the-line.org/pdf?author=Alannah%20Myles&title=Black%20Velvet
 ```
 
 Books are collections of songs built by band-songbook into `delivery/pdf/book-<name>.pdf`.
-`/books` lists them, and `/api/book/<name>` returns the PDF.
+`/api/books` lists them, and `/api/book/<name>` returns the PDF.
 
 ## Project Structure
 

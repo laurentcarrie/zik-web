@@ -125,6 +125,7 @@ async fn main() {
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
         .route("/pdf-snippet/{id}/{name}", get(api_pdf_snippet))
+        .route("/books", get(api_books))
         .route("/book/{name}", get(api_book_pdf))
         .route("/mp3-render/{id}/{name}", get(api_mp3_render))
         .route("/mp3/{id}", get(api_mp3))
@@ -174,7 +175,6 @@ async fn main() {
         .route("/update", get(update::update))
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
-        .route("/books", get(api_books))
         .route("/edit-lyrics", get(edit_lyrics))
         .route("/save-lyrics", post(save_lyrics_handler))
         .with_state(state);
