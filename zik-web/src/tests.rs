@@ -651,6 +651,13 @@ fn test_robots_txt_welcomes_assistants_and_refuses_crawlers() {
     for welcome in ["ChatGPT-User", "Claude-User", "Perplexity-User", "*"] {
         let rules = group_of(welcome);
         assert!(rules.contains("\nAllow: /\n"), "{welcome} may read: {rules}");
+        // `Allow: /` must come last. A parser that takes the first matching
+        // rule instead of the longest one -- Python's urllib.robotparser, for
+        // one -- would otherwise read it as opening the editing tools too.
+        assert!(
+            rules.find("\nDisallow: ") < rules.find("\nAllow: /"),
+            "{welcome} is disallowed the tools before being allowed the rest: {rules}"
+        );
         // ... apart from the editing tools, at the root and under every band.
         for path in ["/edit-yml/", "/mtl/edit-yml/", "/dadrock/api/s3/"] {
             assert!(

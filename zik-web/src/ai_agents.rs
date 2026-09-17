@@ -203,16 +203,22 @@ const AGENT_DISALLOWED: &[&str] = &[
 ///
 /// Every disallowed path is repeated under each band prefix, because the same
 /// pages are served there too and RFC 9309 gives no meaning to a wildcard in
-/// the middle of a path. A longer `Disallow` beats the `Allow: /`, so the
-/// order of the two does not matter.
+/// the middle of a path.
+///
+/// `Disallow` comes before the closing `Allow: /`, and the order is load
+/// bearing. RFC 9309 and Google pick the longest matching rule, which would
+/// keep the tools closed either way, but the older parsers — Python's
+/// `urllib.robotparser` among them — take the *first* rule that matches, and a
+/// leading `Allow: /` is the first match for every path there is.
 fn readable_rules() -> String {
-    let mut rules = String::from("Allow: /\n");
+    let mut rules = String::new();
     for band in std::iter::once(None).chain(BANDS.iter().map(Some)) {
         let prefix = band.map(|band| format!("/{band}")).unwrap_or_default();
         for path in AGENT_DISALLOWED {
             rules.push_str(&format!("Disallow: {prefix}{path}\n"));
         }
     }
+    rules.push_str("Allow: /\n");
     rules
 }
 

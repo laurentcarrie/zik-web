@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Move The Line songbook
-  version: 0.25.18
+  version: 0.25.19
   description: >
     Chord and lyrics sheets (PDF) for the songs of the bands Move The Line,
     Sunny Bd and Dadrock. Use these operations to find songs and books, then
