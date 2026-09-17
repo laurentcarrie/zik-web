@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use super::songs::SongItem;
+use super::songs::{ApiSong, SongItem};
 
 /// Most songs a single songbook may collate.
 pub const MAX_SONGBOOK_SONGS: usize = 100;
@@ -154,22 +154,17 @@ fn songbook_url(base: &str, param: &str, value: &str) -> String {
     format!("{base}/api/songbook?{param}={}", urlencoding::encode(value))
 }
 
-/// The `llms.txt` page (https://llmstxt.org): what the site holds and ready
-/// links to every songbook, so an assistant can hand the user a URL instead
-/// of downloading and merging PDFs itself. Only songs with a delivered PDF
-/// (`has_pdf`) are listed.
-pub fn llms_txt(
-    base: &str,
-    songs: &[SongItem],
-    has_pdf: impl Fn(&SongItem) -> bool,
-    books: &[String],
-) -> String {
-    let mut songs: Vec<&SongItem> = songs.iter().filter(|s| has_pdf(s)).collect();
+/// The `llms.txt` page (https://llmstxt.org): what the site holds, ready links
+/// to every songbook, and every song with all the fields of `/api/songs`, so
+/// an assistant can hand the user a URL instead of downloading and merging
+/// PDFs itself. Songbook links only count songs with a PDF.
+pub fn llms_txt(base: &str, songs: &[ApiSong], books: &[String]) -> String {
+    let mut songs: Vec<&ApiSong> = songs.iter().collect();
     songs.sort_by(|a, b| (&a.author, &a.title).cmp(&(&b.author, &b.title)));
 
     let mut by_author: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     let mut by_tag: BTreeMap<&str, usize> = BTreeMap::new();
-    for s in &songs {
+    for s in songs.iter().filter(|s| s.pdf_url.is_some()) {
         by_author.entry(&s.author).or_default().push(&s.title);
         for tag in &s.tags {
             *by_tag.entry(tag).or_default() += 1;
@@ -191,8 +186,22 @@ link to `{base}/api/songbook`, and the server builds the merged PDF.
 
 ## API
 
-- [Songs]({base}/api/songs): JSON list with `id`, `title`, `author`, `tags` and `pdf_url`
+- [Songs]({base}/api/songs): JSON list of songs, with the fields below
 - [Books]({base}/api/books): JSON list of prebuilt books with `name` and `url`
+
+Fields of a song (the Songs section lists them for every song):
+
+- `id`: song id, for `/api/songbook?ids=`
+- `title`, `author`: `author` works verbatim in `/api/songbook?author=`
+- `tempo`: beats per minute
+- `tags`: bands and events the song belongs to, for `/api/songbook?tag=`
+- `pdf_url`: chord and lyrics sheet (PDF); absent when there is none
+- `mp3_url`: recording (MP3); absent when there is none
+- `deezer_url`, `deezer_app_url`: Deezer search for the original recording, on the web and in the app
+- `key`: storage key of the song source
+- `has_song`: whether the song source declares a recording
+- `has_clicks`: whether the song has a click track
+- `error`: why the song source could not be read; absent when it was
 "
     );
 
@@ -222,12 +231,31 @@ link to `{base}/api/songbook`, and the server builds the merged PDF.
         }
     }
 
-    out.push_str("\n## Songs\n\n");
+    out.push_str("\n## Songs\n");
     for s in &songs {
-        out.push_str(&format!(
-            "- [{} - {}]({base}/api/pdf/{}): id `{}`\n",
-            s.author, s.title, s.id, s.id
-        ));
+        out.push_str(&format!("\n### {} - {}\n\n", s.author, s.title));
+        let mut field = |name: &str, value: &str| {
+            out.push_str(&format!("- `{name}`: {value}\n"));
+        };
+        field("id", &format!("`{}`", s.id));
+        field("title", &s.title);
+        field("author", &s.author);
+        field("tempo", &s.tempo.to_string());
+        field("tags", &s.tags.join(", "));
+        if let Some(url) = &s.pdf_url {
+            field("pdf_url", url);
+        }
+        if let Some(url) = &s.mp3_url {
+            field("mp3_url", url);
+        }
+        field("deezer_url", &s.deezer_url);
+        field("deezer_app_url", &s.deezer_app_url);
+        field("key", &s.key);
+        field("has_song", &s.has_song.to_string());
+        field("has_clicks", &s.has_clicks.to_string());
+        if let Some(error) = &s.error {
+            field("error", error);
+        }
     }
     out
 }

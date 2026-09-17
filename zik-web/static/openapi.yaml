@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Move The Line songbook
-  version: 0.25.15
+  version: 0.25.16
   description: >
     Chord and lyrics sheets (PDF) for the songs of the bands Move The Line,
     Sunny Bd and Dadrock. Use these operations to find songs and books, then
@@ -19,7 +19,7 @@ paths:
       operationId: listSongs
       summary: List every song with its PDF link
       description: >
-        Returns all songs with id, title, author, tags and pdf_url. Filter the
+        Returns all songs with id, title, author, tags, pdf_url and mp3_url. Filter the
         list yourself by author, title or tag, then link to pdf_url for one
         song or build a /api/songbook link for several.
       responses:
@@ -76,6 +76,10 @@ components:
           type: string
           format: uri
           description: Chord and lyrics sheet of this song. Absent when no PDF was built.
+        mp3_url:
+          type: string
+          format: uri
+          description: Recording of this song (audio/mpeg). Absent when the song has no recording.
         deezer_url:
           type: string
           format: uri
