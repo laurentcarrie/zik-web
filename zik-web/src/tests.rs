@@ -354,23 +354,84 @@ fn test_select_songs() {
     );
 }
 
+fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> crate::song::ApiSong {
+    let base = "https://move-the-line.org";
+    crate::song::ApiSong {
+        id: id.to_string(),
+        title: title.to_string(),
+        author: author.to_string(),
+        deezer_url: format!("https://www.deezer.com/search/{id}"),
+        deezer_app_url: format!("deezer://www.deezer.com/search/{id}"),
+        key: format!("prod/songs/{id}/song.yml"),
+        tempo: 90,
+        tags: tags.iter().map(|t| t.to_string()).collect(),
+        has_song: pdf,
+        has_clicks: false,
+        pdf_url: pdf.then(|| format!("{base}/api/pdf/{id}")),
+        mp3_url: pdf.then(|| format!("{base}/api/mp3/{id}")),
+        error: (!pdf).then(|| "bad yaml".to_string()),
+    }
+}
+
 #[test]
 fn test_llms_txt_links_songbooks() {
-    let songs = songbook_songs();
-    let txt = crate::song::songbook::llms_txt(
-        "https://move-the-line.org",
-        &songs,
-        |s| s.id != "amy--rehab",
-        &["mtl".to_string()],
-    );
+    let songs = vec![
+        api_song(
+            "rhcp--under",
+            "Red Hot Chili Peppers",
+            "Under The Bridge",
+            &["mtl"],
+            true,
+        ),
+        api_song("amy--rehab", "Amy Winehouse", "Rehab", &["sunny-bd"], false),
+        api_song(
+            "rhcp--cant",
+            "Red Hot Chili Peppers",
+            "Can't Stop",
+            &["mtl", "rock"],
+            true,
+        ),
+    ];
+    let txt =
+        crate::song::songbook::llms_txt("https://move-the-line.org", &songs, &["mtl".to_string()]);
     assert!(txt.contains(
         "- [Red Hot Chili Peppers](https://move-the-line.org/api/songbook?author=Red%20Hot%20Chili%20Peppers): Can't Stop, Under The Bridge"
     ));
     assert!(txt.contains("- [mtl](https://move-the-line.org/api/songbook?tag=mtl): 2 songs"));
     assert!(txt.contains("- [mtl](https://move-the-line.org/api/book/mtl)"));
-    assert!(txt.contains("(https://move-the-line.org/api/pdf/rhcp--under)"));
-    // songs without a delivered PDF are not advertised
-    assert!(!txt.contains("Amy Winehouse"));
+    // songs without a PDF get no songbook link, but are still listed
+    assert!(!txt.contains("?author=Amy%20Winehouse"));
+    assert!(!txt.contains("?tag=sunny-bd"));
+    assert!(txt.contains("### Amy Winehouse - Rehab"));
+
+    // every field /api/songs serves for a song is in its llms.txt section
+    for song in &songs {
+        let heading = format!("### {} - {}\n", song.author, song.title);
+        let section = txt
+            .split(&heading)
+            .nth(1)
+            .unwrap()
+            .split("\n### ")
+            .next()
+            .unwrap();
+        let json = serde_json::to_value(song).unwrap();
+        for (name, value) in json.as_object().unwrap() {
+            let line = section
+                .lines()
+                .find(|l| l.starts_with(&format!("- `{name}`: ")))
+                .unwrap_or_else(|| panic!("{name} missing for {}", song.id));
+            let shown = match value {
+                serde_json::Value::String(v) => v.clone(),
+                serde_json::Value::Array(v) => v
+                    .iter()
+                    .map(|t| t.as_str().unwrap())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                other => other.to_string(),
+            };
+            assert!(line.contains(&shown), "{line} should show {shown}");
+        }
+    }
 }
 
 /// A valid one-page PDF, with the xref offsets computed.
@@ -544,4 +605,31 @@ async fn test_ai_agents_middleware_rewrites_pages() {
         fetch("/api/songs", "ChatGPT-User/1.0").await,
         ("json".to_string(), None)
     );
+}
+
+#[tokio::test]
+async fn test_song_mp3_key_matches_song_sources() {
+    use crate::song::songs::{get_song_source_keys, song_mp3_key};
+    assert_eq!(
+        song_mp3_key("prod/songs/muse/can_t_take_my_eyes_off_you/song.yml"),
+        "prod/songs/muse/can_t_take_my_eyes_off_you/song.mp3"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let storage = Storage::Local {
+        root: dir.path().to_path_buf(),
+    };
+    for file in [
+        "muse/uprising/song.yml",
+        "muse/uprising/song.mp3",
+        "police/roxanne/song.yml",
+    ] {
+        let path = dir.path().join("songs").join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"x").unwrap();
+    }
+
+    let keys = get_song_source_keys(&storage).await.unwrap();
+    assert!(keys.contains(&song_mp3_key("songs/muse/uprising/song.yml")));
+    assert!(!keys.contains(&song_mp3_key("songs/police/roxanne/song.yml")));
 }

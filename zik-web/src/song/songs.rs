@@ -1,9 +1,32 @@
 use band_songbook::model::{SongInfo, World, WorldItem};
+use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;
 
 use super::storage::Storage;
 use super::{SongEntry, SongYml};
+
+/// One song as served by `/api/songs`, and described field by field in
+/// `/llms.txt`.
+#[derive(Debug, Serialize)]
+pub struct ApiSong {
+    pub id: String,
+    pub title: String,
+    pub author: String,
+    pub deezer_url: String,
+    pub deezer_app_url: String,
+    pub key: String,
+    pub tempo: u16,
+    pub tags: Vec<String>,
+    pub has_song: bool,
+    pub has_clicks: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mp3_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
 
 #[derive(Debug)]
 pub struct SongItem {
@@ -188,6 +211,20 @@ pub async fn get_delivered_pdf_keys(
     storage: &Storage,
 ) -> Result<HashSet<String>, Box<dyn std::error::Error + Send + Sync>> {
     let keys = storage.list_keys(&storage.full_key(PDF_DIR)).await?;
+    Ok(keys.into_iter().collect())
+}
+
+/// Storage key of a song's recording, next to its `song.yml`.
+pub fn song_mp3_key(song_yml_key: &str) -> String {
+    format!("{}/song.mp3", song_yml_key.trim_end_matches("/song.yml"))
+}
+
+/// Keys of every song source file (`song.yml`, `song.mp3`, ...), listed in
+/// one call.
+pub async fn get_song_source_keys(
+    storage: &Storage,
+) -> Result<HashSet<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let keys = storage.list_keys(&storage.full_key("songs/")).await?;
     Ok(keys.into_iter().collect())
 }
 

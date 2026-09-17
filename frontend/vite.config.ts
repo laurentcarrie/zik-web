@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 const backendPort = process.env.BACKEND_PORT ?? '8080'
 const frontendPort = Number(process.env.FRONTEND_PORT ?? 3000)
 
-const backendPaths = ['/api', '/static', '/pdf', '/version', '/save-yml', '/save-lyrics', '/update']
+const backendPaths = ['/api', '/static', '/pdf', '/save-yml', '/save-lyrics', '/update']
 const bands = ['/mtl', '/sunny-bd', '/dadrock']
 
 function buildProxy() {

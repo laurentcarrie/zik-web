@@ -275,7 +275,7 @@ export default function SettingsPage() {
   }, [settingsYml])
 
   useEffect(() => {
-    fetch(`${API_BASE}/version`)
+    fetch(`${API_BASE}/api/version`)
       .then(res => res.text())
       .then(setVersion)
       .catch(() => setVersion('unknown'))

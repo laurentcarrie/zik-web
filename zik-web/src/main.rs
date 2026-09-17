@@ -24,12 +24,12 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use song::songbook::{self, SongbookFilter, merge_pdfs, select_songs};
 use song::{
-    Animations, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
+    Animations, ApiSong, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
     get_book_names, get_book_pdf, get_delivered_pdf_keys, get_lyrics_by_key, get_snippet_bytes,
-    get_song_pdf, get_song_snippets, get_song_yml, lilypond_to_html, load_animations,
-    make_deezer_app_url, make_deezer_url, read_data, save_animations, save_lyrics_by_key,
-    save_lyrics_handler, save_song_yml, song_pdf_key, write_animation_embed_to_s3, write_data,
-    write_tempo_html_to_s3,
+    get_song_pdf, get_song_snippets, get_song_source_keys, get_song_yml, lilypond_to_html,
+    load_animations, make_deezer_app_url, make_deezer_url, read_data, save_animations,
+    save_lyrics_by_key, save_lyrics_handler, save_song_yml, song_mp3_key, song_pdf_key,
+    write_animation_embed_to_s3, write_data, write_tempo_html_to_s3,
 };
 
 #[derive(Clone)]
@@ -148,6 +148,7 @@ async fn main() {
         .route("/guitar-embed/{index}", get(api_guitar_embed))
         .route("/animations", get(api_get_animations))
         .route("/config", get(api_config))
+        .route("/version", get(version))
         .route("/auth/verify", post(verify_password))
         .route("/click-sync/{name}", get(click_sync::ws_handler))
         .route(
@@ -175,6 +176,8 @@ async fn main() {
 
     // Legacy HTML routes (can be removed after full migration)
     let legacy_routes = Router::new()
+        // Kept for the load balancer health check (HealthCheckPath in
+        // scripts/cloudformation-*-fargate.yml); clients use /api/version.
         .route("/version", get(version))
         .route("/update", get(update::update))
         .route("/save-yml", post(edit::save_yml))
@@ -254,24 +257,6 @@ struct ApiError {
 }
 
 #[derive(Serialize)]
-struct ApiSong {
-    id: String,
-    title: String,
-    author: String,
-    deezer_url: String,
-    deezer_app_url: String,
-    key: String,
-    tempo: u16,
-    tags: Vec<String>,
-    has_song: bool,
-    has_clicks: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pdf_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-#[derive(Serialize)]
 struct ApiSongDetail {
     id: String,
     title: String,
@@ -327,48 +312,64 @@ fn band_tag(band: &str) -> Option<&str> {
     }
 }
 
+/// The songs of a band as served by `/api/songs`, with absolute URLs under
+/// `base`. Delivered PDFs and song sources are listed once for the whole list
+/// rather than looked up per song; a failed listing only drops those URLs.
+async fn api_song_list(
+    state: &AppState,
+    band: &str,
+    base: &str,
+) -> Result<Vec<ApiSong>, Box<dyn std::error::Error + Send + Sync>> {
+    let items = songs_of_band(get_all_songs(&state.storage).await?, band);
+    let (pdf_keys, source_keys) = tokio::join!(
+        get_delivered_pdf_keys(&state.storage),
+        get_song_source_keys(&state.storage)
+    );
+    let pdf_keys = pdf_keys.unwrap_or_else(|e| {
+        eprintln!("api_song_list: failed to list delivered PDFs: {e}");
+        Default::default()
+    });
+    let source_keys = source_keys.unwrap_or_else(|e| {
+        eprintln!("api_song_list: failed to list song sources: {e}");
+        Default::default()
+    });
+    Ok(items
+        .into_iter()
+        .map(|s| {
+            let deezer_url = make_deezer_url(&s.title, &s.author);
+            let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
+            let pdf_url = pdf_keys
+                .contains(&song_pdf_key(&state.storage, &s.author, &s.title))
+                .then(|| format!("{base}/api/pdf/{}", s.id));
+            let mp3_url = source_keys
+                .contains(&song_mp3_key(&s.key))
+                .then(|| format!("{base}/api/mp3/{}", s.id));
+            ApiSong {
+                id: s.id,
+                title: s.title,
+                author: s.author,
+                deezer_url,
+                deezer_app_url,
+                key: s.key,
+                tempo: s.tempo,
+                tags: s.tags,
+                has_song: s.has_song,
+                has_clicks: s.has_clicks,
+                pdf_url,
+                mp3_url,
+                error: s.error,
+            }
+        })
+        .collect())
+}
+
 async fn api_songs(
     State(state): State<AppState>,
     Extension(BandName(band)): Extension<BandName>,
     headers: HeaderMap,
 ) -> Response {
-    let base = public_base_url(&headers);
-    match get_all_songs(&state.storage).await {
-        Ok(items) => {
-            let pdf_keys = get_delivered_pdf_keys(&state.storage)
-                .await
-                .unwrap_or_else(|e| {
-                    eprintln!("api_songs: failed to list delivered PDFs: {e}");
-                    Default::default()
-                });
-            let tag_filter = band_tag(&band);
-            let api_songs: Vec<ApiSong> = items
-                .into_iter()
-                .filter(|s| tag_filter.is_none_or(|tag| s.tags.iter().any(|t| t == tag)))
-                .map(|s| {
-                    let deezer_url = make_deezer_url(&s.title, &s.author);
-                    let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
-                    let pdf_url = pdf_keys
-                        .contains(&song_pdf_key(&state.storage, &s.author, &s.title))
-                        .then(|| format!("{base}/api/pdf/{}", s.id));
-                    ApiSong {
-                        id: s.id,
-                        title: s.title,
-                        author: s.author,
-                        deezer_url,
-                        deezer_app_url,
-                        key: s.key,
-                        tempo: s.tempo,
-                        tags: s.tags,
-                        has_song: s.has_song,
-                        has_clicks: s.has_clicks,
-                        pdf_url,
-                        error: s.error,
-                    }
-                })
-                .collect();
-            Json(api_songs).into_response()
-        }
+    match api_song_list(&state, &band, &public_base_url(&headers)).await {
+        Ok(songs) => Json(songs).into_response(),
         Err(e) => {
             let error_msg = e.to_string();
             (
@@ -450,7 +451,7 @@ async fn api_song(
     let song_dir = key.trim_end_matches("/song.yml");
     let mp3_url = if state
         .storage
-        .exists(&format!("{song_dir}/song.mp3"))
+        .exists(&song_mp3_key(&key))
         .await
         .unwrap_or(false)
     {
@@ -1044,8 +1045,7 @@ async fn api_mp3(State(state): State<AppState>, Path(id): Path<String>) -> Respo
         None => return (StatusCode::NOT_FOUND, "Song not found").into_response(),
     };
 
-    let song_dir = s.key.trim_end_matches("/song.yml");
-    let mp3_key = format!("{song_dir}/song.mp3");
+    let mp3_key = song_mp3_key(&s.key);
 
     match state.storage.get_bytes(&mp3_key).await {
         Ok(bytes) => (
@@ -1356,22 +1356,15 @@ async fn llms_txt(
     Extension(BandName(band)): Extension<BandName>,
     headers: HeaderMap,
 ) -> Response {
-    let songs = match get_all_songs(&state.storage).await {
-        Ok(items) => songs_of_band(items, &band),
+    let base = public_base_url(&headers);
+    let songs = match api_song_list(&state, &band, &base).await {
+        Ok(songs) => songs,
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
         }
     };
-    let pdf_keys = get_delivered_pdf_keys(&state.storage)
-        .await
-        .unwrap_or_default();
     let books = get_book_names(&state.storage).await.unwrap_or_default();
-    let body = songbook::llms_txt(
-        &public_base_url(&headers),
-        &songs,
-        |s| pdf_keys.contains(&song_pdf_key(&state.storage, &s.author, &s.title)),
-        &books,
-    );
+    let body = songbook::llms_txt(&base, &songs, &books);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body).into_response()
 }
 

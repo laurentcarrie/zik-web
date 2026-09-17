@@ -60,7 +60,7 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 
 | Endpoint | Description |
 |----------|-------------|
-| `/api/songs` | JSON list of all songs (from world.yml), with an absolute `pdf_url` when the PDF is delivered |
+| `/api/songs` | JSON list of all songs (from world.yml), with absolute `pdf_url` and `mp3_url` when the PDF or recording exists |
 | `/api/song/:id` | Single song detail with PDF/tempo URLs |
 | `/api/song/:id/yml` | Song YAML source |
 | `/api/pdf/:id` | PDF file for song |
@@ -77,7 +77,8 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 | `/api/animations` | GET/POST animation configuration |
 | `/api/config` | Runtime config (favicon) |
 | `/api/lambda-status` | Lambda build status |
-| `/version` | Current version |
+| `/api/version` | Current version, as plain text |
+| `/version` | Same, kept for the load balancer health check |
 
 ### Fetching PDFs
 
