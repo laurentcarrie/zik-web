@@ -183,6 +183,7 @@ async fn main() {
         .route("/save-yml", post(edit::save_yml))
         .route("/pdf", get(serve_pdf))
         .route("/llms.txt", get(llms_txt))
+        .route("/robots.txt", get(robots_txt))
         .route("/edit-lyrics", get(edit_lyrics))
         .route("/save-lyrics", post(save_lyrics_handler))
         .with_state(state);
@@ -1366,6 +1367,14 @@ async fn llms_txt(
     let books = get_book_names(&state.storage).await.unwrap_or_default();
     let body = songbook::llms_txt(&base, &songs, &books);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body).into_response()
+}
+
+async fn robots_txt() -> Response {
+    (
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        ai_agents::robots_txt(),
+    )
+        .into_response()
 }
 
 fn press_book_photos_path() -> String {

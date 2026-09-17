@@ -606,6 +606,96 @@ async fn test_ai_agents_middleware_rewrites_pages() {
         fetch("/api/songs", "ChatGPT-User/1.0").await,
         ("json".to_string(), None)
     );
+
+    // Whatever was served, it is not for an index.
+    for (path, user_agent) in [
+        ("/", "ChatGPT-User/1.0"),
+        ("/mtl/songs", "Mozilla/5.0 Chrome/140.0"),
+        ("/api/songs", "GPTBot/1.1"),
+    ] {
+        let request = HttpRequest::get(path)
+            .header("user-agent", user_agent)
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(
+            response.headers().get("x-robots-tag").unwrap(),
+            "noindex, nofollow",
+            "{path} is not indexable"
+        );
+    }
+}
+
+#[test]
+fn test_robots_txt_welcomes_assistants_and_refuses_crawlers() {
+    let txt = crate::ai_agents::robots_txt();
+    // The group a bot obeys: from the first rule after its own User-agent
+    // line to the blank line that ends the group.
+    let group_of = |agent: &str| -> String {
+        let at = txt
+            .find(&format!("User-agent: {agent}\n"))
+            .unwrap_or_else(|| panic!("{agent} has no group in:\n{txt}"));
+        let rest = &txt[at..];
+        let start = [rest.find("\nAllow"), rest.find("\nDisallow")]
+            .into_iter()
+            .flatten()
+            .min()
+            .expect("a group has rules");
+        let rules = &rest[start..];
+        let end = rules.find("\n\n").map_or(rules.len(), |blank| blank + 1);
+        rules[..end].to_string()
+    };
+
+    // A bot fetching for a person may read the songbook, and so may anything
+    // whose user agent we do not recognise.
+    for welcome in ["ChatGPT-User", "Claude-User", "Perplexity-User", "*"] {
+        let rules = group_of(welcome);
+        assert!(rules.contains("\nAllow: /\n"), "{welcome} may read: {rules}");
+        // ... apart from the editing tools, at the root and under every band.
+        for path in ["/edit-yml/", "/mtl/edit-yml/", "/dadrock/api/s3/"] {
+            assert!(
+                rules.contains(&format!("\nDisallow: {path}\n")),
+                "{welcome} is kept out of {path}"
+            );
+        }
+        // Nothing an assistant needs is behind a Disallow.
+        let disallowed: Vec<&str> = rules
+            .lines()
+            .filter_map(|line| line.strip_prefix("Disallow: "))
+            .collect();
+        for open in [
+            "/llms.txt",
+            "/mtl/llms.txt",
+            "/api/songs",
+            "/api/books",
+            "/api/songbook",
+            "/api/pdf/rhcp--dani_california",
+            "/api/mp3/rhcp--dani_california",
+        ] {
+            assert!(
+                !disallowed.iter().any(|path| open.starts_with(path)),
+                "{welcome} can still reach {open}"
+            );
+        }
+    }
+
+    // A bot that crawls for an index or a training set gets nothing.
+    for crawler in [
+        "GPTBot",
+        "OAI-SearchBot",
+        "ClaudeBot",
+        "Claude-SearchBot",
+        "PerplexityBot",
+        "Googlebot",
+        "Google-Extended",
+        "CCBot",
+        "Bytespider",
+    ] {
+        assert_eq!(group_of(crawler), "\nDisallow: /\n", "{crawler} is refused");
+    }
+
+    // No sitemap: it would exist only to invite the crawl we just refused.
+    assert!(!txt.contains("Sitemap:"), "{txt}");
 }
 
 #[tokio::test]
