@@ -601,29 +601,66 @@ async fn test_ai_agents_middleware_rewrites_pages() {
         fetch("/mtl/songs", "Mozilla/5.0 Chrome/140.0").await,
         ("html".to_string(), vary)
     );
-    // API routes are left alone, and don't vary
+    // API routes are never rewritten, so they don't vary on Accept -- but the
+    // indexing header still turns on the user agent.
     assert_eq!(
         fetch("/api/songs", "ChatGPT-User/1.0").await,
-        ("json".to_string(), None)
+        ("json".to_string(), Some("User-Agent".to_string()))
     );
 
-    // Whatever was served, it is not for an index.
-    for (path, user_agent) in [
-        ("/", "ChatGPT-User/1.0"),
-        ("/mtl/songs", "Mozilla/5.0 Chrome/140.0"),
-        ("/api/songs", "GPTBot/1.1"),
+    // Whatever was served, it is not for an index -- unless the client is the
+    // one crawler we want an entry with.
+    for (path, user_agent, indexable) in [
+        ("/", "ChatGPT-User/1.0", false),
+        ("/mtl/songs", "Mozilla/5.0 Chrome/140.0", false),
+        ("/api/songs", "GPTBot/1.1", false),
+        ("/", "Mozilla/5.0 (compatible; OAI-SearchBot/1.0)", true),
+        ("/api/songs", "OAI-SearchBot/1.0", true),
     ] {
         let request = HttpRequest::get(path)
             .header("user-agent", user_agent)
             .body(Body::empty())
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
-        assert_eq!(
-            response.headers().get("x-robots-tag").unwrap(),
-            "noindex, nofollow",
-            "{path} is not indexable"
+        let tag = response.headers().get("x-robots-tag");
+        if indexable {
+            assert!(tag.is_none(), "{user_agent} may index {path}");
+        } else {
+            assert_eq!(
+                tag.unwrap(),
+                "noindex, nofollow",
+                "{user_agent} may not index {path}"
+            );
+        }
+        // The header turns on the user agent, so say so.
+        assert!(
+            response
+                .headers()
+                .get_all("vary")
+                .iter()
+                .any(|v| v.to_str().unwrap().contains("User-Agent")),
+            "{path} varies on User-Agent"
         );
     }
+}
+
+#[test]
+fn test_may_index_only_the_search_crawler_we_want() {
+    use crate::ai_agents::may_index;
+    assert!(may_index(Some("Mozilla/5.0 (compatible; OAI-SearchBot/1.0)")));
+    assert!(may_index(Some("oai-searchbot/1.0")));
+
+    // Everyone else, including OpenAI's other two bots.
+    for other in [
+        "Mozilla/5.0 AppleWebKit/537.36; compatible; ChatGPT-User/1.0",
+        "Mozilla/5.0 (compatible; GPTBot/1.1)",
+        "Mozilla/5.0 (X11; Linux x86_64) Chrome/140.0",
+        "Googlebot/2.1",
+        "curl/8.5.0",
+    ] {
+        assert!(!may_index(Some(other)), "{other} may not index");
+    }
+    assert!(!may_index(None));
 }
 
 #[test]
@@ -648,7 +685,13 @@ fn test_robots_txt_welcomes_assistants_and_refuses_crawlers() {
 
     // A bot fetching for a person may read the songbook, and so may anything
     // whose user agent we do not recognise.
-    for welcome in ["ChatGPT-User", "Claude-User", "Perplexity-User", "*"] {
+    for welcome in [
+        "ChatGPT-User",
+        "Claude-User",
+        "Perplexity-User",
+        "OAI-SearchBot",
+        "*",
+    ] {
         let rules = group_of(welcome);
         assert!(rules.contains("\nAllow: /\n"), "{welcome} may read: {rules}");
         // `Allow: /` must come last. A parser that takes the first matching
@@ -689,7 +732,6 @@ fn test_robots_txt_welcomes_assistants_and_refuses_crawlers() {
     // A bot that crawls for an index or a training set gets nothing.
     for crawler in [
         "GPTBot",
-        "OAI-SearchBot",
         "ClaudeBot",
         "Claude-SearchBot",
         "PerplexityBot",

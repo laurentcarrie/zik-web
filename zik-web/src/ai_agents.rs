@@ -1,10 +1,12 @@
 //! What the site tells AI assistants and crawlers.
 //!
 //! The songbook is meant to be usable by an assistant someone points at it,
-//! and to stay out of search indexes and training sets. So `robots.txt`
-//! welcomes the bots that fetch on a person's behalf and turns away the ones
-//! that crawl on their own, every response carries `X-Robots-Tag: noindex`,
-//! and there is no sitemap to invite a crawl.
+//! and to stay out of training sets and out of every search index bar the one
+//! that makes it findable by name. So `robots.txt` welcomes the bots that
+//! fetch on a person's behalf plus `OAI-SearchBot`, turns away the crawlers
+//! that index or train for anyone else, and `X-Robots-Tag: noindex` goes on
+//! every response except the ones served to a crawler we want an entry with.
+//! There is no sitemap: `llms.txt` tells a crawler more than a URL list would.
 //!
 //! The pages are a React app, so without JavaScript an assistant only sees an
 //! empty shell. Requests from a known AI user agent, or asking for markdown or
@@ -107,25 +109,38 @@ pub fn wants_llms_txt(user_agent: Option<&str>, accept: Option<&str>) -> bool {
     accepts("text/markdown") || (accepts("text/plain") && !accepts("text/html"))
 }
 
-/// Keeps every response out of search indexes, and rewrites page requests
-/// from AI assistants to `llms.txt`. Must wrap the router rather than be added
-/// with `Router::layer`, which runs after routing.
+/// Whether this client may list what it fetches in a search index.
 ///
-/// `X-Robots-Tag` goes on everything, pages and files alike: it is what stops
-/// a crawler that fetched anyway — ignoring `robots.txt`, or following a link
-/// someone shared — from putting the songbook in an index. Page responses also
-/// vary on the headers used to pick markdown over HTML, so caches keep the two
-/// versions apart.
+/// Only the crawlers we want an entry with may. Everything else is sent
+/// `noindex`, which is what keeps the songbook out of an index when a crawler
+/// ignored `robots.txt` or picked the address up from a shared link.
+pub fn may_index(user_agent: Option<&str>) -> bool {
+    let user_agent = user_agent.unwrap_or_default().to_ascii_lowercase();
+    WELCOME_SEARCH_CRAWLERS
+        .iter()
+        .any(|bot| user_agent.contains(&bot.to_ascii_lowercase()))
+}
+
+/// Keeps responses out of search indexes, bar the one index we want to be in,
+/// and rewrites page requests from AI assistants to `llms.txt`. Must wrap the
+/// router rather than be added with `Router::layer`, which runs after routing.
+///
+/// `X-Robots-Tag` goes on everything, pages and files alike, since a crawler
+/// that ignored `robots.txt` reaches paths a page-only rule would miss. Both
+/// it and the choice of markdown over HTML turn on the request headers, so
+/// every response says what it varied on and caches keep the versions apart.
 pub async fn serve_llms_txt_to_ai(mut request: Request, next: Next) -> Response {
     let path = request.uri().path().to_string();
     let is_page = matches!(*request.method(), Method::GET | Method::HEAD) && is_page_path(&path);
 
     // Decided in its own scope: holding a borrow of the request across the
     // await below would make the future non-Send.
-    let to_ai = is_page && {
+    let (to_ai, indexable) = {
         let headers = request.headers();
         let header = |name| headers.get(name).and_then(|v| v.to_str().ok());
-        wants_llms_txt(header(header::USER_AGENT), header(header::ACCEPT))
+        let to_ai =
+            is_page && wants_llms_txt(header(header::USER_AGENT), header(header::ACCEPT));
+        (to_ai, may_index(header(header::USER_AGENT)))
     };
     if to_ai && let Ok(uri) = Uri::try_from(llms_txt_path(&path)) {
         *request.uri_mut() = uri;
@@ -133,13 +148,21 @@ pub async fn serve_llms_txt_to_ai(mut request: Request, next: Next) -> Response 
 
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
-    headers.insert(
-        HeaderName::from_static("x-robots-tag"),
-        HeaderValue::from_static("noindex, nofollow"),
-    );
-    if is_page {
-        headers.append(header::VARY, HeaderValue::from_static("User-Agent, Accept"));
+    if !indexable {
+        headers.insert(
+            HeaderName::from_static("x-robots-tag"),
+            HeaderValue::from_static("noindex, nofollow"),
+        );
     }
+    headers.append(
+        header::VARY,
+        // Pages pick markdown over HTML on Accept as well.
+        if is_page {
+            HeaderValue::from_static("User-Agent, Accept")
+        } else {
+            HeaderValue::from_static("User-Agent")
+        },
+    );
     response
 }
 
@@ -147,6 +170,12 @@ pub async fn serve_llms_txt_to_ai(mut request: Request, next: Next) -> Response 
 /// Bots that fetch a page because a person asked their assistant to open it.
 /// They are the whole point of the `llms.txt` setup, so they are welcome.
 const USER_DIRECTED_AGENTS: &[&str] = &["ChatGPT-User", "Claude-User", "Perplexity-User"];
+
+/// Search crawlers whose index we want to be listed in. Naming the site to an
+/// assistant -- "in move-the-line.org, give me ..." -- only works when the
+/// assistant can look the site up, and looking it up means being crawled
+/// first. These are the only clients allowed to index what they fetch.
+const WELCOME_SEARCH_CRAWLERS: &[&str] = &["OAI-SearchBot"];
 
 /// Bots that crawl on their own to build a search index or a training set.
 /// The songbook is for the bands and whoever they hand the link to, not for a
@@ -166,7 +195,6 @@ const INDEXING_CRAWLERS: &[&str] = &[
     "GPTBot",
     "Google-Extended",
     "Googlebot",
-    "OAI-SearchBot",
     "PerplexityBot",
     "SemrushBot",
     "YandexBot",
@@ -244,10 +272,11 @@ pub fn robots_txt() -> String {
     let mut out = String::from(
         "# Songbook of the bands Move The Line, Sunny Bd and Dadrock.\n\
          #\n\
-         # Not meant for a public search index: every response also carries\n\
-         # `X-Robots-Tag: noindex, nofollow`. An assistant fetching a page\n\
-         # because someone asked it to is welcome — /llms.txt is the whole\n\
-         # catalogue, with a PDF and an MP3 link per song.\n\
+         # An assistant fetching a page because someone asked it to is\n\
+         # welcome — /llms.txt is the whole catalogue, with a PDF and an MP3\n\
+         # link per song. ChatGPT's index is welcome too, so that naming the\n\
+         # site is enough to find a song. Everything else gets\n\
+         # `X-Robots-Tag: noindex, nofollow` on top of the rules below.\n\
          \n",
     );
 
@@ -256,7 +285,10 @@ pub fn robots_txt() -> String {
     out.push_str("# Assistants fetching on a person's behalf.\n");
     robots_group(&mut out, USER_DIRECTED_AGENTS, &readable);
 
-    out.push_str("# Crawlers building a search index or a training set.\n");
+    out.push_str("# ChatGPT's search index, so the songbook can be found by name.\n");
+    robots_group(&mut out, WELCOME_SEARCH_CRAWLERS, &readable);
+
+    out.push_str("# Crawlers building any other index, or a training set.\n");
     robots_group(&mut out, INDEXING_CRAWLERS, "Disallow: /\n");
 
     out.push_str("# Anything else: welcome to read, never to index.\n");
