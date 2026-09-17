@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" id="favicon-32">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" id="favicon-16">
     <link rel="manifest" href="/static/site.webmanifest">
+    <link rel="alternate" type="text/markdown" href="/llms.txt" title="Songbook guide for AI assistants">
     <title>M T L</title>
     <script>
       const band = location.pathname.match(/^\/(mtl|sunny-bd|dadrock)/)?.[0] || '';
@@ -23,6 +24,10 @@
     </script>
   </head>
   <body>
+    <noscript>
+      <p>Move The Line songbook: chord and lyrics sheets, as PDF.</p>
+      <p>AI assistants: read <a href="https://move-the-line.org/llms.txt">https://move-the-line.org/llms.txt</a> for the song list and ready songbook PDF links.</p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

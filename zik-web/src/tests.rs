@@ -429,3 +429,119 @@ async fn test_merge_pdfs() {
         "{info}"
     );
 }
+
+#[test]
+fn test_ai_agents_page_paths() {
+    use crate::ai_agents::{is_page_path, llms_txt_path};
+    for page in [
+        "/",
+        "/mtl",
+        "/mtl/",
+        "/mtl/song/abc",
+        "/sunny-bd/songs",
+        "/root",
+        "/press-book",
+    ] {
+        assert!(is_page_path(page), "{page} is a page");
+    }
+    for not_page in [
+        "/api/songs",
+        "/mtl/api/songbook",
+        "/static/favicon.ico",
+        "/assets/index-abc.js",
+        "/llms.txt",
+        "/mtl/llms.txt",
+        "/pdf",
+        "/version",
+    ] {
+        assert!(!is_page_path(not_page), "{not_page} is not a page");
+    }
+    assert_eq!(llms_txt_path("/"), "/llms.txt");
+    assert_eq!(llms_txt_path("/songs"), "/llms.txt");
+    assert_eq!(llms_txt_path("/mtl/song/abc"), "/mtl/llms.txt");
+    assert_eq!(llms_txt_path("/dadrock"), "/dadrock/llms.txt");
+}
+
+#[test]
+fn test_ai_agents_detection() {
+    use crate::ai_agents::wants_llms_txt;
+    let chrome = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
+    let browser_accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
+    assert!(wants_llms_txt(
+        Some(
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"
+        ),
+        Some(browser_accept)
+    ));
+    assert!(wants_llms_txt(
+        Some("Claude-User/1.0 (+Claude-User@anthropic.com)"),
+        None
+    ));
+    assert!(wants_llms_txt(
+        Some("Mozilla/5.0 (compatible; PerplexityBot/1.0)"),
+        None
+    ));
+    assert!(wants_llms_txt(
+        Some(chrome),
+        Some("text/markdown, text/html")
+    ));
+    assert!(wants_llms_txt(None, Some("text/plain")));
+
+    assert!(!wants_llms_txt(Some(chrome), Some(browser_accept)));
+    assert!(!wants_llms_txt(Some("curl/8.5.0"), Some("*/*")));
+    assert!(!wants_llms_txt(None, None));
+    assert!(!wants_llms_txt(None, Some("text/plain, text/html")));
+    assert!(!wants_llms_txt(None, Some("text/markdown;q=0, text/html")));
+}
+
+#[tokio::test]
+async fn test_ai_agents_middleware_rewrites_pages() {
+    use axum::{body::Body, http::Request as HttpRequest, routing::get};
+    use tower::{Layer, ServiceExt};
+
+    let router = axum::Router::new()
+        .route("/llms.txt", get(|| async { "llms" }))
+        .route("/mtl/llms.txt", get(|| async { "mtl llms" }))
+        .route("/api/songs", get(|| async { "json" }))
+        .fallback(|| async { "html" });
+    let app = axum::middleware::from_fn(crate::ai_agents::serve_llms_txt_to_ai).layer(router);
+
+    let fetch = |path: &str, user_agent: &str| {
+        let app = app.clone();
+        let request = HttpRequest::get(path)
+            .header("user-agent", user_agent)
+            .body(Body::empty())
+            .unwrap();
+        async move {
+            let response = app.oneshot(request).await.unwrap();
+            let vary = response
+                .headers()
+                .get("vary")
+                .map(|v| v.to_str().unwrap().to_string());
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            (String::from_utf8(body.to_vec()).unwrap(), vary)
+        }
+    };
+    let vary = Some("User-Agent, Accept".to_string());
+
+    assert_eq!(
+        fetch("/", "ChatGPT-User/1.0").await,
+        ("llms".to_string(), vary.clone())
+    );
+    assert_eq!(
+        fetch("/mtl/songs", "Claude-User/1.0").await,
+        ("mtl llms".to_string(), vary.clone())
+    );
+    assert_eq!(
+        fetch("/mtl/songs", "Mozilla/5.0 Chrome/140.0").await,
+        ("html".to_string(), vary)
+    );
+    // API routes are left alone, and don't vary
+    assert_eq!(
+        fetch("/api/songs", "ChatGPT-User/1.0").await,
+        ("json".to_string(), None)
+    );
+}

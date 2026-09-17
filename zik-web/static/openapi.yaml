@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info:
+  title: Move The Line songbook
+  version: 0.25.15
+  description: >
+    Chord and lyrics sheets (PDF) for the songs of the bands Move The Line,
+    Sunny Bd and Dadrock. Use these operations to find songs and books, then
+    give the user a link: the server builds songbook PDFs itself, so never
+    download or merge PDFs. A songbook of several songs is at
+    https://move-the-line.org/api/songbook with query parameters author, tag
+    or ids (comma-separated song ids, order kept); parameters combine, and
+    values must be URL-encoded, e.g.
+    https://move-the-line.org/api/songbook?author=Red%20Hot%20Chili%20Peppers
+servers:
+  - url: https://move-the-line.org
+paths:
+  /api/songs:
+    get:
+      operationId: listSongs
+      summary: List every song with its PDF link
+      description: >
+        Returns all songs with id, title, author, tags and pdf_url. Filter the
+        list yourself by author, title or tag, then link to pdf_url for one
+        song or build a /api/songbook link for several.
+      responses:
+        "200":
+          description: All songs, unsorted.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Song"
+  /api/books:
+    get:
+      operationId: listBooks
+      summary: List the prebuilt books
+      description: >
+        Returns the prebuilt books (full set lists, e.g. mtl, dadrock) with
+        their PDF link. Give the user the url as-is.
+      responses:
+        "200":
+          description: Prebuilt books, sorted by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Book"
+components:
+  schemas:
+    Song:
+      type: object
+      required: [id, title, author, tags]
+      properties:
+        id:
+          type: string
+          description: Song id, used in the ids parameter of /api/songbook.
+          examples: [red_hot_chili_peppers--under_the_bridge]
+        title:
+          type: string
+          examples: [Under The Bridge]
+        author:
+          type: string
+          description: Artist; use it verbatim in the author parameter of /api/songbook.
+          examples: [Red Hot Chili Peppers]
+        tags:
+          type: array
+          description: Band or event tags (move-the-line, sunny-bd, dadrock, concert-mai-2026, ...), usable in the tag parameter of /api/songbook.
+          items:
+            type: string
+        tempo:
+          type: integer
+          description: Tempo in beats per minute.
+        pdf_url:
+          type: string
+          format: uri
+          description: Chord and lyrics sheet of this song. Absent when no PDF was built.
+        deezer_url:
+          type: string
+          format: uri
+          description: Deezer search for the original recording.
+        error:
+          type: string
+          description: Present when the song source could not be parsed; such songs have no PDF.
+    Book:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+          examples: [mtl]
+        url:
+          type: string
+          format: uri
+          description: PDF of the whole book.
+          examples: ["https://move-the-line.org/api/book/mtl"]
