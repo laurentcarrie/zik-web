@@ -399,6 +399,7 @@ fn test_llms_txt_links_songbooks() {
     ));
     assert!(txt.contains("- [mtl](https://move-the-line.org/api/songbook?tag=mtl): 2 songs"));
     assert!(txt.contains("- [mtl](https://move-the-line.org/api/book/mtl)"));
+    assert!(txt.contains("- [Version](https://move-the-line.org/api/version)"));
     // songs without a PDF get no songbook link, but are still listed
     assert!(!txt.contains("?author=Amy%20Winehouse"));
     assert!(!txt.contains("?tag=sunny-bd"));

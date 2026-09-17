@@ -188,6 +188,7 @@ link to `{base}/api/songbook`, and the server builds the merged PDF.
 
 - [Songs]({base}/api/songs): JSON list of songs, with the fields below
 - [Books]({base}/api/books): JSON list of prebuilt books with `name` and `url`
+- [Version]({base}/api/version): version of the server, as plain text (currently `{version}`)
 
 Fields of a song (the Songs section lists them for every song):
 
@@ -202,7 +203,8 @@ Fields of a song (the Songs section lists them for every song):
 - `has_song`: whether the song source declares a recording
 - `has_clicks`: whether the song has a click track
 - `error`: why the song source could not be read; absent when it was
-"
+",
+        version = env!("CARGO_PKG_VERSION"),
     );
 
     out.push_str("\n## Songbooks by author\n\n");
