@@ -1,3 +1,4 @@
+mod ai_agents;
 mod click_sync;
 mod edit;
 mod song;
@@ -17,6 +18,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use tower::Layer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -216,7 +218,7 @@ async fn main() {
         )
         .layer(Extension(BandName("dadrock".to_string())));
 
-    let app = Router::new()
+    let app: Router = Router::new()
         .route("/", get(root_landing))
         .route("/root", get(band_picker))
         .nest("/mtl", mtl)
@@ -226,6 +228,9 @@ async fn main() {
         .nest_service("/static", ServeDir::new("static"))
         .layer(middleware::from_fn(websocket_header_fix))
         .layer(cors);
+    // Wraps the router instead of Router::layer so the rewrite to llms.txt
+    // happens before routing.
+    let app = middleware::from_fn(ai_agents::serve_llms_txt_to_ai).layer(app);
 
     // Port is configurable so a local run can dodge a busy 8080 (the Makefile
     // sets BACKEND_PORT); production keeps the default the Dockerfile exposes.
@@ -234,7 +239,12 @@ async fn main() {
         .await
         .unwrap_or_else(|e| panic!("cannot bind 0.0.0.0:{port}: {e}"));
     println!("Server running at http://0.0.0.0:{port}");
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        axum::ServiceExt::<Request>::into_make_service(app),
+    )
+    .await
+    .unwrap();
 }
 
 // API response types

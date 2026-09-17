@@ -120,6 +120,14 @@ for every author and tag, plus a link to every song PDF. An assistant only has t
 hand it to the user. URLs returned by `/api/songs`, `/api/books` and `/llms.txt` are absolute,
 built from the request's `Host` and `X-Forwarded-Proto` headers.
 
+AI assistants that open a web app page (`/`, `/mtl`, `/mtl/song/...`, ...) get the `llms.txt` of
+that band instead of the empty React shell. A request counts as AI when its `User-Agent` names a
+known assistant (`ChatGPT-User`, `GPTBot`, `Claude-User`, `ClaudeBot`, `PerplexityBot`, ... see
+`src/ai_agents.rs`), or its `Accept` header asks for `text/markdown`, or `text/plain` without
+`text/html`. API routes, static files and PDFs are never rewritten, and page responses carry
+`Vary: User-Agent, Accept`. For assistants that browse with a regular browser user agent,
+`index.html` links to `/llms.txt` from a `<noscript>` block and a `rel="alternate"` link.
+
 ## Project Structure
 
 ```
