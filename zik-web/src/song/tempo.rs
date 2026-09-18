@@ -49,6 +49,7 @@ pub async fn write_tempo_html_to_s3(
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let pdf_name = song_info.file_stem_of_song();
     let key = storage.full_key(&format!("delivery/tempo/{pdf_name}.html"));

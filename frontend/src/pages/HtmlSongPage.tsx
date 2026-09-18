@@ -328,6 +328,10 @@ function x11ToCSS(color: string | null): string | undefined {
 }
 
 function ChordCell({ glyph }: { glyph: ChordGlyph }) {
+  // Markers such as the 2/4 half-bar have no glyph in the chord fonts.
+  if (glyph.font === 'text') {
+    return <span className="text-sm leading-none opacity-70">{glyph.display}</span>
+  }
   const fontFamily = FONT_MAP[glyph.font] || 'Songbook'
   return (
     <span style={{ fontFamily }} className="text-2xl leading-none">

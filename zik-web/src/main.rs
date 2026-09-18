@@ -24,10 +24,10 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use song::songbook::{self, SongbookFilter, merge_pdfs, select_songs};
 use song::{
-    Animations, ApiSong, SongItem, Storage, drum_pattern_to_html, edit_lyrics, get_all_songs,
-    get_book_names, get_book_pdf, get_delivered_pdf_keys, get_lyrics_by_key, get_snippet_bytes,
-    get_song_pdf, get_song_snippets, get_song_source_keys, get_song_yml, lilypond_to_html,
-    load_animations, make_deezer_app_url, make_deezer_url, read_data, save_animations,
+    Animations, ApiSong, SongItem, Storage, deezer_urls, drum_pattern_to_html, edit_lyrics,
+    external_service_and_id, get_all_songs, get_book_names, get_book_pdf, get_delivered_pdf_keys,
+    get_lyrics_by_key, get_snippet_bytes, get_song_pdf, get_song_snippets, get_song_source_keys,
+    get_song_yml, lilypond_to_html, load_animations, read_data, save_animations,
     save_lyrics_by_key, save_lyrics_handler, save_song_yml, song_mp3_key, song_pdf_key,
     write_animation_embed_to_s3, write_data, write_tempo_html_to_s3,
 };
@@ -337,8 +337,9 @@ async fn api_song_list(
     Ok(items
         .into_iter()
         .map(|s| {
-            let deezer_url = make_deezer_url(&s.title, &s.author);
-            let deezer_app_url = make_deezer_app_url(&s.title, &s.author);
+            let (deezer_url, deezer_app_url) =
+                deezer_urls(&s.title, &s.author, s.external_id.as_ref());
+            let (external_service, external_id) = external_service_and_id(s.external_id.as_ref());
             let pdf_url = pdf_keys
                 .contains(&song_pdf_key(&state.storage, &s.author, &s.title))
                 .then(|| format!("{base}/api/pdf/{}", s.id));
@@ -351,6 +352,8 @@ async fn api_song_list(
                 author: s.author,
                 deezer_url,
                 deezer_app_url,
+                external_service,
+                external_id,
                 key: s.key,
                 tempo: s.tempo,
                 tags: s.tags,
@@ -400,14 +403,14 @@ async fn api_song(
         title,
         author,
         key,
+        external_id,
         tempo,
         tags: _,
         has_song,
         has_clicks,
         error,
     } = s;
-    let deezer_url = make_deezer_url(&title, &author);
-    let deezer_app_url = make_deezer_app_url(&title, &author);
+    let (deezer_url, deezer_app_url) = deezer_urls(&title, &author, external_id.as_ref());
 
     // Check if PDFs exist
     let song_info = band_songbook::model::SongInfo {
@@ -416,6 +419,7 @@ async fn api_song(
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let pdf_name = song_info.file_stem_of_song();
 
@@ -636,6 +640,13 @@ fn baritem_to_glyph(item: &band_songbook::chords::model::BarItem) -> ChordGlyph 
             display: String::new(),
             font: "songbook_sharp".into(),
             char: "\u{2013}".into(), // en-dash
+        },
+        // A 2/4 marker rather than a chord: no glyph in the chord fonts, so it
+        // is sent as plain text for the page to render.
+        BarItem::HalfBar => ChordGlyph {
+            display: "2/4".into(),
+            font: "text".into(),
+            char: "2/4".into(),
         },
         BarItem::Chord(chord) => {
             let display = chord_display(chord);
@@ -1105,6 +1116,7 @@ async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Re
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let pdf_name = song_info.file_stem_of_song();
     let clicks_key = state
@@ -1186,6 +1198,7 @@ async fn api_pdf_lyrics(
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let pdf_name = song_info.file_stem_of_song();
     let folder = match query.columns.as_deref() {
@@ -1973,6 +1986,7 @@ async fn api_make(
 
     let result = band_songbook::make_all_with_storage(
         &srcdir,
+        None,
         local_sandbox.path(),
         None,
         None,

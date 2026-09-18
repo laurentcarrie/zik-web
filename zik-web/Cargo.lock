@@ -740,9 +740,9 @@ dependencies = [
 
 [[package]]
 name = "band-songbook"
-version = "0.0.32"
+version = "0.0.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "440b13f7c78d54980965e3a593c654d57ba83c3ad8d850b322991dd44cfc1963"
+checksum = "547e59b12efc392fa4bc2a87aea602da406308ce3129b5e71c97b11040e55956"
 dependencies = [
  "argh",
  "aws-config",
@@ -4933,7 +4933,7 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.25.21"
+version = "0.25.22"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudwatchlogs",
