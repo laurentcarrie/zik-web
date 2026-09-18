@@ -214,7 +214,10 @@ Fields of a song (the Songs section lists them for every song):
         version = env!("CARGO_PKG_VERSION"),
     );
 
-    out.push_str("\n## Songbooks by author\n\n");
+    // Both songbook sections count only songs with a PDF, and a song carries
+    // any number of tags, so neither list adds up to the catalogue. Say so:
+    // a reader who sums the tag counts otherwise finds more songs than exist.
+    out.push_str("\n## Songbooks by author\n\nEvery song that has a PDF, by author. A song without one is under `## Songs` but not here.\n\n");
     for (author, titles) in &by_author {
         out.push_str(&format!(
             "- [{author}]({}): {}\n",
@@ -224,7 +227,7 @@ Fields of a song (the Songs section lists them for every song):
     }
 
     if !by_tag.is_empty() {
-        out.push_str("\n## Songbooks by tag\n\n");
+        out.push_str("\n## Songbooks by tag\n\nA song can carry several tags, or none, so these counts overlap and add up to more than the catalogue. `## Songs` below is the whole of it.\n\n");
         for (tag, count) in &by_tag {
             out.push_str(&format!(
                 "- [{tag}]({}): {count} songs\n",
@@ -240,7 +243,10 @@ Fields of a song (the Songs section lists them for every song):
         }
     }
 
-    out.push_str("\n## Songs\n");
+    out.push_str(&format!(
+        "\n## Songs\n\nThe whole catalogue: {} songs, one section each.\n",
+        songs.len()
+    ));
     for s in &songs {
         out.push_str(&format!("\n### {} - {}\n\n", s.author, s.title));
         let mut field = |name: &str, value: &str| {
