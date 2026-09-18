@@ -1143,29 +1143,33 @@ async fn api_song_deezer(State(state): State<AppState>, Path(id): Path<String>) 
             .into_response();
     };
 
-    match deezer::track(&state.http_client, &deezer_id).await {
-        Ok(track) => Json(track).into_response(),
-        // Deezer being unreachable does not have to cost the caller
-        // everything: the cache holds the same track without its `preview`,
-        // which is a signed link too short-lived to keep anyway.
-        Err(e @ (deezer::DeezerError::Unreachable(_) | deezer::DeezerError::Unreadable(_)))
-            if let Some(cached) = get_deezer_cache(&state.storage).await.get(&deezer_id) =>
-        {
-            eprintln!("api_song_deezer: {id}: {e}, serving the cached track");
-            Json(cached).into_response()
-        }
-        Err(e) => {
-            eprintln!("api_song_deezer: {id}: {e}");
-            // A track the song names but Deezer does not know is a bad id in
-            // our data, not a missing page of ours; anything else is Deezer
-            // failing us, which is a gateway error rather than our own.
-            let status = match e {
-                deezer::DeezerError::NoSuchTrack(_) => StatusCode::NOT_FOUND,
-                _ => StatusCode::BAD_GATEWAY,
-            };
-            (status, e.to_string()).into_response()
-        }
+    let e = match deezer::track(&state.http_client, &deezer_id).await {
+        Ok(track) => return Json(track).into_response(),
+        Err(e) => e,
+    };
+
+    // Deezer being unreachable does not have to cost the caller everything:
+    // the cache holds the same track without its `preview`, which is a signed
+    // link too short-lived to keep anyway. A track Deezer answered about and
+    // does not have is not worth falling back for -- the id is simply wrong.
+    let deezer_is_down = matches!(
+        e,
+        deezer::DeezerError::Unreachable(_) | deezer::DeezerError::Unreadable(_)
+    );
+    if deezer_is_down && let Some(cached) = get_deezer_cache(&state.storage).await.get(&deezer_id) {
+        eprintln!("api_song_deezer: {id}: {e}, serving the cached track");
+        return Json(cached).into_response();
     }
+
+    eprintln!("api_song_deezer: {id}: {e}");
+    // A track the song names but Deezer does not know is a bad id in our
+    // data, not a missing page of ours; anything else is Deezer failing us,
+    // which is a gateway error rather than our own.
+    let status = match e {
+        deezer::DeezerError::NoSuchTrack(_) => StatusCode::NOT_FOUND,
+        _ => StatusCode::BAD_GATEWAY,
+    };
+    (status, e.to_string()).into_response()
 }
 
 async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Response {
