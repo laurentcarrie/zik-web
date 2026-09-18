@@ -4933,7 +4933,7 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.25.22"
+version = "0.25.23"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudwatchlogs",
@@ -4944,6 +4944,7 @@ dependencies = [
  "band-songbook",
  "chrono",
  "circles-sketch",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",

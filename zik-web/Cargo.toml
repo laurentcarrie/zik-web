@@ -1,6 +1,6 @@
 [package]
 name = "zik-web"
-version = "0.25.22"
+version = "0.25.23"
 edition = "2024"
 
 [dependencies]
@@ -23,3 +23,4 @@ band-songbook = "0.0.39"
 circles-sketch = "0.4.0"
 tempfile = "3"
 chrono = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots"] }

@@ -1,4 +1,5 @@
 pub mod circles_animation;
+pub mod deezer;
 pub mod edit_lyrics;
 pub mod lilypond;
 pub mod lyrics;

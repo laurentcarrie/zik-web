@@ -22,6 +22,7 @@ use tower::Layer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
+use song::deezer;
 use song::songbook::{self, SongbookFilter, merge_pdfs, select_songs};
 use song::{
     Animations, ApiSong, SongItem, Storage, deezer_urls, drum_pattern_to_html, edit_lyrics,
@@ -52,6 +53,9 @@ pub struct AppState {
     delivery: String,
     /// S3 URL for settings file, e.g. "s3://bucket-name/songs/settings.yml"
     settings: String,
+    /// Shared client for calls out to Deezer, so each request reuses the
+    /// connection pool instead of building one of its own.
+    http_client: reqwest::Client,
 }
 
 #[tokio::main]
@@ -107,6 +111,7 @@ async fn main() {
         srcdir_prefix,
         delivery,
         settings,
+        http_client: reqwest::Client::new(),
     };
 
     let click_sync_manager = click_sync::ClickSyncManager::new();
@@ -124,6 +129,7 @@ async fn main() {
         .route("/song/{id}", get(api_song))
         .route("/song/{id}/yml", get(api_song_yml))
         .route("/song/{id}/structure", get(api_song_structure))
+        .route("/song/{id}/deezer", get(api_song_deezer))
         .route("/song/{id}/lyrics/{section_id}", get(api_lyrics))
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
@@ -1094,6 +1100,50 @@ async fn api_mp3_with_clicks(State(state): State<AppState>, Path(id): Path<Strin
         )
             .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, format!("MP3 not found: {e}")).into_response(),
+    }
+}
+
+/// The metadata Deezer holds for a song's original recording.
+///
+/// The song names the recording with `external_id: !Deezer "<id>"` in its
+/// `song.yml`; this looks that id up on Deezer. A song that declares no
+/// Deezer track has no metadata to serve, which is a 404 like an unknown
+/// song id -- the difference is in the message.
+async fn api_song_deezer(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let items = match get_all_songs(&state.storage).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("api_song_deezer: failed to load songs: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+
+    let Some(song) = items.into_iter().find(|s| s.id == id) else {
+        return (StatusCode::NOT_FOUND, "Song not found").into_response();
+    };
+
+    let (service, deezer_id) = external_service_and_id(song.external_id.as_ref());
+    let (Some("deezer"), Some(deezer_id)) = (service.as_deref(), deezer_id) else {
+        return (
+            StatusCode::NOT_FOUND,
+            "This song declares no Deezer track (see `external_service` in /api/songs)",
+        )
+            .into_response();
+    };
+
+    match deezer::track(&state.http_client, &deezer_id).await {
+        Ok(track) => Json(track).into_response(),
+        Err(e) => {
+            eprintln!("api_song_deezer: {id}: {e}");
+            // A track the song names but Deezer does not know is a bad id in
+            // our data, not a missing page of ours; anything else is Deezer
+            // failing us, which is a gateway error rather than our own.
+            let status = match e {
+                deezer::DeezerError::NoSuchTrack(_) => StatusCode::NOT_FOUND,
+                _ => StatusCode::BAD_GATEWAY,
+            };
+            (status, e.to_string()).into_response()
+        }
     }
 }
 
