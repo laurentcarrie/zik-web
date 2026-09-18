@@ -2,11 +2,11 @@
 //!
 //! The songbook is meant to be usable by an assistant someone points at it,
 //! and to stay out of training sets and out of every search index bar the one
-//! that makes it findable by name. So `robots.txt` welcomes the bots that
-//! fetch on a person's behalf plus `OAI-SearchBot`, turns away the crawlers
-//! that index or train for anyone else, and `X-Robots-Tag: noindex` goes on
-//! every response except the ones served to a crawler we want an entry with.
-//! There is no sitemap: `llms.txt` tells a crawler more than a URL list would.
+//! that makes it findable by name. `robots.txt` carries all of that: it
+//! welcomes the bots that fetch on a person's behalf plus `OAI-SearchBot`, and
+//! turns away the crawlers that index or train for anyone else. There is no
+//! sitemap -- `llms.txt` tells a crawler more than a URL list would -- and no
+//! `X-Robots-Tag`, which the middleware below explains.
 //!
 //! The pages are a React app, so without JavaScript an assistant only sees an
 //! empty shell. Requests from a known AI user agent, or asking for markdown or
@@ -15,7 +15,7 @@
 
 use axum::{
     extract::Request,
-    http::{HeaderName, HeaderValue, Method, Uri, header},
+    http::{HeaderValue, Method, Uri, header},
     middleware::Next,
     response::Response,
 };
@@ -109,60 +109,39 @@ pub fn wants_llms_txt(user_agent: Option<&str>, accept: Option<&str>) -> bool {
     accepts("text/markdown") || (accepts("text/plain") && !accepts("text/html"))
 }
 
-/// Whether this client may list what it fetches in a search index.
-///
-/// Only the crawlers we want an entry with may. Everything else is sent
-/// `noindex`, which is what keeps the songbook out of an index when a crawler
-/// ignored `robots.txt` or picked the address up from a shared link.
-pub fn may_index(user_agent: Option<&str>) -> bool {
-    let user_agent = user_agent.unwrap_or_default().to_ascii_lowercase();
-    WELCOME_SEARCH_CRAWLERS
-        .iter()
-        .any(|bot| user_agent.contains(&bot.to_ascii_lowercase()))
-}
-
-/// Keeps responses out of search indexes, bar the one index we want to be in,
-/// and rewrites page requests from AI assistants to `llms.txt`. Must wrap the
+/// Rewrites page requests from AI assistants to `llms.txt`. Must wrap the
 /// router rather than be added with `Router::layer`, which runs after routing.
+/// Page responses vary on the headers used to decide, so caches keep the HTML
+/// and text versions apart.
 ///
-/// `X-Robots-Tag` goes on everything, pages and files alike, since a crawler
-/// that ignored `robots.txt` reaches paths a page-only rule would miss. Both
-/// it and the choice of markdown over HTML turn on the request headers, so
-/// every response says what it varied on and caches keep the versions apart.
+/// Nothing here sends `X-Robots-Tag`. It used to, and it was a mistake twice
+/// over: against the crawlers we turn away it does nothing, because a bot
+/// forbidden by `robots.txt` never fetches the page and so never reads the
+/// header -- `Disallow` is what keeps the songbook out of Google. And against
+/// the assistants we welcome it is actively harmful, since a browsing tool
+/// that honours `noindex, nofollow` may refuse to use a page someone asked it
+/// to open, or to follow the `mp3_url` the page exists to hand over.
 pub async fn serve_llms_txt_to_ai(mut request: Request, next: Next) -> Response {
     let path = request.uri().path().to_string();
     let is_page = matches!(*request.method(), Method::GET | Method::HEAD) && is_page_path(&path);
 
     // Decided in its own scope: holding a borrow of the request across the
     // await below would make the future non-Send.
-    let (to_ai, indexable) = {
+    let to_ai = is_page && {
         let headers = request.headers();
         let header = |name| headers.get(name).and_then(|v| v.to_str().ok());
-        let to_ai =
-            is_page && wants_llms_txt(header(header::USER_AGENT), header(header::ACCEPT));
-        (to_ai, may_index(header(header::USER_AGENT)))
+        wants_llms_txt(header(header::USER_AGENT), header(header::ACCEPT))
     };
     if to_ai && let Ok(uri) = Uri::try_from(llms_txt_path(&path)) {
         *request.uri_mut() = uri;
     }
 
     let mut response = next.run(request).await;
-    let headers = response.headers_mut();
-    if !indexable {
-        headers.insert(
-            HeaderName::from_static("x-robots-tag"),
-            HeaderValue::from_static("noindex, nofollow"),
-        );
+    if is_page {
+        response
+            .headers_mut()
+            .append(header::VARY, HeaderValue::from_static("User-Agent, Accept"));
     }
-    headers.append(
-        header::VARY,
-        // Pages pick markdown over HTML on Accept as well.
-        if is_page {
-            HeaderValue::from_static("User-Agent, Accept")
-        } else {
-            HeaderValue::from_static("User-Agent")
-        },
-    );
     response
 }
 
@@ -264,9 +243,8 @@ fn robots_group(out: &mut String, agents: &[&str], rules: &str) {
 ///
 /// No `Sitemap` line and no sitemap to point at — a sitemap exists to invite
 /// crawling, and an assistant that is handed the address gets more from
-/// `llms.txt` than a list of URLs could give it. Indexing is refused a second
-/// time by the `X-Robots-Tag` on every response, which also covers a crawler
-/// that fetches without reading this file.
+/// `llms.txt` than a list of URLs could give it. This file is the whole
+/// policy: a crawler that ignores it would ignore a header just as readily.
 pub fn robots_txt() -> String {
     let readable = readable_rules();
     let mut out = String::from(
@@ -275,8 +253,7 @@ pub fn robots_txt() -> String {
          # An assistant fetching a page because someone asked it to is\n\
          # welcome — /llms.txt is the whole catalogue, with a PDF and an MP3\n\
          # link per song. ChatGPT's index is welcome too, so that naming the\n\
-         # site is enough to find a song. Everything else gets\n\
-         # `X-Robots-Tag: noindex, nofollow` on top of the rules below.\n\
+         # site is enough to find a song. Everything else is turned away here.\n\
          \n",
     );
 

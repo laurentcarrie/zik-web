@@ -601,66 +601,31 @@ async fn test_ai_agents_middleware_rewrites_pages() {
         fetch("/mtl/songs", "Mozilla/5.0 Chrome/140.0").await,
         ("html".to_string(), vary)
     );
-    // API routes are never rewritten, so they don't vary on Accept -- but the
-    // indexing header still turns on the user agent.
+    // API routes are left alone, and don't vary
     assert_eq!(
         fetch("/api/songs", "ChatGPT-User/1.0").await,
-        ("json".to_string(), Some("User-Agent".to_string()))
+        ("json".to_string(), None)
     );
 
-    // Whatever was served, it is not for an index -- unless the client is the
-    // one crawler we want an entry with.
-    for (path, user_agent, indexable) in [
-        ("/", "ChatGPT-User/1.0", false),
-        ("/mtl/songs", "Mozilla/5.0 Chrome/140.0", false),
-        ("/api/songs", "GPTBot/1.1", false),
-        ("/", "Mozilla/5.0 (compatible; OAI-SearchBot/1.0)", true),
-        ("/api/songs", "OAI-SearchBot/1.0", true),
+    // Nothing tells a browsing tool to keep the page to itself: a header that
+    // says noindex/nofollow can make it refuse to use a page someone asked it
+    // to open, and robots.txt already carries the policy.
+    for (path, user_agent) in [
+        ("/", "ChatGPT-User/1.0"),
+        ("/api/songs", "Mozilla/5.0 (compatible; OAI-SearchBot/1.0)"),
+        ("/api/songs", "GPTBot/1.1"),
+        ("/mtl/songs", "Mozilla/5.0 Chrome/140.0"),
     ] {
         let request = HttpRequest::get(path)
             .header("user-agent", user_agent)
             .body(Body::empty())
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
-        let tag = response.headers().get("x-robots-tag");
-        if indexable {
-            assert!(tag.is_none(), "{user_agent} may index {path}");
-        } else {
-            assert_eq!(
-                tag.unwrap(),
-                "noindex, nofollow",
-                "{user_agent} may not index {path}"
-            );
-        }
-        // The header turns on the user agent, so say so.
         assert!(
-            response
-                .headers()
-                .get_all("vary")
-                .iter()
-                .any(|v| v.to_str().unwrap().contains("User-Agent")),
-            "{path} varies on User-Agent"
+            response.headers().get("x-robots-tag").is_none(),
+            "{path} carries no x-robots-tag for {user_agent}"
         );
     }
-}
-
-#[test]
-fn test_may_index_only_the_search_crawler_we_want() {
-    use crate::ai_agents::may_index;
-    assert!(may_index(Some("Mozilla/5.0 (compatible; OAI-SearchBot/1.0)")));
-    assert!(may_index(Some("oai-searchbot/1.0")));
-
-    // Everyone else, including OpenAI's other two bots.
-    for other in [
-        "Mozilla/5.0 AppleWebKit/537.36; compatible; ChatGPT-User/1.0",
-        "Mozilla/5.0 (compatible; GPTBot/1.1)",
-        "Mozilla/5.0 (X11; Linux x86_64) Chrome/140.0",
-        "Googlebot/2.1",
-        "curl/8.5.0",
-    ] {
-        assert!(!may_index(Some(other)), "{other} may not index");
-    }
-    assert!(!may_index(None));
 }
 
 #[test]
