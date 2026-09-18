@@ -18,9 +18,9 @@ pub use lyrics::{get_lyrics_by_key, save_lyrics_by_key};
 pub use model::{SongEntry, SongYml};
 pub use songs::{
     ApiSong, SongItem, deezer_urls, external_service_and_id, get_all_songs, get_book_names,
-    get_book_pdf, get_delivered_pdf_keys, get_snippet_bytes, get_song_pdf, get_song_snippets,
-    get_song_source_keys, get_song_yml, read_data, save_song_yml, song_mp3_key, song_pdf_key,
-    write_all_songs_to_s3, write_data,
+    get_book_pdf, get_deezer_cache, get_delivered_pdf_keys, get_snippet_bytes, get_song_pdf,
+    get_song_snippets, get_song_source_keys, get_song_yml, put_deezer_cache, read_data,
+    save_song_yml, song_mp3_key, song_pdf_key, write_all_songs_to_s3, write_data,
 };
 pub use storage::Storage;
 pub use tempo::write_tempo_html_to_s3;

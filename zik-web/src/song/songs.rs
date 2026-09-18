@@ -1,4 +1,6 @@
 use band_songbook::model::{ExternalId, SongInfo, World, WorldItem};
+
+use super::deezer::DeezerCache;
 use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -19,6 +21,21 @@ pub struct ApiSong {
     pub external_service: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
+    /// Deezer's own tempo, next to our `tempo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deezer_bpm: Option<f64>,
+    /// Deezer's popularity counter, true as of `deezer_fetched_at`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deezer_rank: Option<u64>,
+    /// Release date of the original recording, as Deezer has it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deezer_release_date: Option<String>,
+    /// The album cover, at Deezer's largest size.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deezer_cover: Option<String>,
+    /// When the four fields above were read from Deezer, RFC 3339.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deezer_fetched_at: Option<String>,
     pub key: String,
     pub tempo: u16,
     pub tags: Vec<String>,
@@ -54,6 +71,36 @@ pub fn external_service_and_id(id: Option<&ExternalId>) -> (Option<String>, Opti
         Some(ExternalId::Youtube(id)) => (Some("youtube".to_string()), Some(id.clone())),
         None => (None, None),
     }
+}
+
+/// Where the Deezer metadata of every song is kept between re-indexes.
+pub const DEEZER_CACHE_KEY: &str = "songs/deezer.yml";
+
+/// The cached Deezer metadata, or an empty cache when there is none yet.
+///
+/// A missing or unreadable file is not an error: the site served songs long
+/// before it existed, and it is rebuilt by the next re-index.
+pub async fn get_deezer_cache(storage: &Storage) -> DeezerCache {
+    let key = storage.full_key(DEEZER_CACHE_KEY);
+    match storage.get_bytes(&key).await {
+        Ok(bytes) => serde_yaml::from_slice(&bytes).unwrap_or_else(|e| {
+            eprintln!("get_deezer_cache: {key} is unreadable, ignoring it: {e}");
+            DeezerCache::default()
+        }),
+        Err(_) => DeezerCache::default(),
+    }
+}
+
+pub async fn put_deezer_cache(
+    storage: &Storage,
+    cache: &DeezerCache,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let key = storage.full_key(DEEZER_CACHE_KEY);
+    let yaml = serde_yaml::to_string(cache)?;
+    storage
+        .put_bytes(&key, yaml.into_bytes(), Some("text/yaml"))
+        .await?;
+    Ok(())
 }
 
 pub async fn get_all_songs(

@@ -444,6 +444,51 @@ fn test_deezer_track_of_response() {
     assert!(matches!(e, DeezerError::Unreadable(_)), "{e}");
 }
 
+#[tokio::test]
+async fn test_deezer_refresh_keeps_what_deezer_will_not_answer_for() {
+    use crate::song::deezer::{CachedTrack, DeezerCache, refresh};
+
+    let kept = CachedTrack {
+        id: 674958,
+        title: "Black Velvet".to_string(),
+        artist: "Alannah Myles".to_string(),
+        album: "Alannah Myles".to_string(),
+        duration: 287,
+        bpm: Some(91.1),
+        rank: 756599,
+        release_date: Some("2007-01-29".to_string()),
+        link: "https://www.deezer.com/track/674958".to_string(),
+        cover: Some("https://cdn-images.dzcdn.net/cover.jpg".to_string()),
+        fetched_at: "2026-09-01T00:00:00Z".to_string(),
+    };
+    let mut previous = DeezerCache::default();
+    previous.tracks.insert("674958".to_string(), kept.clone());
+
+    // no network in tests: every call fails, which is exactly the case
+    // this guards -- a refresh must not empty the cache when Deezer is
+    // unreachable, and must not pretend the kept entry is fresh
+    // a proxy at a closed port makes every call fail without touching the
+    // network, so the test does not depend on Deezer being up
+    let client = reqwest::Client::builder()
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:1").unwrap())
+        .build()
+        .unwrap();
+    let ids = vec!["674958".to_string(), "999999999999".to_string()];
+    let (cache, report) = refresh(&client, &ids, &previous, "2026-09-18T15:00:00Z").await;
+
+    assert_eq!(report.read, 0);
+    assert_eq!(report.failed, vec!["674958".to_string()]);
+    assert_eq!(report.missing, vec!["999999999999".to_string()]);
+    // the entry survives, with the date it was really read
+    assert_eq!(cache.get("674958"), Some(&kept));
+    assert_eq!(
+        cache.get("674958").unwrap().fetched_at,
+        "2026-09-01T00:00:00Z"
+    );
+    // and the one with nothing to keep is simply absent
+    assert_eq!(cache.get("999999999999"), None);
+}
+
 fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> crate::song::ApiSong {
     let base = "https://move-the-line.org";
     crate::song::ApiSong {
@@ -454,6 +499,11 @@ fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> cr
         deezer_app_url: format!("deezer://www.deezer.com/search/{id}"),
         external_service: None,
         external_id: None,
+        deezer_bpm: None,
+        deezer_rank: None,
+        deezer_release_date: None,
+        deezer_cover: None,
+        deezer_fetched_at: None,
         key: format!("prod/songs/{id}/song.yml"),
         tempo: 90,
         tags: tags.iter().map(|t| t.to_string()).collect(),
@@ -489,6 +539,11 @@ fn test_llms_txt_links_songbooks() {
     songs[0].external_id = Some("3135556".to_string());
     songs[0].deezer_url = "https://www.deezer.com/track/3135556".to_string();
     songs[0].deezer_app_url = "deezer://www.deezer.com/track/3135556".to_string();
+    songs[0].deezer_bpm = Some(91.1);
+    songs[0].deezer_rank = Some(756599);
+    songs[0].deezer_release_date = Some("2007-01-29".to_string());
+    songs[0].deezer_cover = Some("https://cdn-images.dzcdn.net/cover.jpg".to_string());
+    songs[0].deezer_fetched_at = Some("2026-09-18T15:00:00Z".to_string());
 
     let txt =
         crate::song::songbook::llms_txt("https://move-the-line.org", &songs, &["mtl".to_string()]);
@@ -506,6 +561,17 @@ fn test_llms_txt_links_songbooks() {
     assert!(txt.contains("- `deezer_url`: https://www.deezer.com/track/3135556"));
     assert!(txt.contains("- `external_service`: deezer"));
     assert!(txt.contains("- `external_id`: 3135556"));
+    // the columns an assistant needs for a table, without a request per song
+    assert!(txt.contains("- `deezer_bpm`: 91.1"));
+    assert!(txt.contains("- `deezer_rank`: 756599"));
+    assert!(txt.contains("- `deezer_release_date`: 2007-01-29"));
+    assert!(txt.contains("- `deezer_cover`: https://cdn-images.dzcdn.net/cover.jpg"));
+    assert!(txt.contains("- `deezer_fetched_at`: 2026-09-18T15:00:00Z"));
+    // and no third-party call offered: an assistant's sandbox cannot reach it
+    assert!(
+        !txt.contains("api.deezer.com"),
+        "llms.txt sends the reader to Deezer itself"
+    );
 
     // every field /api/songs serves for a song is in its llms.txt section
     for song in &songs {
