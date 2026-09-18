@@ -1,4 +1,5 @@
-use super::song::{Storage, get_all_songs, make_deezer_url, write_all_songs_to_s3};
+use super::song::songs::make_deezer_url;
+use super::song::{Storage, get_all_songs, write_all_songs_to_s3};
 use super::*;
 use aws_config::Region;
 
@@ -247,6 +248,7 @@ fn songbook_song(id: &str, author: &str, title: &str, tags: &[&str]) -> crate::s
         title: title.to_string(),
         author: author.to_string(),
         key: String::new(),
+        external_id: None,
         tempo: 100,
         tags: tags.iter().map(|t| t.to_string()).collect(),
         has_song: true,
@@ -354,6 +356,50 @@ fn test_select_songs() {
     );
 }
 
+#[test]
+fn test_external_service_and_id() {
+    use crate::song::external_service_and_id;
+    use band_songbook::model::ExternalId;
+
+    let deezer = ExternalId::Deezer("3135556".to_string());
+    let youtube = ExternalId::Youtube("dQw4w9WgXcQ".to_string());
+    assert_eq!(
+        external_service_and_id(Some(&deezer)),
+        (Some("deezer".to_string()), Some("3135556".to_string()))
+    );
+    assert_eq!(
+        external_service_and_id(Some(&youtube)),
+        (Some("youtube".to_string()), Some("dQw4w9WgXcQ".to_string()))
+    );
+    assert_eq!(external_service_and_id(None), (None, None));
+}
+
+#[test]
+fn test_deezer_urls_prefer_the_declared_track() {
+    use crate::song::deezer_urls;
+    use band_songbook::model::ExternalId;
+
+    // a declared Deezer id names the exact track
+    let deezer = ExternalId::Deezer("3135556".to_string());
+    let (web, app) = deezer_urls("Under The Bridge", "Red Hot Chili Peppers", Some(&deezer));
+    assert_eq!(web, "https://www.deezer.com/track/3135556");
+    assert_eq!(app, "deezer://www.deezer.com/track/3135556");
+
+    // no id, or an id on another service, falls back to the search
+    let youtube = ExternalId::Youtube("dQw4w9WgXcQ".to_string());
+    for external in [None, Some(&youtube)] {
+        let (web, app) = deezer_urls("Rehab", "Amy Winehouse", external);
+        assert_eq!(
+            web,
+            "https://www.deezer.com/search/Rehab%20Amy%20Winehouse/track"
+        );
+        assert_eq!(
+            app,
+            "deezer://www.deezer.com/search/Rehab%20Amy%20Winehouse/track"
+        );
+    }
+}
+
 fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> crate::song::ApiSong {
     let base = "https://move-the-line.org";
     crate::song::ApiSong {
@@ -362,6 +408,8 @@ fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> cr
         author: author.to_string(),
         deezer_url: format!("https://www.deezer.com/search/{id}"),
         deezer_app_url: format!("deezer://www.deezer.com/search/{id}"),
+        external_service: None,
+        external_id: None,
         key: format!("prod/songs/{id}/song.yml"),
         tempo: 90,
         tags: tags.iter().map(|t| t.to_string()).collect(),
@@ -375,7 +423,7 @@ fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> cr
 
 #[test]
 fn test_llms_txt_links_songbooks() {
-    let songs = vec![
+    let mut songs = vec![
         api_song(
             "rhcp--under",
             "Red Hot Chili Peppers",
@@ -392,6 +440,12 @@ fn test_llms_txt_links_songbooks() {
             true,
         ),
     ];
+    // a song that declares its Deezer track, as api_song_list would build it
+    songs[0].external_service = Some("deezer".to_string());
+    songs[0].external_id = Some("3135556".to_string());
+    songs[0].deezer_url = "https://www.deezer.com/track/3135556".to_string();
+    songs[0].deezer_app_url = "deezer://www.deezer.com/track/3135556".to_string();
+
     let txt =
         crate::song::songbook::llms_txt("https://move-the-line.org", &songs, &["mtl".to_string()]);
     assert!(txt.contains(
@@ -404,6 +458,10 @@ fn test_llms_txt_links_songbooks() {
     assert!(!txt.contains("?author=Amy%20Winehouse"));
     assert!(!txt.contains("?tag=sunny-bd"));
     assert!(txt.contains("### Amy Winehouse - Rehab"));
+    // a declared Deezer track is served as a ready link, not only as an id
+    assert!(txt.contains("- `deezer_url`: https://www.deezer.com/track/3135556"));
+    assert!(txt.contains("- `external_service`: deezer"));
+    assert!(txt.contains("- `external_id`: 3135556"));
 
     // every field /api/songs serves for a song is in its llms.txt section
     for song in &songs {

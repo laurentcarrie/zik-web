@@ -1,4 +1,4 @@
-use band_songbook::model::{SongInfo, World, WorldItem};
+use band_songbook::model::{ExternalId, SongInfo, World, WorldItem};
 use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -15,6 +15,10 @@ pub struct ApiSong {
     pub author: String,
     pub deezer_url: String,
     pub deezer_app_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_service: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
     pub key: String,
     pub tempo: u16,
     pub tags: Vec<String>,
@@ -34,11 +38,22 @@ pub struct SongItem {
     pub title: String,
     pub author: String,
     pub key: String,
+    pub external_id: Option<ExternalId>,
     pub tempo: u16,
     pub tags: Vec<String>,
     pub has_song: bool,
     pub has_clicks: bool,
     pub error: Option<String>,
+}
+
+/// Splits an `external_id` into the service name and the id on it, the two
+/// string fields `/api/songs` and `/llms.txt` expose.
+pub fn external_service_and_id(id: Option<&ExternalId>) -> (Option<String>, Option<String>) {
+    match id {
+        Some(ExternalId::Deezer(id)) => (Some("deezer".to_string()), Some(id.clone())),
+        Some(ExternalId::Youtube(id)) => (Some("youtube".to_string()), Some(id.clone())),
+        None => (None, None),
+    }
 }
 
 pub async fn get_all_songs(
@@ -75,6 +90,7 @@ pub async fn get_all_songs(
                     title: song.info.title,
                     author: song.info.author,
                     key,
+                    external_id: song.info.external_id,
                     tempo: song.info.tempo,
                     tags: song.info.tags,
                     has_song: song.files.has_mp3,
@@ -95,6 +111,7 @@ pub async fn get_all_songs(
                     title,
                     author,
                     key,
+                    external_id: None,
                     tempo: 0,
                     tags: vec![],
                     has_song: false,
@@ -181,6 +198,25 @@ pub fn make_deezer_app_url(title: &str, author: &str) -> String {
     )
 }
 
+/// The original recording on Deezer, on the web and in the app: the exact
+/// track when the song declares a Deezer id, a search on title and author
+/// when it declares none or names another service.
+pub fn deezer_urls(title: &str, author: &str, external: Option<&ExternalId>) -> (String, String) {
+    match external {
+        Some(ExternalId::Deezer(id)) => {
+            let id = urlencoding::encode(id);
+            (
+                format!("https://www.deezer.com/track/{id}"),
+                format!("deezer://www.deezer.com/track/{id}"),
+            )
+        }
+        _ => (
+            make_deezer_url(title, author),
+            make_deezer_app_url(title, author),
+        ),
+    }
+}
+
 const PDF_DIR: &str = "delivery/pdf/";
 
 /// Storage key of the delivered PDF of a song.
@@ -191,6 +227,7 @@ pub fn song_pdf_key(storage: &Storage, author: &str, title: &str) -> String {
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let pdf_name = song_info.file_stem_of_song();
     storage.full_key(&format!("{PDF_DIR}{pdf_name}.pdf"))
@@ -343,6 +380,7 @@ pub async fn get_song_snippets(
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let stem = song_info.file_stem_of_song();
 
@@ -377,6 +415,7 @@ pub async fn get_snippet_bytes(
         tempo: 0,
         time_signature: None,
         tags: vec![],
+        external_id: None,
     };
     let stem = song_info.file_stem_of_song();
     let dir = if ext == "pdf" {

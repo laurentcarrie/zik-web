@@ -198,7 +198,8 @@ Fields of a song (the Songs section lists them for every song):
 - `tags`: bands and events the song belongs to, for `/api/songbook?tag=`
 - `pdf_url`: chord and lyrics sheet (PDF); absent when there is none
 - `mp3_url`: recording (MP3); absent when there is none
-- `deezer_url`, `deezer_app_url`: Deezer search for the original recording, on the web and in the app
+- `deezer_url`, `deezer_app_url`: the original recording on Deezer, on the web and in the app. The exact track when `external_service` is `deezer`, otherwise a search on title and author, which may be the wrong recording
+- `external_service`, `external_id`: the original recording on a music service (`deezer` or `youtube`) and its id there, e.g. for `https://api.deezer.com/track/<external_id>`; both absent when the song declares none
 - `key`: storage key of the song source
 - `has_song`: whether the song source declares a recording
 - `has_clicks`: whether the song has a click track
@@ -252,6 +253,10 @@ Fields of a song (the Songs section lists them for every song):
         }
         field("deezer_url", &s.deezer_url);
         field("deezer_app_url", &s.deezer_app_url);
+        if let (Some(service), Some(id)) = (&s.external_service, &s.external_id) {
+            field("external_service", service);
+            field("external_id", id);
+        }
         field("key", &s.key);
         field("has_song", &s.has_song.to_string());
         field("has_clicks", &s.has_clicks.to_string());
