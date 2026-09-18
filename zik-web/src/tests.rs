@@ -400,6 +400,50 @@ fn test_deezer_urls_prefer_the_declared_track() {
     }
 }
 
+#[test]
+fn test_deezer_track_of_response() {
+    use crate::song::deezer::{DeezerError, track_of_response};
+
+    // the answer Deezer really gives for the track Black Velvet declares
+    let track = track_of_response(
+        r#"{"id":674958,"readable":true,"title":"Black Velvet","title_short":"Black Velvet","duration":287,"rank":756599,"release_date":"2007-01-29","explicit_lyrics":false,"preview":"https://cdnt-preview.dzcdn.net/api/1/1/3/e/a/0/3eaa53bc.mp3","bpm":91.1,"gain":-14,"link":"https://www.deezer.com/track/674958","artist":{"id":7950,"name":"Alannah Myles","link":"https://www.deezer.com/artist/7950"},"album":{"id":68703,"title":"Alannah Myles","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/xl.jpg"}}"#,
+    )
+    .expect("a track");
+    assert_eq!(track.id, 674958);
+    assert_eq!(track.title, "Black Velvet");
+    assert_eq!(track.artist, "Alannah Myles");
+    assert_eq!(track.album, "Alannah Myles");
+    assert_eq!(track.duration, 287);
+    assert_eq!(track.bpm, Some(91.1));
+    assert_eq!(track.release_date.as_deref(), Some("2007-01-29"));
+    assert_eq!(track.link, "https://www.deezer.com/track/674958");
+    assert!(track.preview.is_some());
+    assert!(track.cover.is_some());
+
+    // an unknown id comes back as HTTP 200 with an error object, so it must
+    // be told from a track rather than read as one
+    let e =
+        track_of_response(r#"{"error":{"type":"DataException","message":"no data","code":800}}"#)
+            .expect_err("an error");
+    assert!(matches!(e, DeezerError::NoSuchTrack(_)), "{e}");
+    assert!(e.to_string().contains("no data"), "{e}");
+
+    // Deezer says 0 for a track whose tempo it does not know, and an empty
+    // string for a missing preview: neither is served as a value
+    let track = track_of_response(
+        r#"{"id":1,"title":"T","duration":10,"bpm":0,"release_date":"","preview":"","link":"l","artist":{"name":"A"},"album":{"title":"B","cover_xl":null}}"#,
+    )
+    .expect("a track");
+    assert_eq!(track.bpm, None);
+    assert_eq!(track.release_date, None);
+    assert_eq!(track.preview, None);
+    assert_eq!(track.cover, None);
+
+    // anything that is neither is a read failure, not a missing track
+    let e = track_of_response("not json").expect_err("an error");
+    assert!(matches!(e, DeezerError::Unreadable(_)), "{e}");
+}
+
 fn api_song(id: &str, author: &str, title: &str, tags: &[&str], pdf: bool) -> crate::song::ApiSong {
     let base = "https://move-the-line.org";
     crate::song::ApiSong {

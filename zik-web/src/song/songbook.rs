@@ -189,6 +189,7 @@ link to `{base}/api/songbook`, and the server builds the merged PDF.
 - [Songs]({base}/api/songs): JSON list of songs, with the fields below
 - [Books]({base}/api/books): JSON list of prebuilt books with `name` and `url`
 - [Version]({base}/api/version): version of the server, as plain text (currently `{version}`)
+- `{base}/api/song/<id>/deezer`: what Deezer knows about a song's original recording -- `title`, `artist`, `album`, `duration` in seconds, `bpm`, `release_date`, `link`, a thirty-second `preview` (MP3) and the album `cover`. 404 when the song declares no Deezer track
 
 Fields of a song (the Songs section lists them for every song):
 
@@ -199,7 +200,7 @@ Fields of a song (the Songs section lists them for every song):
 - `pdf_url`: chord and lyrics sheet (PDF); absent when there is none
 - `mp3_url`: recording (MP3); absent when there is none
 - `deezer_url`, `deezer_app_url`: the original recording on Deezer, on the web and in the app. The exact track when `external_service` is `deezer`, otherwise a search on title and author, which may be the wrong recording
-- `external_service`, `external_id`: the original recording on a music service (`deezer` or `youtube`) and its id there, e.g. for `https://api.deezer.com/track/<external_id>`; both absent when the song declares none
+- `external_service`, `external_id`: the original recording on a music service (`deezer` or `youtube`) and its id there; `/api/song/<id>/deezer` above serves its metadata, or call `https://api.deezer.com/track/<external_id>` yourself. Both absent when the song declares none
 - `key`: storage key of the song source
 - `has_song`: whether the song source declares a recording
 - `has_clicks`: whether the song has a click track
