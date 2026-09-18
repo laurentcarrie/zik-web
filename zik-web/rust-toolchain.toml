@@ -1,0 +1,12 @@
+# The release image builds with rust:1.93-slim-bookworm
+# (Dockerfile.production:11). Pinning the same version here means a local
+# `cargo check` refuses whatever the release build would refuse.
+#
+# 0.25.24 shipped an `if let` guard: stable on a 1.98 toolchain, still
+# experimental on 1.93, so it passed here and failed building the image. Prod
+# stayed on the previous version and nothing said so until the deploy failed.
+#
+# Raise this and the Dockerfile together, never one alone.
+[toolchain]
+channel = "1.93"
+components = ["rustfmt", "clippy"]
