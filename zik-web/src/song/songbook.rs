@@ -189,7 +189,7 @@ link to `{base}/api/songbook`, and the server builds the merged PDF.
 - [Songs]({base}/api/songs): JSON list of songs, with the fields below
 - [Books]({base}/api/books): JSON list of prebuilt books with `name` and `url`
 - [Version]({base}/api/version): version of the server, as plain text (currently `{version}`)
-- `{base}/api/song/<id>/deezer`: what Deezer knows about a song's original recording -- `title`, `artist`, `album`, `duration` in seconds, `bpm`, `release_date`, `link`, a thirty-second `preview` (MP3) and the album `cover`. 404 when the song declares no Deezer track
+- `{base}/api/song/<id>/deezer`: Deezer read live for one song, for the thirty-second `preview` (MP3) and an up-to-the-minute `rank`. For a table of several songs do not call this per song: the `deezer_*` fields below are already here, for every song, at no further cost
 
 Fields of a song (the Songs section lists them for every song):
 
@@ -200,7 +200,12 @@ Fields of a song (the Songs section lists them for every song):
 - `pdf_url`: chord and lyrics sheet (PDF); absent when there is none
 - `mp3_url`: recording (MP3); absent when there is none
 - `deezer_url`, `deezer_app_url`: the original recording on Deezer, on the web and in the app. The exact track when `external_service` is `deezer`, otherwise a search on title and author, which may be the wrong recording
-- `external_service`, `external_id`: the original recording on a music service (`deezer` or `youtube`) and its id there; `/api/song/<id>/deezer` above serves its metadata, or call `https://api.deezer.com/track/<external_id>` yourself. Both absent when the song declares none
+- `external_service`, `external_id`: the original recording on a music service (`deezer` or `youtube`) and its id there; absent when the song declares none
+- `deezer_bpm`: Deezer's own tempo for the recording, to compare with `tempo` above
+- `deezer_rank`: Deezer's popularity counter, true as of `deezer_fetched_at`
+- `deezer_release_date`: when the original recording came out, `YYYY-MM-DD`
+- `deezer_cover`: the album cover (JPEG, 1000x1000)
+- `deezer_fetched_at`: when the four fields above were read from Deezer. They are refreshed when the songs are re-indexed, not at each request, so they are a snapshot rather than a live reading
 - `key`: storage key of the song source
 - `has_song`: whether the song source declares a recording
 - `has_clicks`: whether the song has a click track
@@ -257,6 +262,21 @@ Fields of a song (the Songs section lists them for every song):
         if let (Some(service), Some(id)) = (&s.external_service, &s.external_id) {
             field("external_service", service);
             field("external_id", id);
+        }
+        if let Some(bpm) = s.deezer_bpm {
+            field("deezer_bpm", &bpm.to_string());
+        }
+        if let Some(rank) = s.deezer_rank {
+            field("deezer_rank", &rank.to_string());
+        }
+        if let Some(date) = &s.deezer_release_date {
+            field("deezer_release_date", date);
+        }
+        if let Some(cover) = &s.deezer_cover {
+            field("deezer_cover", cover);
+        }
+        if let Some(at) = &s.deezer_fetched_at {
+            field("deezer_fetched_at", at);
         }
         field("key", &s.key);
         field("has_song", &s.has_song.to_string());

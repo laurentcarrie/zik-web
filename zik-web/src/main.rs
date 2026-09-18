@@ -26,11 +26,11 @@ use song::deezer;
 use song::songbook::{self, SongbookFilter, merge_pdfs, select_songs};
 use song::{
     Animations, ApiSong, SongItem, Storage, deezer_urls, drum_pattern_to_html, edit_lyrics,
-    external_service_and_id, get_all_songs, get_book_names, get_book_pdf, get_delivered_pdf_keys,
-    get_lyrics_by_key, get_snippet_bytes, get_song_pdf, get_song_snippets, get_song_source_keys,
-    get_song_yml, lilypond_to_html, load_animations, read_data, save_animations,
-    save_lyrics_by_key, save_lyrics_handler, save_song_yml, song_mp3_key, song_pdf_key,
-    write_animation_embed_to_s3, write_data, write_tempo_html_to_s3,
+    external_service_and_id, get_all_songs, get_book_names, get_book_pdf, get_deezer_cache,
+    get_delivered_pdf_keys, get_lyrics_by_key, get_snippet_bytes, get_song_pdf, get_song_snippets,
+    get_song_source_keys, get_song_yml, lilypond_to_html, load_animations, put_deezer_cache,
+    read_data, save_animations, save_lyrics_by_key, save_lyrics_handler, save_song_yml,
+    song_mp3_key, song_pdf_key, write_animation_embed_to_s3, write_data, write_tempo_html_to_s3,
 };
 
 #[derive(Clone)]
@@ -328,6 +328,7 @@ async fn api_song_list(
     base: &str,
 ) -> Result<Vec<ApiSong>, Box<dyn std::error::Error + Send + Sync>> {
     let items = songs_of_band(get_all_songs(&state.storage).await?, band);
+    let deezer_cache = get_deezer_cache(&state.storage).await;
     let (pdf_keys, source_keys) = tokio::join!(
         get_delivered_pdf_keys(&state.storage),
         get_song_source_keys(&state.storage)
@@ -346,6 +347,12 @@ async fn api_song_list(
             let (deezer_url, deezer_app_url) =
                 deezer_urls(&s.title, &s.author, s.external_id.as_ref());
             let (external_service, external_id) = external_service_and_id(s.external_id.as_ref());
+            // Deezer's own view of the recording, as of the last re-index, so
+            // a caller can build a table without a request per song.
+            let cached = external_id
+                .as_deref()
+                .filter(|_| external_service.as_deref() == Some("deezer"))
+                .and_then(|d| deezer_cache.get(d));
             let pdf_url = pdf_keys
                 .contains(&song_pdf_key(&state.storage, &s.author, &s.title))
                 .then(|| format!("{base}/api/pdf/{}", s.id));
@@ -360,6 +367,11 @@ async fn api_song_list(
                 deezer_app_url,
                 external_service,
                 external_id,
+                deezer_bpm: cached.and_then(|c| c.bpm),
+                deezer_rank: cached.map(|c| c.rank),
+                deezer_release_date: cached.and_then(|c| c.release_date.clone()),
+                deezer_cover: cached.and_then(|c| c.cover.clone()),
+                deezer_fetched_at: cached.map(|c| c.fetched_at.clone()),
                 key: s.key,
                 tempo: s.tempo,
                 tags: s.tags,
@@ -1133,6 +1145,15 @@ async fn api_song_deezer(State(state): State<AppState>, Path(id): Path<String>) 
 
     match deezer::track(&state.http_client, &deezer_id).await {
         Ok(track) => Json(track).into_response(),
+        // Deezer being unreachable does not have to cost the caller
+        // everything: the cache holds the same track without its `preview`,
+        // which is a signed link too short-lived to keep anyway.
+        Err(e @ (deezer::DeezerError::Unreachable(_) | deezer::DeezerError::Unreadable(_)))
+            if let Some(cached) = get_deezer_cache(&state.storage).await.get(&deezer_id) =>
+        {
+            eprintln!("api_song_deezer: {id}: {e}, serving the cached track");
+            Json(cached).into_response()
+        }
         Err(e) => {
             eprintln!("api_song_deezer: {id}: {e}");
             // A track the song names but Deezer does not know is a bad id in
@@ -2297,9 +2318,53 @@ async fn api_world(
             )
         })?;
 
+    // The Deezer metadata is refreshed here rather than per request: it is
+    // the step that reads every song.yml, so it is the step that knows which
+    // tracks the songs name. Deezer failing must not lose the re-index, so
+    // this runs after world.yml is safely written and never returns an error.
+    let deezer_ids: Vec<String> = world
+        .items
+        .iter()
+        .filter_map(|(_, item)| match item {
+            band_songbook::model::WorldItem::Song(song) => song.info.external_id.as_ref(),
+            _ => None,
+        })
+        .filter_map(|id| match id {
+            band_songbook::model::ExternalId::Deezer(id) => Some(id.clone()),
+            band_songbook::model::ExternalId::Youtube(_) => None,
+        })
+        .collect();
+
+    let previous = get_deezer_cache(&state.storage).await;
+    let now = chrono::Utc::now().to_rfc3339();
+    let (cache, report) = deezer::refresh(&state.http_client, &deezer_ids, &previous, &now).await;
+    let deezer_message = match put_deezer_cache(&state.storage, &cache).await {
+        Ok(()) => format!(
+            ", {} Deezer tracks read{}{}",
+            report.read,
+            if report.failed.is_empty() {
+                String::new()
+            } else {
+                format!(", {} kept from before", report.failed.len())
+            },
+            if report.missing.is_empty() {
+                String::new()
+            } else {
+                format!(", {} still unknown", report.missing.len())
+            },
+        ),
+        Err(e) => {
+            eprintln!("api_world: failed to write the Deezer cache: {e}");
+            ", the Deezer cache could not be written".to_string()
+        }
+    };
+
     Ok(Json(WorldResponse {
         success: true,
-        message: format!("world.yml written with {} songs", world.items.len()),
+        message: format!(
+            "world.yml written with {} songs{deezer_message}",
+            world.items.len()
+        ),
     }))
 }
 

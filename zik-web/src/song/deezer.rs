@@ -7,11 +7,16 @@
 //! than a 4xx, so the status code alone never tells whether the call worked.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 /// How long to wait on Deezer before giving up, so a slow third party cannot
 /// hold a request open.
 const TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Pause between two calls of a refresh, to stay well under Deezer's limit of
+/// roughly fifty calls per five seconds from one address.
+const BETWEEN_CALLS: Duration = Duration::from_millis(150);
 
 /// What went wrong reaching Deezer, mapped to a status code by the handler.
 #[derive(Debug)]
@@ -36,7 +41,7 @@ impl std::fmt::Display for DeezerError {
 
 /// The metadata of a track, as `/api/song/{id}/deezer` serves it: the fields
 /// of Deezer's track worth having, without the ones that are ours to know
-/// (`track_token`, `available_countries`, rank, gain).
+/// (`track_token`, `available_countries`, `gain`).
 #[derive(Debug, Serialize, PartialEq)]
 pub struct DeezerTrack {
     /// The Deezer track id, the same as the song's `external_id`.
@@ -51,6 +56,9 @@ pub struct DeezerTrack {
     /// song of no tempo.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bpm: Option<f64>,
+    /// Deezer's popularity counter. It moves on its own, so a stored one is
+    /// only true as of the moment it was read -- see [`CachedTrack`].
+    pub rank: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub release_date: Option<String>,
     /// The track's page on Deezer.
@@ -70,6 +78,8 @@ struct RawTrack {
     title: String,
     duration: u32,
     bpm: Option<f64>,
+    #[serde(default)]
+    rank: u64,
     release_date: Option<String>,
     link: String,
     preview: Option<String>,
@@ -129,6 +139,7 @@ pub fn track_of_response(body: &str) -> Result<DeezerTrack, DeezerError> {
         duration: raw.duration,
         // Deezer says 0 when it has no tempo for the track.
         bpm: raw.bpm.filter(|b| *b > 0.0),
+        rank: raw.rank,
         release_date: raw.release_date.filter(|d| !d.is_empty()),
         link: raw.link,
         preview: raw.preview.filter(|p| !p.is_empty()),
@@ -160,4 +171,116 @@ pub async fn track(client: &reqwest::Client, deezer_id: &str) -> Result<DeezerTr
     }
 
     track_of_response(&body)
+}
+
+/// What is kept in `songs/deezer.yml`: the fields of a track that do not go
+/// stale on their own, so a request can be answered without calling Deezer.
+///
+/// `preview` is left out on purpose. Deezer signs it with a fifteen-minute
+/// expiry (`hdnea=exp=...`), so a stored one is a dead link; it stays on
+/// `/api/song/{id}/deezer`, which reads Deezer live.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CachedTrack {
+    pub id: u64,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub duration: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bpm: Option<f64>,
+    /// True as of `fetched_at` and no later: Deezer keeps moving it.
+    pub rank: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<String>,
+    pub link: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
+    /// When this entry was read from Deezer, RFC 3339. An entry Deezer failed
+    /// to answer for keeps its old value and its old date, so the age of each
+    /// entry is its own.
+    pub fetched_at: String,
+}
+
+/// `songs/deezer.yml`: every track the songs name, by Deezer id.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct DeezerCache {
+    #[serde(default)]
+    pub tracks: BTreeMap<String, CachedTrack>,
+}
+
+impl DeezerCache {
+    pub fn get(&self, deezer_id: &str) -> Option<&CachedTrack> {
+        self.tracks.get(deezer_id)
+    }
+}
+
+/// What a refresh did, so the re-index can report it without inspecting the
+/// cache itself.
+#[derive(Debug, Default, PartialEq)]
+pub struct RefreshReport {
+    pub read: usize,
+    /// Ids Deezer would not answer for, which kept whatever they held before.
+    pub failed: Vec<String>,
+    /// Ids that failed and had nothing to keep.
+    pub missing: Vec<String>,
+}
+
+fn cached_of_track(track: DeezerTrack, fetched_at: &str) -> CachedTrack {
+    CachedTrack {
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        bpm: track.bpm,
+        rank: track.rank,
+        release_date: track.release_date,
+        link: track.link,
+        cover: track.cover,
+        fetched_at: fetched_at.to_string(),
+    }
+}
+
+/// Reads every given track from Deezer into a fresh cache.
+///
+/// Deezer allows about fifty calls per five seconds from one address, so the
+/// ids are read one at a time with a pause between them. A re-index already
+/// downloads the whole song directory, so the seconds this adds are cheap --
+/// and they are spent once per re-index rather than once per request.
+///
+/// A track Deezer will not answer for keeps the entry it had in `previous`,
+/// because a stale rank is worth more than no track at all. Nothing here
+/// fails: a re-index must not be lost to Deezer being down.
+pub async fn refresh(
+    client: &reqwest::Client,
+    deezer_ids: &[String],
+    previous: &DeezerCache,
+    fetched_at: &str,
+) -> (DeezerCache, RefreshReport) {
+    let mut cache = DeezerCache::default();
+    let mut report = RefreshReport::default();
+
+    for deezer_id in deezer_ids {
+        match track(client, deezer_id).await {
+            Ok(t) => {
+                cache
+                    .tracks
+                    .insert(deezer_id.clone(), cached_of_track(t, fetched_at));
+                report.read += 1;
+            }
+            Err(e) => {
+                eprintln!("deezer refresh: {deezer_id}: {e}");
+                match previous.get(deezer_id) {
+                    Some(kept) => {
+                        cache.tracks.insert(deezer_id.clone(), kept.clone());
+                        report.failed.push(deezer_id.clone());
+                    }
+                    None => report.missing.push(deezer_id.clone()),
+                }
+            }
+        }
+        tokio::time::sleep(BETWEEN_CALLS).await;
+    }
+
+    (cache, report)
 }
