@@ -9,9 +9,13 @@
 //! `X-Robots-Tag`, which the middleware below explains.
 //!
 //! The pages are a React app, so without JavaScript an assistant only sees an
-//! empty shell. Requests from a known AI user agent, or asking for markdown or
-//! plain text rather than HTML, are rewritten to the `llms.txt` of the same
-//! band before routing. API routes, static files and PDFs are never touched.
+//! empty shell. Requests from a known AI user agent, or that do not ask for
+//! HTML at all, are rewritten to the `llms.txt` of the same band before
+//! routing. API routes, static files and PDFs are never touched.
+//!
+//! The user agent list cannot be the whole rule: it has to be written before
+//! the agent exists, and a fetcher presenting an unknown one would be handed
+//! the empty shell. So what decides is whether the client asks for HTML.
 
 use axum::{
     extract::Request,
@@ -106,7 +110,17 @@ pub fn wants_llms_txt(user_agent: Option<&str>, accept: Option<&str>) -> bool {
         .collect();
     let accepts = |media_type: &str| accepted.iter().any(|t| t.eq_ignore_ascii_case(media_type));
 
-    accepts("text/markdown") || (accepts("text/plain") && !accepts("text/html"))
+    // A client that asks for HTML gets the app, unless it also asks for
+    // markdown, which only a reader of text does.
+    //
+    // Everything else gets the catalogue. Asking for HTML is what a browser
+    // does; a client that does not is one that cannot run the React app, so
+    // the page would be an empty shell to it. That covers `*/*` and a missing
+    // Accept, which is what a fetcher presenting an unknown user agent sends
+    // -- the case the list above can never cover, since it has to be written
+    // before the agent exists.
+    let accepts_html = accepts("text/html") || accepts("application/xhtml+xml");
+    accepts("text/markdown") || !accepts_html
 }
 
 /// Rewrites page requests from AI assistants to `llms.txt`. Must wrap the

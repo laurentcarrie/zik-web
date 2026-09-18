@@ -717,10 +717,17 @@ fn test_ai_agents_detection() {
         Some("text/markdown, text/html")
     ));
     assert!(wants_llms_txt(None, Some("text/plain")));
+    // A client that does not ask for HTML cannot run the React app, whatever
+    // it calls itself. This is what catches a fetcher whose user agent is not
+    // on the list -- the case that has to work, since the list is written
+    // before the agent exists. It takes curl and a bare request with it.
+    assert!(wants_llms_txt(Some("curl/8.5.0"), Some("*/*")));
+    assert!(wants_llms_txt(None, None));
+    assert!(wants_llms_txt(Some("some-new-assistant/2.0"), Some("*/*")));
 
+    // Asking for HTML is what a browser does, and it gets the app.
     assert!(!wants_llms_txt(Some(chrome), Some(browser_accept)));
-    assert!(!wants_llms_txt(Some("curl/8.5.0"), Some("*/*")));
-    assert!(!wants_llms_txt(None, None));
+    assert!(!wants_llms_txt(None, Some("application/xhtml+xml")));
     assert!(!wants_llms_txt(None, Some("text/plain, text/html")));
     assert!(!wants_llms_txt(None, Some("text/markdown;q=0, text/html")));
 }
@@ -765,9 +772,11 @@ async fn test_ai_agents_middleware_rewrites_pages() {
         fetch("/mtl/songs", "Claude-User/1.0").await,
         ("mtl llms".to_string(), vary.clone())
     );
+    // the helper sends no Accept, so this is a client that never says it
+    // wants HTML -- it gets the catalogue, whatever it calls itself
     assert_eq!(
         fetch("/mtl/songs", "Mozilla/5.0 Chrome/140.0").await,
-        ("html".to_string(), vary)
+        ("mtl llms".to_string(), vary)
     );
     // API routes are left alone, and don't vary
     assert_eq!(
