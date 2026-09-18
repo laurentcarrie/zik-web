@@ -557,6 +557,13 @@ fn test_llms_txt_links_songbooks() {
     assert!(!txt.contains("?author=Amy%20Winehouse"));
     assert!(!txt.contains("?tag=sunny-bd"));
     assert!(txt.contains("### Amy Winehouse - Rehab"));
+    // the counts a reader could add up wrongly: tags overlap, songbooks
+    // hold only songs with a PDF, and only `## Songs` is the catalogue
+    assert!(txt.contains("The whole catalogue: 3 songs"));
+    assert!(txt.contains("A song can carry several tags, or none"));
+    assert!(txt.contains("Every song that has a PDF, by author"));
+    // the tag counts really do add up to more than the catalogue here
+    assert!(txt.contains("- [mtl]"));
     // a declared Deezer track is served as a ready link, not only as an id
     assert!(txt.contains("- `deezer_url`: https://www.deezer.com/track/3135556"));
     assert!(txt.contains("- `external_service`: deezer"));
