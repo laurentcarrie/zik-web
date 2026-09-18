@@ -135,6 +135,15 @@ pub fn wants_llms_txt(user_agent: Option<&str>, accept: Option<&str>) -> bool {
 /// the assistants we welcome it is actively harmful, since a browsing tool
 /// that honours `noindex, nofollow` may refuse to use a page someone asked it
 /// to open, or to follow the `mp3_url` the page exists to hand over.
+/// Paths whose traffic is too dull or too chatty to record: the health check
+/// fires every few seconds, and the assets are fetched by browsers only.
+fn worth_logging(path: &str) -> bool {
+    !(path == "/version"
+        || path.starts_with("/assets/")
+        || path.starts_with("/static/")
+        || path.ends_with("/favicon.ico"))
+}
+
 pub async fn serve_llms_txt_to_ai(mut request: Request, next: Next) -> Response {
     let path = request.uri().path().to_string();
     let is_page = matches!(*request.method(), Method::GET | Method::HEAD) && is_page_path(&path);
@@ -150,7 +159,36 @@ pub async fn serve_llms_txt_to_ai(mut request: Request, next: Next) -> Response 
         *request.uri_mut() = uri;
     }
 
+    // Nothing else records a request: the container log holds only what this
+    // program prints, and the load balancer keeps no access log. Without this
+    // line there is no way to tell an assistant that never reached the site
+    // from one that reached it and made nothing of the answer -- which is the
+    // question that matters when someone reports the site as unreachable.
+    let logged = worth_logging(&path);
+    let method = request.method().clone();
+    let agent = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-")
+        .to_string();
+    let accept = request
+        .headers()
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-")
+        .to_string();
+
     let mut response = next.run(request).await;
+
+    if logged {
+        println!(
+            "request {method} {path} -> {} served={} ua={agent:?} accept={accept:?}",
+            response.status().as_u16(),
+            if to_ai { "llms.txt" } else { "as-asked" },
+        );
+    }
+
     if is_page {
         response
             .headers_mut()
