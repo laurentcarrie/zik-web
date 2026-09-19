@@ -1235,8 +1235,10 @@ async fn api_song_cover(State(state): State<AppState>, Path(id): Path<String>) -
             StatusCode::OK,
             [
                 (header::CONTENT_TYPE, cover.content_type),
-                // Deezer's cover URLs carry a digest of the image, so one that
-                // answers today answers with the same bytes tomorrow.
+                // A cover URL carries a digest of the artwork, so what it
+                // stands for does not change -- though Deezer re-encodes it,
+                // so the same URL does return differing bytes. A day-old
+                // cover is the right cover; it is only not the same file.
                 (header::CACHE_CONTROL, "public, max-age=86400"),
             ],
             cover.bytes,
