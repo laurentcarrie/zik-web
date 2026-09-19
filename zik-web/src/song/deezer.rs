@@ -284,3 +284,122 @@ pub async fn refresh(
 
     (cache, report)
 }
+
+/// What went wrong fetching a cover image, mapped to a status code by the
+/// handler.
+#[derive(Debug)]
+pub enum CoverError {
+    /// The cover URL is not one of Deezer's, so it is not ours to fetch.
+    NotDeezers(String),
+    /// The call itself failed: DNS, TLS, timeout, or a non-success status.
+    Unreachable(String),
+    /// Something came back, but not an image.
+    NotAnImage(String),
+}
+
+impl std::fmt::Display for CoverError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotDeezers(u) => write!(f, "not a Deezer image URL: {u}"),
+            Self::Unreachable(e) => write!(f, "could not reach Deezer's images: {e}"),
+            Self::NotAnImage(e) => write!(f, "Deezer's images answered with {e}"),
+        }
+    }
+}
+
+/// A cover as it goes back to the caller: the bytes, and the type to serve
+/// them as.
+pub struct Cover {
+    pub bytes: Vec<u8>,
+    pub content_type: &'static str,
+}
+
+/// Whether a cover URL is one we will fetch.
+///
+/// The URLs come from Deezer or from our own cache of it, never from the
+/// caller, so this is not a filter on user input; it keeps a wrong entry in
+/// the cache from turning the endpoint into an open proxy.
+pub fn is_deezer_image_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let host = rest
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .split('@')
+        .next_back()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    host.ends_with(".dzcdn.net") || host.ends_with(".deezer.com")
+}
+
+/// The type to serve a cover as: what the CDN declared when we know it, the
+/// file extension otherwise.
+///
+/// The declared type is matched against the image types rather than echoed,
+/// so whatever a third party puts in that header cannot become our own
+/// `Content-Type`.
+pub fn image_content_type(declared: Option<&str>, url: &str) -> Option<&'static str> {
+    let declared = declared
+        .and_then(|d| d.split(';').next())
+        .map(|d| d.trim().to_ascii_lowercase());
+    let by_header = match declared.as_deref() {
+        Some("image/jpeg" | "image/jpg") => Some("image/jpeg"),
+        Some("image/png") => Some("image/png"),
+        Some("image/gif") => Some("image/gif"),
+        Some("image/webp") => Some("image/webp"),
+        _ => None,
+    };
+    by_header.or_else(|| {
+        let path = url.split(['?', '#']).next().unwrap_or_default();
+        let path = path.to_ascii_lowercase();
+        match path.rsplit('.').next() {
+            Some("jpg" | "jpeg") => Some("image/jpeg"),
+            Some("png") => Some("image/png"),
+            Some("gif") => Some("image/gif"),
+            Some("webp") => Some("image/webp"),
+            _ => None,
+        }
+    })
+}
+
+/// Downloads a cover from Deezer's image CDN.
+pub async fn cover(client: &reqwest::Client, url: &str) -> Result<Cover, CoverError> {
+    if !is_deezer_image_url(url) {
+        return Err(CoverError::NotDeezers(url.to_string()));
+    }
+
+    let response = client
+        .get(url)
+        .timeout(TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| CoverError::Unreachable(e.to_string()))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        return Err(CoverError::Unreachable(format!("HTTP {status}")));
+    }
+
+    let declared = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let Some(content_type) = image_content_type(declared.as_deref(), url) else {
+        return Err(CoverError::NotAnImage(
+            declared.unwrap_or_else(|| "no content type".to_string()),
+        ));
+    };
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| CoverError::Unreachable(e.to_string()))?;
+
+    Ok(Cover {
+        bytes: bytes.to_vec(),
+        content_type,
+    })
+}
