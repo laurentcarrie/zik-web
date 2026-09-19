@@ -401,6 +401,60 @@ fn test_deezer_urls_prefer_the_declared_track() {
 }
 
 #[test]
+fn test_deezer_cover_url_is_deezers() {
+    use crate::song::deezer::is_deezer_image_url;
+
+    // the two hosts Deezer serves covers from, as `cover_xl` gives them
+    assert!(is_deezer_image_url(
+        "https://cdn-images.dzcdn.net/images/cover/364f0d/1000x1000-000000-80-0-0.jpg"
+    ));
+    assert!(is_deezer_image_url(
+        "https://e-cdns-images.dzcdn.net/images/cover/xl.jpg"
+    ));
+
+    // a cover URL that is not Deezer's is not ours to fetch, however it is
+    // dressed up -- the endpoint is not an open proxy
+    assert!(!is_deezer_image_url("http://cdn-images.dzcdn.net/a.jpg"));
+    assert!(!is_deezer_image_url("https://evil.example/a.jpg"));
+    assert!(!is_deezer_image_url("https://dzcdn.net.evil.example/a.jpg"));
+    assert!(!is_deezer_image_url(
+        "https://evil.example/?x=.dzcdn.net/a.jpg"
+    ));
+    assert!(!is_deezer_image_url(
+        "https://cdn-images.dzcdn.net@evil.example/a.jpg"
+    ));
+    assert!(!is_deezer_image_url("file:///etc/passwd"));
+}
+
+#[test]
+fn test_deezer_cover_content_type() {
+    use crate::song::deezer::image_content_type;
+
+    let url = "https://cdn-images.dzcdn.net/images/cover/x/1000x1000.jpg";
+
+    // what the CDN declares, charset and case included
+    assert_eq!(
+        image_content_type(Some("image/jpeg"), url),
+        Some("image/jpeg")
+    );
+    assert_eq!(
+        image_content_type(Some("IMAGE/PNG; charset=binary"), "https://x/y"),
+        Some("image/png")
+    );
+
+    // no usable header falls back to the extension, query string and all
+    assert_eq!(image_content_type(None, url), Some("image/jpeg"));
+    assert_eq!(
+        image_content_type(Some("application/octet-stream"), "https://x/y.webp?v=2"),
+        Some("image/webp")
+    );
+
+    // a type we did not ask for is never echoed back as our own
+    assert_eq!(image_content_type(Some("text/html"), "https://x/y"), None);
+    assert_eq!(image_content_type(None, "https://x/y"), None);
+}
+
+#[test]
 fn test_deezer_track_of_response() {
     use crate::song::deezer::{DeezerError, track_of_response};
 

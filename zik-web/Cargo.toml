@@ -1,6 +1,6 @@
 [package]
 name = "zik-web"
-version = "0.25.28"
+version = "0.25.29"
 edition = "2024"
 
 [dependencies]

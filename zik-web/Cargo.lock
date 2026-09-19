@@ -4933,7 +4933,7 @@ dependencies = [
 
 [[package]]
 name = "zik-web"
-version = "0.25.23"
+version = "0.25.29"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudwatchlogs",

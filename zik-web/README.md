@@ -63,6 +63,8 @@ Dev server runs at http://localhost:3000 (proxies API to backend)
 | `/api/songs` | JSON list of all songs (from world.yml), with absolute `pdf_url` and `mp3_url` when the PDF or recording exists |
 | `/api/song/:id` | Single song detail with PDF/tempo URLs |
 | `/api/song/:id/yml` | Song YAML source |
+| `/api/song/:id/deezer` | Deezer's own metadata for the song's track (title, album, bpm, rank, cover) |
+| `/api/song/:id/cover` | The album cover as an image, or 404 when the song names no Deezer track or Deezer has no cover for it |
 | `/api/pdf/:id` | PDF file for song |
 | `/api/pdf-lyrics/:id` | Lyrics PDF file |
 | `/api/pdf-snippet/:id/:name` | PDF file for a song snippet |

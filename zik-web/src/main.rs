@@ -130,6 +130,7 @@ async fn main() {
         .route("/song/{id}/yml", get(api_song_yml))
         .route("/song/{id}/structure", get(api_song_structure))
         .route("/song/{id}/deezer", get(api_song_deezer))
+        .route("/song/{id}/cover", get(api_song_cover))
         .route("/song/{id}/lyrics/{section_id}", get(api_lyrics))
         .route("/pdf/{id}", get(api_pdf))
         .route("/pdf-lyrics/{id}", get(api_pdf_lyrics))
@@ -1170,6 +1171,82 @@ async fn api_song_deezer(State(state): State<AppState>, Path(id): Path<String>) 
         _ => StatusCode::BAD_GATEWAY,
     };
     (status, e.to_string()).into_response()
+}
+
+/// The album cover of a song's Deezer track, as an image.
+///
+/// The cover URL is taken from the cache the re-index fills, so the usual
+/// request costs one call to Deezer's CDN and none to its API; a song the
+/// cache does not hold yet is looked up live. The image is proxied rather
+/// than redirected to so that a caller gets it under our own origin, with no
+/// third-party request of its own to make.
+async fn api_song_cover(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let items = match get_all_songs(&state.storage).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("api_song_cover: failed to load songs: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load songs").into_response();
+        }
+    };
+
+    let Some(song) = items.into_iter().find(|s| s.id == id) else {
+        return (StatusCode::NOT_FOUND, "Song not found").into_response();
+    };
+
+    let (service, deezer_id) = external_service_and_id(song.external_id.as_ref());
+    let (Some("deezer"), Some(deezer_id)) = (service.as_deref(), deezer_id) else {
+        return (
+            StatusCode::NOT_FOUND,
+            "This song declares no Deezer track (see `external_service` in /api/songs)",
+        )
+            .into_response();
+    };
+
+    let cached = get_deezer_cache(&state.storage)
+        .await
+        .get(&deezer_id)
+        .and_then(|c| c.cover.clone());
+    let url = match cached {
+        Some(url) => url,
+        // Not in the cache: read the track, which is the only other place the
+        // cover URL lives. A track without one is a track Deezer has no cover
+        // for, which is this endpoint's 404 rather than an error.
+        None => match deezer::track(&state.http_client, &deezer_id).await {
+            Ok(track) => match track.cover {
+                Some(url) => url,
+                None => {
+                    return (StatusCode::NOT_FOUND, "Deezer holds no cover for this track")
+                        .into_response();
+                }
+            },
+            Err(e) => {
+                eprintln!("api_song_cover: {id}: {e}");
+                let status = match e {
+                    deezer::DeezerError::NoSuchTrack(_) => StatusCode::NOT_FOUND,
+                    _ => StatusCode::BAD_GATEWAY,
+                };
+                return (status, e.to_string()).into_response();
+            }
+        },
+    };
+
+    match deezer::cover(&state.http_client, &url).await {
+        Ok(cover) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, cover.content_type),
+                // Deezer's cover URLs carry a digest of the image, so one that
+                // answers today answers with the same bytes tomorrow.
+                (header::CACHE_CONTROL, "public, max-age=86400"),
+            ],
+            cover.bytes,
+        )
+            .into_response(),
+        Err(e) => {
+            eprintln!("api_song_cover: {id}: {e}");
+            (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
+        }
+    }
 }
 
 async fn api_clicks(State(state): State<AppState>, Path(id): Path<String>) -> Response {
