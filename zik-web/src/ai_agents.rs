@@ -37,7 +37,7 @@ const AI_USER_AGENTS: &[&str] = &[
 ];
 
 /// Path prefixes that scope the site to one band.
-const BANDS: &[&str] = &["mtl", "sunny-bd", "dadrock"];
+const BANDS: &[&str] = &["mtl", "sunny-bd", "neosonics"];
 
 /// First path segments (after the band) that are not web app pages.
 const NON_PAGE_SEGMENTS: &[&str] = &[
@@ -300,7 +300,7 @@ fn robots_group(out: &mut String, agents: &[&str], rules: &str) {
 pub fn robots_txt() -> String {
     let readable = readable_rules();
     let mut out = String::from(
-        "# Songbook of the bands Move The Line, Sunny Bd and Dadrock.\n\
+        "# Songbook of the bands Move The Line, Sunny Bd and Neosonics.\n\
          #\n\
          # An assistant fetching a page because someone asked it to is\n\
          # welcome — /llms.txt is the whole catalogue, with a PDF and an MP3\n\

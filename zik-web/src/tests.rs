@@ -750,7 +750,7 @@ fn test_ai_agents_page_paths() {
     assert_eq!(llms_txt_path("/"), "/llms.txt");
     assert_eq!(llms_txt_path("/songs"), "/llms.txt");
     assert_eq!(llms_txt_path("/mtl/song/abc"), "/mtl/llms.txt");
-    assert_eq!(llms_txt_path("/dadrock"), "/dadrock/llms.txt");
+    assert_eq!(llms_txt_path("/neosonics"), "/neosonics/llms.txt");
 }
 
 #[test]
@@ -905,7 +905,7 @@ fn test_robots_txt_welcomes_assistants_and_refuses_crawlers() {
             "{welcome} is disallowed the tools before being allowed the rest: {rules}"
         );
         // ... apart from the editing tools, at the root and under every band.
-        for path in ["/edit-yml/", "/mtl/edit-yml/", "/dadrock/api/s3/"] {
+        for path in ["/edit-yml/", "/mtl/edit-yml/", "/neosonics/api/s3/"] {
             assert!(
                 rules.contains(&format!("\nDisallow: {path}\n")),
                 "{welcome} is kept out of {path}"

@@ -1,7 +1,7 @@
 items:
-- name: dadrock
+- name: neosonics
   item: !Text
-    text: Dadrock
+    text: Neosonics
     font: AkayaTelivigala-Regular
   embed_options:
     max_harmonics: 3000
@@ -43,9 +43,9 @@ items:
     - black
     - blue
     flip_y: false
-- name: dadrock-zapfino
+- name: neosonics-zapfino
   item: !Text
-    text: Dadrock
+    text: Neosonics
     font: Zapfino
   embed_options:
     max_harmonics: 3000
