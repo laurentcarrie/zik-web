@@ -174,7 +174,7 @@ pub fn llms_txt(base: &str, songs: &[ApiSong], books: &[String]) -> String {
     let mut out = format!(
         "# Move The Line songbook
 
-> Chord and lyrics sheets, as PDF, for the songs played by the bands Move The Line, Sunny Bd and Dadrock.
+> Chord and lyrics sheets, as PDF, for the songs played by the bands Move The Line, Sunny Bd and Neosonics.
 
 To give someone a PDF with several songs, do not download or merge PDFs yourself:
 link to `{base}/api/songbook`, and the server builds the merged PDF.

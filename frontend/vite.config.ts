@@ -8,7 +8,7 @@ const backendPort = process.env.BACKEND_PORT ?? '8080'
 const frontendPort = Number(process.env.FRONTEND_PORT ?? 3000)
 
 const backendPaths = ['/api', '/static', '/pdf', '/save-yml', '/save-lyrics', '/update']
-const bands = ['/mtl', '/sunny-bd', '/dadrock']
+const bands = ['/mtl', '/sunny-bd', '/neosonics']
 
 function buildProxy() {
   const proxy: Record<string, { target: string; changeOrigin: boolean; ws?: boolean }> = {}

@@ -4,7 +4,7 @@ info:
   version: 0.25.21
   description: >
     Chord and lyrics sheets (PDF) for the songs of the bands Move The Line,
-    Sunny Bd and Dadrock. Use these operations to find songs and books, then
+    Sunny Bd and Neosonics. Use these operations to find songs and books, then
     give the user a link: the server builds songbook PDFs itself, so never
     download or merge PDFs. A songbook of several songs is at
     https://move-the-line.org/api/songbook with query parameters author, tag
@@ -36,7 +36,7 @@ paths:
       operationId: listBooks
       summary: List the prebuilt books
       description: >
-        Returns the prebuilt books (full set lists, e.g. mtl, dadrock) with
+        Returns the prebuilt books (full set lists, e.g. mtl, neosonics) with
         their PDF link. Give the user the url as-is.
       responses:
         "200":
@@ -66,7 +66,7 @@ components:
           examples: [Red Hot Chili Peppers]
         tags:
           type: array
-          description: Band or event tags (move-the-line, sunny-bd, dadrock, concert-mai-2026, ...), usable in the tag parameter of /api/songbook.
+          description: Band or event tags (move-the-line, sunny-bd, neosonics, concert-mai-2026, ...), usable in the tag parameter of /api/songbook.
           items:
             type: string
         tempo:

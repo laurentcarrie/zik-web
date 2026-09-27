@@ -1,4 +1,4 @@
-# Image credits — dadrock
+# Image credits — neosonics
 
 ## background.jpg
 
