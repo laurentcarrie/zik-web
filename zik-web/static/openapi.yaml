@@ -31,6 +31,47 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Song"
+  /api/delivery/world.yml:
+    get:
+      operationId: getDeliveryIndex
+      summary: Index of the delivery, for offline sync
+      description: >
+        YAML index of the delivered songs (id, author, title, tags, pdf path)
+        and books (name, tags, ordered list of song ids). The pdf paths are
+        relative to /api/delivery/, e.g. pdf/<id>.pdf. Send If-None-Match with
+        the last ETag to get 304 when nothing changed.
+      responses:
+        "200":
+          description: The index.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "304":
+          description: Unchanged since the given ETag.
+  /api/delivery/pdf/{name}:
+    get:
+      operationId: getDeliveryPdf
+      summary: One delivered pdf, for offline sync
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: File name from the pdf field of the index, e.g. my_band--@--my_song.pdf.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The pdf, with an ETag that changes when it is re-delivered.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: Unchanged since the given ETag.
+        "404":
+          description: No such pdf.
   /api/books:
     get:
       operationId: listBooks

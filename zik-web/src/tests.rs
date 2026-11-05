@@ -896,7 +896,10 @@ fn test_robots_txt_welcomes_assistants_and_refuses_crawlers() {
         "*",
     ] {
         let rules = group_of(welcome);
-        assert!(rules.contains("\nAllow: /\n"), "{welcome} may read: {rules}");
+        assert!(
+            rules.contains("\nAllow: /\n"),
+            "{welcome} may read: {rules}"
+        );
         // `Allow: /` must come last. A parser that takes the first matching
         // rule instead of the longest one -- Python's urllib.robotparser, for
         // one -- would otherwise read it as opening the editing tools too.
@@ -975,4 +978,30 @@ async fn test_song_mp3_key_matches_song_sources() {
     let keys = get_song_source_keys(&storage).await.unwrap();
     assert!(keys.contains(&song_mp3_key("songs/muse/uprising/song.yml")));
     assert!(!keys.contains(&song_mp3_key("songs/police/roxanne/song.yml")));
+}
+
+#[test]
+fn delivery_key_only_serves_the_index_and_pdfs() {
+    use super::delivery_key;
+    assert_eq!(
+        delivery_key("world.yml").as_deref(),
+        Some("delivery/world.yml")
+    );
+    assert_eq!(
+        delivery_key("pdf/axel_bauer--@--eteins_la_lumiere.pdf").as_deref(),
+        Some("delivery/pdf/axel_bauer--@--eteins_la_lumiere.pdf")
+    );
+    for bad in [
+        "",
+        "pdf/",
+        "pdf/..",
+        "pdf/../world.yml",
+        "pdf/a/b.pdf",
+        "pdf/a.txt",
+        "mp3/a.mp3",
+        "../songs/x.yml",
+        "world.yml/x",
+    ] {
+        assert_eq!(delivery_key(bad), None, "{bad}");
+    }
 }

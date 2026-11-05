@@ -148,6 +148,7 @@ async fn main() {
         .route("/press-book/video/{*key}", get(api_press_book_video))
         .route("/s3/{*key}", get(api_read_from_s3))
         .route("/content/{*key}", get(api_serve_content))
+        .route("/delivery/{*path}", get(api_delivery))
         .route("/make-report", get(api_make_report))
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
@@ -1216,7 +1217,10 @@ async fn api_song_cover(State(state): State<AppState>, Path(id): Path<String>) -
             Ok(track) => match track.cover {
                 Some(url) => url,
                 None => {
-                    return (StatusCode::NOT_FOUND, "Deezer holds no cover for this track")
+                    return (
+                        StatusCode::NOT_FOUND,
+                        "Deezer holds no cover for this track",
+                    )
                         .into_response();
                 }
             },
@@ -1737,6 +1741,65 @@ async fn api_serve_content(State(state): State<AppState>, Path(key): Path<String
             .into_response(),
         Err(_) => (StatusCode::NOT_FOUND, "Not found").into_response(),
     }
+}
+
+/// Key, relative to the delivery root, of what `/api/delivery/...` may serve:
+/// the `world.yml` index and the delivered pdfs (`pdf/<name>.pdf`). Nothing
+/// else, so the route cannot be used to read arbitrary objects.
+fn delivery_key(path: &str) -> Option<String> {
+    let valid_name = |n: &str| {
+        !n.is_empty()
+            && n.chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '@' | '.' | ' '))
+            && !n.contains("..")
+    };
+    match path.strip_prefix("pdf/") {
+        Some(name) if name.ends_with(".pdf") && valid_name(name) => {
+            Some(format!("delivery/{path}"))
+        }
+        None if path == "world.yml" => Some("delivery/world.yml".to_string()),
+        _ => None,
+    }
+}
+
+/// Offline sync of the delivery: `world.yml` (songs, tags, books with their
+/// song order) and the pdfs it points to, at the same relative paths as in
+/// `world.yml`. The ETag changes when the object is re-delivered, so a client
+/// only downloads what changed.
+async fn api_delivery(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(path): Path<String>,
+) -> Response {
+    let Some(rel) = delivery_key(&path) else {
+        return (StatusCode::NOT_FOUND, "Not found").into_response();
+    };
+    let key = state.storage.full_key(&rel);
+    let Ok((bytes, last_modified)) = state.storage.get_bytes_with_last_modified(&key).await else {
+        return (StatusCode::NOT_FOUND, "Not found").into_response();
+    };
+    let etag = format!("\"{}-{}\"", last_modified.unwrap_or_default(), bytes.len());
+    if headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        == Some(etag.as_str())
+    {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+    }
+    let content_type = if rel.ends_with(".pdf") {
+        "application/pdf"
+    } else {
+        "application/yaml; charset=utf-8"
+    };
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, content_type.to_string()),
+            (header::ETAG, etag),
+        ],
+        bytes,
+    )
+        .into_response()
 }
 
 async fn api_make_report(
