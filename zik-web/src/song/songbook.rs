@@ -188,6 +188,7 @@ link to `{base}/api/songbook`, and the server builds the merged PDF.
 
 - [Songs]({base}/api/songs): JSON list of songs, with the fields below
 - [Books]({base}/api/books): JSON list of prebuilt books with `name` and `url`
+- [OpenAPI]({base}/openapi.yaml): OpenAPI description of this API
 - [Version]({base}/api/version): version of the server, as plain text (currently `{version}`)
 - `{base}/api/song/<id>/deezer`: Deezer read live for one song, for the thirty-second `preview` (MP3) and an up-to-the-minute `rank`. For a table of several songs do not call this per song: the `deezer_*` fields below are already here, for every song, at no further cost
 
