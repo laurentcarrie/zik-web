@@ -191,6 +191,7 @@ async fn main() {
         .route("/pdf", get(serve_pdf))
         .route("/llms.txt", get(llms_txt))
         .route("/robots.txt", get(robots_txt))
+        .route("/openapi.yaml", get(openapi_yaml))
         .route("/edit-lyrics", get(edit_lyrics))
         .route("/save-lyrics", post(save_lyrics_handler))
         .with_state(state);
@@ -1532,6 +1533,14 @@ async fn llms_txt(
     let books = get_book_names(&state.storage).await.unwrap_or_default();
     let body = songbook::llms_txt(&base, &songs, &books);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body).into_response()
+}
+
+async fn openapi_yaml() -> Response {
+    (
+        [(header::CONTENT_TYPE, "application/yaml; charset=utf-8")],
+        include_str!("../static/openapi.yaml"),
+    )
+        .into_response()
 }
 
 async fn robots_txt() -> Response {
