@@ -1745,7 +1745,8 @@ async fn api_serve_content(State(state): State<AppState>, Path(key): Path<String
 }
 
 /// Key, relative to the delivery root, of what `/api/delivery/...` may serve:
-/// the `world.yml` index and the delivered pdfs (`pdf/<name>.pdf`). Nothing
+/// the `world.yml` index and the delivered pdfs (`pdf/<name>.pdf`, and the
+/// pdfs of raw songs, `raw/<name>.pdf`). Nothing
 /// else, so the route cannot be used to read arbitrary objects.
 fn delivery_key(path: &str) -> Option<String> {
     let valid_name = |n: &str| {
@@ -1754,7 +1755,10 @@ fn delivery_key(path: &str) -> Option<String> {
                 .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '@' | '.' | ' '))
             && !n.contains("..")
     };
-    match path.strip_prefix("pdf/") {
+    let pdf_name = path
+        .strip_prefix("pdf/")
+        .or_else(|| path.strip_prefix("raw/"));
+    match pdf_name {
         Some(name) if name.ends_with(".pdf") && valid_name(name) => {
             Some(format!("delivery/{path}"))
         }

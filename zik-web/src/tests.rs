@@ -991,8 +991,15 @@ fn delivery_key_only_serves_the_index_and_pdfs() {
         delivery_key("pdf/axel_bauer--@--eteins_la_lumiere.pdf").as_deref(),
         Some("delivery/pdf/axel_bauer--@--eteins_la_lumiere.pdf")
     );
+    assert_eq!(
+        delivery_key("raw/FixHoleCM.pdf").as_deref(),
+        Some("delivery/raw/FixHoleCM.pdf")
+    );
     for bad in [
         "",
+        "raw/",
+        "raw/../world.yml",
+        "raw/a.txt",
         "pdf/",
         "pdf/..",
         "pdf/../world.yml",

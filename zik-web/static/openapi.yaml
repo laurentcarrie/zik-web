@@ -38,7 +38,7 @@ paths:
       description: >
         YAML index of the delivered songs (id, author, title, tags, pdf path)
         and books (name, tags, ordered list of song ids). The pdf paths are
-        relative to /api/delivery/, e.g. pdf/<id>.pdf. Send If-None-Match with
+        relative to /api/delivery/, e.g. pdf/<id>.pdf, or raw/<file>.pdf for raw songs. Send If-None-Match with
         the last ETag to get 304 when nothing changed.
       responses:
         "200":
@@ -49,6 +49,29 @@ paths:
                 type: string
         "304":
           description: Unchanged since the given ETag.
+  /api/delivery/raw/{name}:
+    get:
+      operationId: getDeliveryRawPdf
+      summary: One delivered raw-song pdf, for offline sync
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: File name from the pdf field of the index, e.g. FixHoleCM.pdf.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The pdf, with an ETag.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: Unchanged since the given ETag.
+        "404":
+          description: No such pdf.
   /api/delivery/pdf/{name}:
     get:
       operationId: getDeliveryPdf
