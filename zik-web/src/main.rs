@@ -1822,6 +1822,9 @@ struct DeliveryArchiveResponse {
     size: i64,
     /// ETag of the archive, to tell whether it changed since the last sync.
     etag: Option<String>,
+    /// CRC-64/NVME of the whole archive, base64 of the 8 big-endian bytes, to
+    /// check a download. Absent when the archive was uploaded without one.
+    checksum_crc64nvme: Option<String>,
     /// Seconds the `url` stays valid.
     expires_in: u64,
 }
@@ -1848,6 +1851,7 @@ async fn api_delivery_archive(
         .head_object()
         .bucket(bucket)
         .key(&key)
+        .checksum_mode(aws_sdk_s3::types::ChecksumMode::Enabled)
         .send()
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -1865,6 +1869,7 @@ async fn api_delivery_archive(
         url: presigned.uri().to_string(),
         size: head.content_length().unwrap_or(0),
         etag: head.e_tag().map(str::to_string),
+        checksum_crc64nvme: head.checksum_crc64_nvme().map(str::to_string),
         expires_in: ARCHIVE_URL_TTL_SECS,
     }))
 }
