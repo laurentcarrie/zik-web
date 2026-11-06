@@ -99,6 +99,7 @@ paths:
                   url: {type: string, description: Presigned S3 link.}
                   size: {type: integer, description: Size of the archive in bytes.}
                   etag: {type: string, description: ETag of the archive.}
+                  checksum_crc64nvme: {type: string, description: "CRC-64/NVME of the whole archive, base64 of the 8 big-endian bytes; absent when uploaded without one."}
                   expires_in: {type: integer, description: Seconds the url stays valid.}
         "404":
           description: Unknown archive, or not delivered yet.
