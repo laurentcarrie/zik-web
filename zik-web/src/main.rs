@@ -149,6 +149,7 @@ async fn main() {
         .route("/s3/{*key}", get(api_read_from_s3))
         .route("/content/{*key}", get(api_serve_content))
         .route("/delivery/{*path}", get(api_delivery))
+        .route("/delivery-archive/{name}", get(api_delivery_archive))
         .route("/make-report", get(api_make_report))
         .route("/lambda-status", get(api_lambda_status))
         .route("/lilypond-to-html", post(api_lilypond_to_html))
@@ -1800,6 +1801,72 @@ async fn api_delivery(
         bytes,
     )
         .into_response()
+}
+
+/// Archives of the delivery that `/api/delivery-archive/<name>` may link to,
+/// as `(name, file name under the bucket root)`. Nothing else can be signed.
+const DELIVERY_ARCHIVES: [(&str, &str); 3] = [
+    ("pdf", "delivery-pdf.tar.gz"),
+    ("mp3", "delivery-mp3.tar.gz"),
+    ("mp3-renders", "delivery-mp3-renders.tar.gz"),
+];
+
+/// How long a presigned archive link stays valid.
+const ARCHIVE_URL_TTL_SECS: u64 = 900;
+
+#[derive(Serialize)]
+struct DeliveryArchiveResponse {
+    /// Presigned S3 link, to download the archive from S3 directly.
+    url: String,
+    /// Size of the archive, in bytes.
+    size: i64,
+    /// ETag of the archive, to tell whether it changed since the last sync.
+    etag: Option<String>,
+    /// Seconds the `url` stays valid.
+    expires_in: u64,
+}
+
+/// Short-lived presigned link to one delivery archive (`pdf`, `mp3` or
+/// `mp3-renders`), so a client downloads the large tarball from S3 directly
+/// instead of through this server.
+async fn api_delivery_archive(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<DeliveryArchiveResponse>, StatusCode> {
+    use aws_sdk_s3::presigning::PresigningConfig;
+    use std::time::Duration;
+
+    let Some((_, file)) = DELIVERY_ARCHIVES.iter().find(|(n, _)| *n == name) else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    let Storage::S3 { client, bucket, .. } = &state.storage else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    let key = state.storage.full_key(file);
+
+    let head = client
+        .head_object()
+        .bucket(bucket)
+        .key(&key)
+        .send()
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let cfg = PresigningConfig::expires_in(Duration::from_secs(ARCHIVE_URL_TTL_SECS))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let presigned = client
+        .get_object()
+        .bucket(bucket)
+        .key(&key)
+        .presigned(cfg)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(DeliveryArchiveResponse {
+        url: presigned.uri().to_string(),
+        size: head.content_length().unwrap_or(0),
+        etag: head.e_tag().map(str::to_string),
+        expires_in: ARCHIVE_URL_TTL_SECS,
+    }))
 }
 
 async fn api_make_report(

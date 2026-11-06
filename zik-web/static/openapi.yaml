@@ -72,6 +72,36 @@ paths:
           description: Unchanged since the given ETag.
         "404":
           description: No such pdf.
+  /api/delivery-archive/{name}:
+    get:
+      operationId: getDeliveryArchive
+      summary: Presigned S3 link to a delivery tarball
+      description: >
+        Short-lived presigned S3 link to one tar.gz of the delivery, so the
+        large file is downloaded from S3 directly and not through this server.
+        Download the link with a plain GET before it expires.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Which archive, one of pdf, mp3 or mp3-renders.
+          schema:
+            type: string
+            enum: [pdf, mp3, mp3-renders]
+      responses:
+        "200":
+          description: The link, with the size and ETag of the archive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: {type: string, description: Presigned S3 link.}
+                  size: {type: integer, description: Size of the archive in bytes.}
+                  etag: {type: string, description: ETag of the archive.}
+                  expires_in: {type: integer, description: Seconds the url stays valid.}
+        "404":
+          description: Unknown archive, or not delivered yet.
   /api/books:
     get:
       operationId: listBooks
